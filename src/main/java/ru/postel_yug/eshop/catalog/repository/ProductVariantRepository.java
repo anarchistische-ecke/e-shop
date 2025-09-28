@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ProductVarianRepository extends JpaRepository<ProductVariant, UUID> {
+public interface ProductVariantRepository extends JpaRepository<ProductVariant, UUID> {
     Optional<ProductVariant> findBySlug(String slug);
 
     List<ProductVariant> findByProductId(UUID productId);
