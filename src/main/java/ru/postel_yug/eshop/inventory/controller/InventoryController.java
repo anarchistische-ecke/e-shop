@@ -30,7 +30,7 @@ public class InventoryController {
             @PathVariable UUID variantId,
             @RequestBody InventoryDto inventoryRequest
     ) {
-        int newQty = inventoryRequest.getQty();
+        Integer newQty = inventoryRequest.getQty();
         Inventory updated = inventoryService.updateStock(variantId, newQty);
         return inventoryMapper.toDto(updated);
     }
