@@ -3,6 +3,8 @@ package ru.postel_yug.eshop.shipping.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import ru.postel_yug.eshop.order.entity.Order;
 
 import java.math.BigDecimal;

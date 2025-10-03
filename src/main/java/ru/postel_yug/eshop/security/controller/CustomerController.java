@@ -5,6 +5,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import ru.postel_yug.eshop.security.dto.ProfileDto;
+import ru.postel_yug.eshop.security.dto.UpdateProfileRequest;
 import ru.postel_yug.eshop.security.entity.User;
 import ru.postel_yug.eshop.security.repository.UserRepository;
 
@@ -25,7 +27,6 @@ public class CustomerController {
         return ResponseEntity.ok(profile);
     }
 
-    // Обновление имени пользователя
     @PutMapping("/profile")
     public ResponseEntity<?> updateProfile(@RequestBody UpdateProfileRequest req, Authentication auth) {
         UserDetails userDetails = (UserDetails) auth.getPrincipal();

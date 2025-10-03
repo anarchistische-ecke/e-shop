@@ -1,10 +1,5 @@
 package ru.postel_yug.eshop.security.service;
 
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import lombok.var;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -12,11 +7,8 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import ru.postel_yug.eshop.security.entity.User;
-import ru.postel_yug.eshop.security.entity.Role;
 import ru.postel_yug.eshop.security.repository.UserRepository;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service

@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.publisher.Mono;
 import ru.postel_yug.eshop.order.dto.PaymentDetails;
 import ru.postel_yug.eshop.order.entity.Order;
@@ -11,6 +12,7 @@ import ru.postel_yug.eshop.order.entity.OrderStatus;
 import ru.postel_yug.eshop.payment.dto.LifepayCallbackData;
 import ru.postel_yug.eshop.payment.entity.PaymentTransaction;
 import ru.postel_yug.eshop.payment.repository.PaymentRepository;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
