@@ -80,7 +80,6 @@ public class CartController {
     public ResponseEntity<CartDto> mergeCarts(@RequestParam String userId,
                                               @RequestParam String guestId) {
         Cart mergedCart = cartService.mergeCarts(guestId, userId);
-        // После слияния, возвращаем корзину пользователя. Для пользователя cartId не нужен.
         CartDto responseDto = CartMapper.toCartDto(mergedCart, null);
         return ResponseEntity.ok(responseDto);
     }
