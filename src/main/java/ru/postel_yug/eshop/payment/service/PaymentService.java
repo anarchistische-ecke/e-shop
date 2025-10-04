@@ -11,6 +11,7 @@ import ru.postel_yug.eshop.order.entity.Order;
 import ru.postel_yug.eshop.order.entity.OrderStatus;
 import ru.postel_yug.eshop.payment.dto.LifepayCallbackData;
 import ru.postel_yug.eshop.payment.entity.PaymentTransaction;
+import ru.postel_yug.eshop.payment.exception.PaymentFailedException;
 import ru.postel_yug.eshop.payment.repository.PaymentRepository;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -25,7 +26,7 @@ public class PaymentService {
     private WebClient lifepayWebClient;
     @Autowired private PaymentRepository paymentRepo;
     @Value("${app.lifepay.callbackUrl}")
-    private String callbackUrl;  // URL нашего сервера для вебхука (возможно, надо указать Lifepay при создании платежа)
+    private String callbackUrl;
 
     public void processPayment(Order order, PaymentDetails paymentDetails) throws PaymentFailedException {
         // Создаем запись о платеже в статусе INIT
