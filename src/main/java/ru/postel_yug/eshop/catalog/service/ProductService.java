@@ -4,6 +4,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import ru.postel_yug.eshop.catalog.entity.Product;
 import ru.postel_yug.eshop.catalog.repository.ProductRepository;
+import ru.postel_yug.eshop.catalog.repository.ProductVariantRepository;
 
 import java.util.List;
 import java.util.UUID;
@@ -31,5 +32,10 @@ public class ProductService {
 
     public List<Product> getProductsByBrand(UUID brandId) {
         return productRepository.findByBrandId(brandId);
+    }
+
+    public Product getProductById(UUID productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product with an id '" + productId + "' is not found"));
     }
 }

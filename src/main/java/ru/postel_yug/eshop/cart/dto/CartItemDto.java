@@ -1,19 +1,34 @@
 package ru.postel_yug.eshop.cart.dto;
 
-import lombok.Data;
+import ru.postel_yug.eshop.catalog.dto.ProductInfo;
 
-import java.math.BigDecimal;
-import java.util.Map;
-import java.util.UUID;
-
-@Data
 public class CartItemDto {
-    private String productId;
-    private String productName;
+    private ProductInfo product;
     private int quantity;
-    private BigDecimal pricePerUnit;
-    private BigDecimal totalPrice;
 
-    public CartItemDto(String productId, String productName, int quantity, BigDecimal pricePerUnit, BigDecimal totalPrice) {
+    public CartItemDto() {
+    }
+
+    public CartItemDto(ProductInfo product, int quantity) {
+        this.product = product;
+        this.quantity = quantity;
+    }
+
+    public ProductInfo getProduct() {
+        return product;
+    }
+
+    public void setProduct(ProductInfo product) {
+        this.product = product;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
     }
 }
+
+

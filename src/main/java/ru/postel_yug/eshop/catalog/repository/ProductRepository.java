@@ -15,4 +15,6 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findByBrandSlug(String slug);
 
     List<Product> findByBrandId(UUID brandId);
+
+    Optional<Product> findById(UUID productId);
 }

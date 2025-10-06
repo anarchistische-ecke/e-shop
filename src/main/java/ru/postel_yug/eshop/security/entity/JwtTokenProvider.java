@@ -1,63 +1,76 @@
 package ru.postel_yug.eshop.security.entity;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 
-import java.util.Arrays;
-import java.util.Collection;
+import java.security.Key;
 import java.util.Date;
-import java.util.List;
-import java.util.stream.Collectors;
+
 
 @Component
 public class JwtTokenProvider {
-    @Value("${app.jwt.secret}")
-    private String secretKey;
-    private final long validityInMs = 3600000; // 1 час
 
-    public String generateToken(String email, Collection<? extends GrantedAuthority> roles) {
+    private final Key secretKey;
+    private final long validityInMilliseconds;
+
+    public JwtTokenProvider(
+            @Value("${security.jwt.token.secret-key:secret}") String secret,
+            @Value("${security.jwt.token.expire-length:3600000}") long validityInMs) {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes());
+        this.validityInMilliseconds = validityInMs;
+    }
+
+    /**
+     * Creates a JWT token for a username and role.
+     */
+    public String createToken(String username, String role) {
+        Claims claims = Jwts.claims().setSubject(username);
+        claims.put("role", role);
         Date now = new Date();
-        Date exp = new Date(now.getTime() + validityInMs);
-        String rolesStr = roles.stream()
-                .map(GrantedAuthority::getAuthority)
-                .collect(Collectors.joining(","));
+        Date expiry = new Date(now.getTime() + validityInMilliseconds);
         return Jwts.builder()
-                .setSubject(email)
-                .claim("roles", rolesStr)
+                .setClaims(claims)
                 .setIssuedAt(now)
-                .setExpiration(exp)
-                .signWith(Keys.hmacShaKeyFor(secretKey.getBytes()), SignatureAlgorithm.HS256)
+                .setExpiration(expiry)
+                .signWith(secretKey, SignatureAlgorithm.HS256)
                 .compact();
     }
 
+    /**
+     * Validates that a token is well formed and not expired.
+     */
     public boolean validateToken(String token) {
         try {
-            Jwts.parserBuilder().setSigningKey(secretKey.getBytes()).build().parseClaimsJws(token);
+            Jwts.parserBuilder()
+                    .setSigningKey(secretKey)
+                    .build()
+                    .parseClaimsJws(token);
             return true;
-        } catch (JwtException | IllegalArgumentException e) {
+        } catch (Exception e) {
             return false;
         }
     }
 
-    public String getUsernameFromToken(String token) {
-        Claims claims = Jwts.parserBuilder()
-                .setSigningKey(secretKey.getBytes())
+    public String getUsername(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(secretKey)
                 .build()
                 .parseClaimsJws(token)
-                .getBody();
-        return claims.getSubject();
+                .getBody()
+                .getSubject();
     }
 
-    public List<String> getRolesFromToken(String token) {
+    public String getRole(String token) {
         Claims claims = Jwts.parserBuilder()
-                .setSigningKey(secretKey.getBytes())
+                .setSigningKey(secretKey)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
-        Object rolesObject = claims.get("roles");
-        return rolesObject != null ? Arrays.asList(rolesObject.toString().split(",")) : List.of();
+        Object role = claims.get("role");
+        return role != null ? role.toString() : null;
     }
 }
-
