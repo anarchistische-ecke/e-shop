@@ -19,6 +19,7 @@
         <module>order</module>
         <module>payment</module>
         <module>shipment</module>
+        <module>api</module>
     </modules>
 
     <properties>

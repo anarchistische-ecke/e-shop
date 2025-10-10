@@ -7,10 +7,12 @@ import com.example.cart.repository.CartRepository;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.repository.ProductVariantRepository;
 import com.example.common.domain.Money;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -45,6 +47,11 @@ public class CartService {
         cart.addItem(item);
         cartRepository.save(cart);
         return item;
+    }
+
+    public Cart getCartById(UUID cartId) {
+        return cartRepository.findById(cartId)
+                .orElseThrow(() -> new EntityNotFoundException("Такой корзины нет" + cartId));
     }
 
     public void removeItem(UUID cartId, UUID itemId) {
