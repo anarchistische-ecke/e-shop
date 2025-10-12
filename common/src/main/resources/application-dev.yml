@@ -1,8 +1,10 @@
 spring:
-  profiles: dev
+  config:
+    activate:
+      on-profile: dev
   datasource:
-    url: jdbc:postgresql://localhost:5432/eshop
-    username: eshop
+    url: jdbc:postgresql://localhost:5433/eshop?sslmode=disable
+    username: eshopUser
     password: eshop
     driver-class-name: org.postgresql.Driver
   jpa:

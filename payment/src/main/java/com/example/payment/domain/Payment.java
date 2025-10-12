@@ -2,10 +2,7 @@ package com.example.payment.domain;
 
 import com.example.common.domain.BaseEntity;
 import com.example.common.domain.Money;
-import jakarta.persistence.Column;
-import jakarta.persistence.Embedded;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
@@ -28,7 +25,8 @@ public class Payment extends BaseEntity {
 
     @NotBlank
     @Column(name = "status", nullable = false)
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus status;
 
     @Column(name = "payment_date", nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime paymentDate;
@@ -36,7 +34,7 @@ public class Payment extends BaseEntity {
     public Payment() {
     }
 
-    public Payment(UUID orderId, Money amount, String method, String status) {
+    public Payment(UUID orderId, Money amount, String method, PaymentStatus status) {
         this.orderId = orderId;
         this.amount = amount;
         this.method = method;
@@ -68,11 +66,11 @@ public class Payment extends BaseEntity {
         this.method = method;
     }
 
-    public String getStatus() {
+    public PaymentStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(PaymentStatus status) {
         this.status = status;
     }
 

@@ -1,3 +1,9 @@
 spring:
   profiles:
     active: dev
+
+lifepay:
+  base-url: https://api-ecom.life-pay.ru/v1   # Base URL for LifePay ECOM API
+  service-id: 123456                          # Your LifePay service_id (from LifePay account Integration settings)
+  api-key: lifepay_api_key_here               # Your LifePay API key
+  notification-url: https://<my-domain>/payment/3ds_return  # URL for LifePay to redirect after 3DS (must be a valid endpoint in your app)

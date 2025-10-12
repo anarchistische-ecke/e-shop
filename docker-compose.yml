@@ -4,10 +4,10 @@ services:
     container_name: e-shop-postgres
     environment:
       POSTGRES_DB: eshop
-      POSTGRES_USER: eshop
+      POSTGRES_USER: eshopUser
       POSTGRES_PASSWORD: eshop
     ports:
-      - "5433:5433"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped

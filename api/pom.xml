@@ -57,6 +57,11 @@
             <artifactId>shipment</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
     </dependencies>
 
     <properties>
@@ -71,7 +76,6 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <!-- Main application class for Spring Boot -->
                     <mainClass>com.example.api.ApiApplication</mainClass>
                 </configuration>
             </plugin>
