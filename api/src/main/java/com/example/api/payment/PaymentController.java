@@ -20,6 +20,7 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+
     @Autowired
     public PaymentController(PaymentService paymentService) {
         this.paymentService = paymentService;
@@ -90,37 +91,133 @@ public class PaymentController {
         private Integer timezoneOffset;
         private Boolean javascriptEnabled;
         private Boolean javaEnabled;
-        public UUID getOrderId() { return orderId; }
-        public void setOrderId(UUID orderId) { this.orderId = orderId; }
-        public Long getAmount() { return amount; }
-        public void setAmount(Long amount) { this.amount = amount; }
-        public String getCurrency() { return currency; }
-        public void setCurrency(String currency) { this.currency = currency; }
-        public String getMethod() { return method; }
-        public void setMethod(String method) { this.method = method; }
-        public String getCardNumber() { return cardNumber; }
-        public void setCardNumber(String cardNumber) { this.cardNumber = cardNumber; }
-        public String getCardExpiryMonth() { return cardExpiryMonth; }
-        public void setCardExpiryMonth(String cardExpiryMonth) { this.cardExpiryMonth = cardExpiryMonth; }
-        public String getCardExpiryYear() { return cardExpiryYear; }
-        public void setCardExpiryYear(String cardExpiryYear) { this.cardExpiryYear = cardExpiryYear; }
-        public String getCardCvv() { return cardCvv; }
-        public void setCardCvv(String cardCvv) { this.cardCvv = cardCvv; }
-        public String getCardHolderName() { return cardHolderName; }
-        public void setCardHolderName(String cardHolderName) { this.cardHolderName = cardHolderName; }
-        public String getCardToken() { return cardToken; }
-        public void setCardToken(String cardToken) { this.cardToken = cardToken; }
-        public Integer getScreenWidth() { return screenWidth; }
-        public void setScreenWidth(Integer screenWidth) { this.screenWidth = screenWidth; }
-        public Integer getScreenHeight() { return screenHeight; }
-        public void setScreenHeight(Integer screenHeight) { this.screenHeight = screenHeight; }
-        public Integer getColorDepth() { return colorDepth; }
-        public void setColorDepth(Integer colorDepth) { this.colorDepth = colorDepth; }
-        public Integer getTimezoneOffset() { return timezoneOffset; }
-        public void setTimezoneOffset(Integer timezoneOffset) { this.timezoneOffset = timezoneOffset; }
-        public Boolean getJavascriptEnabled() { return javascriptEnabled; }
-        public void setJavascriptEnabled(Boolean javascriptEnabled) { this.javascriptEnabled = javascriptEnabled; }
-        public Boolean getJavaEnabled() { return javaEnabled; }
-        public void setJavaEnabled(Boolean javaEnabled) { this.javaEnabled = javaEnabled; }
+
+        public UUID getOrderId() {
+            return orderId;
+        }
+
+        public void setOrderId(UUID orderId) {
+            this.orderId = orderId;
+        }
+
+        public Long getAmount() {
+            return amount;
+        }
+
+        public void setAmount(Long amount) {
+            this.amount = amount;
+        }
+
+        public String getCurrency() {
+            return currency;
+        }
+
+        public void setCurrency(String currency) {
+            this.currency = currency;
+        }
+
+        public String getMethod() {
+            return method;
+        }
+
+        public void setMethod(String method) {
+            this.method = method;
+        }
+
+        public String getCardNumber() {
+            return cardNumber;
+        }
+
+        public void setCardNumber(String cardNumber) {
+            this.cardNumber = cardNumber;
+        }
+
+        public String getCardExpiryMonth() {
+            return cardExpiryMonth;
+        }
+
+        public void setCardExpiryMonth(String cardExpiryMonth) {
+            this.cardExpiryMonth = cardExpiryMonth;
+        }
+
+        public String getCardExpiryYear() {
+            return cardExpiryYear;
+        }
+
+        public void setCardExpiryYear(String cardExpiryYear) {
+            this.cardExpiryYear = cardExpiryYear;
+        }
+
+        public String getCardCvv() {
+            return cardCvv;
+        }
+
+        public void setCardCvv(String cardCvv) {
+            this.cardCvv = cardCvv;
+        }
+
+        public String getCardHolderName() {
+            return cardHolderName;
+        }
+
+        public void setCardHolderName(String cardHolderName) {
+            this.cardHolderName = cardHolderName;
+        }
+
+        public String getCardToken() {
+            return cardToken;
+        }
+
+        public void setCardToken(String cardToken) {
+            this.cardToken = cardToken;
+        }
+
+        public Integer getScreenWidth() {
+            return screenWidth;
+        }
+
+        public void setScreenWidth(Integer screenWidth) {
+            this.screenWidth = screenWidth;
+        }
+
+        public Integer getScreenHeight() {
+            return screenHeight;
+        }
+
+        public void setScreenHeight(Integer screenHeight) {
+            this.screenHeight = screenHeight;
+        }
+
+        public Integer getColorDepth() {
+            return colorDepth;
+        }
+
+        public void setColorDepth(Integer colorDepth) {
+            this.colorDepth = colorDepth;
+        }
+
+        public Integer getTimezoneOffset() {
+            return timezoneOffset;
+        }
+
+        public void setTimezoneOffset(Integer timezoneOffset) {
+            this.timezoneOffset = timezoneOffset;
+        }
+
+        public Boolean getJavascriptEnabled() {
+            return javascriptEnabled;
+        }
+
+        public void setJavascriptEnabled(Boolean javascriptEnabled) {
+            this.javascriptEnabled = javascriptEnabled;
+        }
+
+        public Boolean getJavaEnabled() {
+            return javaEnabled;
+        }
+
+        public void setJavaEnabled(Boolean javaEnabled) {
+            this.javaEnabled = javaEnabled;
+        }
     }
 }

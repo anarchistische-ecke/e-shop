@@ -7,6 +7,7 @@ import com.example.payment.domain.PaymentStatus;
 import com.example.payment.repository.PaymentRepository;
 import com.example.common.domain.Money;
 import jakarta.transaction.Transactional;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -21,13 +22,16 @@ public class PaymentService {
 
     @Autowired
     public PaymentService(PaymentRepository paymentRepository, OrderRepository orderRepository,
-                          LifePayClient lifePayClient) {
+                          ObjectProvider<LifePayClient> lifePayClientProvider) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
-        this.lifePayClient = lifePayClient;
+        this.lifePayClient = lifePayClientProvider.getIfAvailable();
     }
 
     public Payment processPayment(UUID orderId, Money amount, String method, String cardToken, BrowserInfo browserInfo) {
+        if (lifePayClient == null) {
+            throw new IllegalStateException("LifePay integration is disabled (set lifepay.enabled=true to enable).");
+        }
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
 

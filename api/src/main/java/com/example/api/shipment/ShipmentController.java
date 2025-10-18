@@ -43,12 +43,30 @@ public class ShipmentController {
         private String carrier;
         @NotBlank
         private String trackingNumber;
-        public UUID getOrderId() { return orderId; }
-        public void setOrderId(UUID orderId) { this.orderId = orderId; }
-        public String getCarrier() { return carrier; }
-        public void setCarrier(String carrier) { this.carrier = carrier; }
-        public String getTrackingNumber() { return trackingNumber; }
-        public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }
+
+        public UUID getOrderId() {
+            return orderId;
+        }
+
+        public void setOrderId(UUID orderId) {
+            this.orderId = orderId;
+        }
+
+        public String getCarrier() {
+            return carrier;
+        }
+
+        public void setCarrier(String carrier) {
+            this.carrier = carrier;
+        }
+
+        public String getTrackingNumber() {
+            return trackingNumber;
+        }
+
+        public void setTrackingNumber(String trackingNumber) {
+            this.trackingNumber = trackingNumber;
+        }
     }
 }
 

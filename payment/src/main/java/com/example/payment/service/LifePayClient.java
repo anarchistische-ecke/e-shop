@@ -2,6 +2,7 @@ package com.example.payment.service;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(prefix = "lifepay", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class LifePayClient {
     private final RestTemplate restTemplate;
 
