@@ -70,25 +70,49 @@ public class CartController {
 
     public static class CreateCartRequest {
         private UUID customerId;
-        public UUID getCustomerId() { return customerId; }
-        public void setCustomerId(UUID customerId) { this.customerId = customerId; }
+
+        public UUID getCustomerId() {
+            return customerId;
+        }
+
+        public void setCustomerId(UUID customerId) {
+            this.customerId = customerId;
+        }
     }
 
     public static class CartItemRequest {
         private UUID variantId;
         @Min(1)
         private int quantity;
-        public UUID getVariantId() { return variantId; }
-        public void setVariantId(UUID variantId) { this.variantId = variantId; }
-        public int getQuantity() { return quantity; }
-        public void setQuantity(int quantity) { this.quantity = quantity; }
+
+        public UUID getVariantId() {
+            return variantId;
+        }
+
+        public void setVariantId(UUID variantId) {
+            this.variantId = variantId;
+        }
+
+        public int getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
     }
 
     public static class UpdateQuantityRequest {
         @Min(1)
         private int quantity;
-        public int getQuantity() { return quantity; }
-        public void setQuantity(int quantity) { this.quantity = quantity; }
+
+        public int getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(int quantity) {
+            this.quantity = quantity;
+        }
     }
 }
 

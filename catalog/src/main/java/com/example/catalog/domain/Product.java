@@ -1,11 +1,7 @@
 package com.example.catalog.domain;
 
 import com.example.common.domain.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 
 import java.util.HashSet;
@@ -29,6 +25,14 @@ public class Product extends BaseEntity {
     @OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<ProductVariant> variants = new HashSet<>();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", columnDefinition = "uuid")
+    private Category category;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "brand_id", columnDefinition = "uuid")
+    private Brand brand;
 
     public Product() {
 
@@ -70,6 +74,22 @@ public class Product extends BaseEntity {
 
     public void setVariants(Set<ProductVariant> variants) {
         this.variants = variants;
+    }
+
+    public Category getCategory() {
+        return category;
+    }
+
+    public void setCategory(Category category) {
+        this.category = category;
+    }
+
+    public Brand getBrand() {
+        return brand;
+    }
+
+    public void setBrand(Brand brand) {
+        this.brand = brand;
     }
 
     public void addVariant(ProductVariant variant) {

@@ -1,20 +1,19 @@
 package com.example.catalog.domain;
 
 import com.example.common.domain.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
-import java.util.UUID;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "category")
 public class Category extends BaseEntity {
-    @NotNull
-    @Column(name = "category_id", nullable = false, columnDefinition = "uuid")
-    private UUID categoryId;
+
+    @NotBlank
+    @Column(name = "slug", unique = true, nullable = false)
+    private String slug;
 
     @NotBlank
     @Column(name = "name", nullable = false)
@@ -23,25 +22,45 @@ public class Category extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @NotBlank
-    @Column(name = "slug", unique = true, nullable = false)
-    private String slug;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id", columnDefinition = "uuid")
+    private Category parent;
+
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Category> children = new HashSet<>();
+
+    @Column(name = "position", nullable = false)
+    private int position = 0;
+
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
+
+    @Column(name = "full_path", nullable = false)
+    private String fullPath;
 
     public Category() {
-
     }
 
-    public Category(String name, String description, String slug) {
+    public Category(String name, String description, String slug, Category parent) {
         this.name = name;
         this.description = description;
         this.slug = slug;
+        this.parent = parent;
     }
 
-    public @NotBlank String getName() {
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public String getName() {
         return name;
     }
 
-    public void setName(@NotBlank String name) {
+    public void setName(String name) {
         this.name = name;
     }
 
@@ -53,11 +72,43 @@ public class Category extends BaseEntity {
         this.description = description;
     }
 
-    public @NotBlank String getSlug() {
-        return slug;
+    public Category getParent() {
+        return parent;
     }
 
-    public void setSlug(@NotBlank String slug) {
-        this.slug = slug;
+    public void setParent(Category parent) {
+        this.parent = parent;
+    }
+
+    public Set<Category> getChildren() {
+        return children;
+    }
+
+    public void setChildren(Set<Category> children) {
+        this.children = children;
+    }
+
+    public int getPosition() {
+        return position;
+    }
+
+    public void setPosition(int position) {
+        this.position = position;
+    }
+
+    public boolean isIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(boolean isActive) {
+        this.isActive = isActive;
+    }
+
+    public String getFullPath() {
+        return fullPath;
+    }
+
+    public void setFullPath(String fullPath) {
+        this.fullPath = fullPath;
     }
 }

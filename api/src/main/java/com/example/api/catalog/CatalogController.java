@@ -55,18 +55,52 @@ public class CatalogController {
         return ResponseEntity.ok(products);
     }
 
+    @GetMapping
+    public ResponseEntity<List<Product>> getProducts(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String brand) {
+
+        List<Product> products = catalogService.getProducts(category, brand);
+        return ResponseEntity.ok(products);
+    }
+    /*
+    *
+    *                           CATEGORY METHODS GO HERE
+    *
+     */
+
+
+
     public static class ProductRequest {
         @NotBlank
         private String name;
         private String description;
         @NotBlank
         private String slug;
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-        public String getSlug() { return slug; }
-        public void setSlug(String slug) { this.slug = slug; }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public String getSlug() {
+            return slug;
+        }
+
+        public void setSlug(String slug) {
+            this.slug = slug;
+        }
     }
 
     public static class VariantRequest {
@@ -80,16 +114,46 @@ public class CatalogController {
         private String currency;
         @NotNull
         private Integer stock;
-        public String getSku() { return sku; }
-        public void setSku(String sku) { this.sku = sku; }
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public Long getAmount() { return amount; }
-        public void setAmount(Long amount) { this.amount = amount; }
-        public String getCurrency() { return currency; }
-        public void setCurrency(String currency) { this.currency = currency; }
-        public Integer getStock() { return stock; }
-        public void setStock(Integer stock) { this.stock = stock; }
+
+        public String getSku() {
+            return sku;
+        }
+
+        public void setSku(String sku) {
+            this.sku = sku;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
+
+        public Long getAmount() {
+            return amount;
+        }
+
+        public void setAmount(Long amount) {
+            this.amount = amount;
+        }
+
+        public String getCurrency() {
+            return currency;
+        }
+
+        public void setCurrency(String currency) {
+            this.currency = currency;
+        }
+
+        public Integer getStock() {
+            return stock;
+        }
+
+        public void setStock(Integer stock) {
+            this.stock = stock;
+        }
     }
 }
 

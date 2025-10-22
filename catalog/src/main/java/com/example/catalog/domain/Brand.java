@@ -2,17 +2,13 @@ package com.example.catalog.domain;
 
 import com.example.common.domain.BaseEntity;
 import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
-import java.util.UUID;
-
+@Entity
+@Table(name = "brand")
 public class Brand extends BaseEntity {
-
-    @NotNull
-    @Column(name = "brand_id", nullable = false, columnDefinition = "uuid")
-    private UUID brandId;
-
     @NotBlank
     @Column(name = "name", nullable = false)
     private String name;
