@@ -28,8 +28,9 @@ public class CatalogController {
 
     @PostMapping
     public ResponseEntity<Product> createProduct(@Valid @RequestBody ProductRequest request) {
-        Product product = catalogService.createProduct(
-                request.getName(), request.getDescription(), request.getSlug());
+        Product product = catalogService.createProduct(request.getName(),
+                request.getDescription(),
+                request.getSlug());
         return ResponseEntity.status(HttpStatus.CREATED).body(product);
     }
 
@@ -37,15 +38,18 @@ public class CatalogController {
     public ResponseEntity<ProductVariant> addProductVariant(@PathVariable UUID productId,
                                                             @Valid @RequestBody VariantRequest request) {
         Money price = Money.of(request.getAmount(), request.getCurrency());
-        ProductVariant variant = catalogService.addVariant(
-                productId, request.getSku(), request.getName(), price, request.getStock());
+        ProductVariant variant = catalogService.addVariant(productId,
+                request.getSku(),
+                request.getName(),
+                price,
+                request.getStock());
         return ResponseEntity.status(HttpStatus.CREATED).body(variant);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Product> getProductById(@PathVariable UUID id) {
-        Product product = catalogService.getProduct(id)
-                .orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+        Product product = catalogService.getProduct(id).orElseThrow(() ->
+                new IllegalArgumentException("Product not found: " + id));
         return ResponseEntity.ok(product);
     }
 
@@ -56,20 +60,12 @@ public class CatalogController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Product>> getProducts(
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) String brand) {
+    public ResponseEntity<List<Product>> getProducts(@RequestParam(required = false) String category,
+                                                     @RequestParam(required = false) String brand) {
 
         List<Product> products = catalogService.getProducts(category, brand);
         return ResponseEntity.ok(products);
     }
-    /*
-    *
-    *                           CATEGORY METHODS GO HERE
-    *
-     */
-
-
 
     public static class ProductRequest {
         @NotBlank
