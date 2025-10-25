@@ -54,16 +54,16 @@ public class CatalogController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Product>> getAllProducts() {
-        List<Product> products = catalogService.getAllProducts();
-        return ResponseEntity.ok(products);
-    }
-
-    @GetMapping
     public ResponseEntity<List<Product>> getProducts(@RequestParam(required = false) String category,
                                                      @RequestParam(required = false) String brand) {
+        if ((category != null && !category.isBlank()) ||
+                (brand != null && !brand.isBlank())) {
+            List<Product> filtered = catalogService.getProducts(category, brand);
+            return ResponseEntity.ok(filtered);
+        }
 
-        List<Product> products = catalogService.getProducts(category, brand);
+        // Otherwise return all products
+        List<Product> products = catalogService.getAllProducts();
         return ResponseEntity.ok(products);
     }
 
