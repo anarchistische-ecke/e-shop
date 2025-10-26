@@ -7,6 +7,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,7 +21,8 @@ public class CustomerService {
         this.customerRepository = customerRepository;
     }
 
-    public Customer registerCustomer(String firstName, String lastName, String email, Address address) {
+    public Customer registerCustomer(String firstName, String lastName,
+                                     String email, Address address) {
         Customer customer = new Customer(firstName, lastName, email, address);
         return customerRepository.save(customer);
     }
@@ -31,5 +33,9 @@ public class CustomerService {
 
     public Optional<Customer> findByEmail(String email) {
         return customerRepository.findByEmail(email);
+    }
+
+    public List<Customer> getAllCustomers() {
+        return customerRepository.findAll();
     }
 }

@@ -12,6 +12,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -55,5 +56,14 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         order.setStatus(status);
         orderRepository.save(order);
+    }
+
+    public List<Order> getAllOrders() {
+        return orderRepository.findAll();
+    }
+
+    public Order findById(UUID id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + id));
     }
 }
