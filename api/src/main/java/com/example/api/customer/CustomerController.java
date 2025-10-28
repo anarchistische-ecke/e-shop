@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -46,6 +47,16 @@ public class CustomerController {
         Customer customer = customerService.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Customer not found: " + id));
         return ResponseEntity.ok(customer);
+    }
+
+    @GetMapping
+    public List<Customer> getAllCustomers() {
+        return customerService.getAllCustomers();
+    }
+
+    @PostMapping
+    public Customer createCustomer(@RequestBody Customer request) {
+        return customerService.createCustomer(request);
     }
 
     public static class CustomerRegistrationRequest {
