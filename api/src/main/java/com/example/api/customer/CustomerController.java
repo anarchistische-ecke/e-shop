@@ -25,7 +25,7 @@ public class CustomerController {
         this.customerService = customerService;
     }
 
-    @PostMapping
+    @PostMapping("/register")
     public ResponseEntity<Customer> registerCustomer(@Valid @RequestBody CustomerRegistrationRequest request) {
         Address address = new Address(request.getStreet(), request.getCity(),
                 request.getState(), request.getPostalCode(),

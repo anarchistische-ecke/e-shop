@@ -20,6 +20,7 @@
         <module>payment</module>
         <module>shipment</module>
         <module>api</module>
+        <module>admin</module>
     </modules>
 
     <properties>
@@ -72,6 +73,12 @@
                 <groupId>org.mapstruct</groupId>
                 <artifactId>mapstruct</artifactId>
                 <version>1.6.3</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springframework.security</groupId>
+                <artifactId>spring-security-crypto</artifactId>
+                <version>6.5.6</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

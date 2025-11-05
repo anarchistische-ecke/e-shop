@@ -70,6 +70,32 @@ public class CatalogService {
         return productRepository.findAll();
     }
 
+    @Transactional
+    public Product updateProduct(UUID id, Product updates) {
+        return productRepository.findById(id).map(p -> {
+            p.setName(updates.getName());
+            p.setDescription(updates.getDescription());
+            p.setSlug(updates.getSlug());
+            if (updates.getCategory() != null) {
+                p.setCategory(updates.getCategory());
+            }
+            if (updates.getBrand() != null) {
+                p.setBrand(updates.getBrand());
+            }
+            return productRepository.save(p);
+        }).orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+    }
+
+    @Transactional
+    public void deleteProduct(UUID id) {
+        if (!productRepository.existsById(id)) {
+            throw new IllegalArgumentException("Product not found: " + id);
+        }
+        productRepository.deleteById(id);
+    }
+
+
+
     //
     //                          CATEGORY METHODS
     //
@@ -114,6 +140,15 @@ public class CatalogService {
             return categoryRepository.save(cat);
         }).orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
     }
+
+    @Transactional
+    public void deleteCategory(UUID id) {
+        if (!categoryRepository.existsById(id)) {
+            throw new IllegalArgumentException("Category not found: " + id);
+        }
+        categoryRepository.deleteById(id);
+    }
+
     //
     //                              BRAND METHODS
     //
@@ -141,5 +176,13 @@ public class CatalogService {
             b.setSlug(updates.getSlug());
             return brandRepository.save(b);
         }).orElseThrow(() -> new IllegalArgumentException("Brand not found: " + id));
+    }
+
+    @Transactional
+    public void deleteBrand(UUID id) {
+        if (!brandRepository.existsById(id)) {
+            throw new IllegalArgumentException("Brand not found: " + id);
+        }
+        brandRepository.deleteById(id);
     }
 }
