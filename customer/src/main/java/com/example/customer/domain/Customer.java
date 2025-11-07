@@ -35,6 +35,10 @@ public class Customer extends BaseEntity {
     @Column(name = "registered_at", nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime registeredAt;
 
+    @NotBlank
+    @Column(name = "password", nullable = false)
+    private String password;
+
     public Customer() {
     }
 
@@ -46,43 +50,49 @@ public class Customer extends BaseEntity {
         this.registeredAt = OffsetDateTime.now();
     }
 
+    public Customer(String firstName, String lastName, String email, Address address, String password) {
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.address = address;
+        this.password = password;
+        this.registeredAt = OffsetDateTime.now();
+    }
+
     public String getFirstName() {
         return firstName;
     }
-
     public void setFirstName(String firstName) {
         this.firstName = firstName;
     }
-
     public String getLastName() {
         return lastName;
     }
-
     public void setLastName(String lastName) {
         this.lastName = lastName;
     }
-
     public String getEmail() {
         return email;
     }
-
     public void setEmail(String email) {
         this.email = email;
     }
-
     public Address getAddress() {
         return address;
     }
-
     public void setAddress(Address address) {
         this.address = address;
     }
-
     public OffsetDateTime getRegisteredAt() {
         return registeredAt;
     }
-
     public void setRegisteredAt(OffsetDateTime registeredAt) {
         this.registeredAt = registeredAt;
+    }
+    public String getPassword() {
+        return password;
+    }
+    public void setPassword(String password) {
+        this.password = password;
     }
 }

@@ -27,11 +27,20 @@ public class CustomerController {
 
     @PostMapping("/register")
     public ResponseEntity<Customer> registerCustomer(@Valid @RequestBody CustomerRegistrationRequest request) {
-        Address address = new Address(request.getStreet(), request.getCity(),
-                request.getState(), request.getPostalCode(),
-                request.getCountry());
+        Address address = new Address(
+                request.getStreet(),
+                request.getCity(),
+                request.getState(),
+                request.getPostalCode(),
+                request.getCountry()
+        );
         Customer newCustomer = customerService.registerCustomer(
-                request.getFirstName(), request.getLastName(), request.getEmail(), address);
+                request.getFirstName(),
+                request.getLastName(),
+                request.getEmail(),
+                request.getPassword(),
+                address
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(newCustomer);
     }
 
@@ -68,6 +77,8 @@ public class CustomerController {
         @NotBlank
         private String email;
         @NotBlank
+        private String password;
+        @NotBlank
         private String street;
         @NotBlank
         private String city;
@@ -76,22 +87,77 @@ public class CustomerController {
         private String postalCode;
         @NotBlank
         private String country;
-        public String getFirstName() { return firstName; }
-        public void setFirstName(String firstName) { this.firstName = firstName; }
-        public String getLastName() { return lastName; }
-        public void setLastName(String lastName) { this.lastName = lastName; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getStreet() { return street; }
-        public void setStreet(String street) { this.street = street; }
-        public String getCity() { return city; }
-        public void setCity(String city) { this.city = city; }
-        public String getState() { return state; }
-        public void setState(String state) { this.state = state; }
-        public String getPostalCode() { return postalCode; }
-        public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
-        public String getCountry() { return country; }
-        public void setCountry(String country) { this.country = country; }
+
+        public String getFirstName() {
+            return firstName;
+        }
+
+        public void setFirstName(String firstName) {
+            this.firstName = firstName;
+        }
+
+        public String getLastName() {
+            return lastName;
+        }
+
+        public void setLastName(String lastName) {
+            this.lastName = lastName;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getStreet() {
+            return street;
+        }
+
+        public void setStreet(String street) {
+            this.street = street;
+        }
+
+        public String getCity() {
+            return city;
+        }
+
+        public void setCity(String city) {
+            this.city = city;
+        }
+
+        public String getState() {
+            return state;
+        }
+
+        public void setState(String state) {
+            this.state = state;
+        }
+
+        public String getPostalCode() {
+            return postalCode;
+        }
+
+        public void setPostalCode(String postalCode) {
+            this.postalCode = postalCode;
+        }
+
+        public String getCountry() {
+            return country;
+        }
+
+        public void setCountry(String country) {
+            this.country = country;
+        }
     }
 }
-

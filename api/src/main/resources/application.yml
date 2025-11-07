@@ -1,3 +1,5 @@
 spring:
   profiles.active: dev
 
+jwt:
+  secret: ${JWT_SECRET:MY_SUPER_SECRET_KEY}
