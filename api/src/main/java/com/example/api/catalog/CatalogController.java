@@ -1,9 +1,7 @@
 package com.example.api.catalog;
 
 import com.example.catalog.domain.Product;
-import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
-import com.example.common.domain.Money;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -28,43 +26,59 @@ public class CatalogController {
 
     @PostMapping
     public ResponseEntity<Product> createProduct(@Valid @RequestBody ProductRequest request) {
-        Product product = catalogService.createProduct(request.getName(),
-                request.getDescription(),
-                request.getSlug());
+        // Create the product with basic fields
+        Product product = catalogService.createProduct(request.getName(), request.getDescription(), request.getSlug());
+        // If a category slug/ID is provided, resolve it and assign
+        if (request.getCategory() != null && !request.getCategory().isBlank()) {
+            catalogService.getBySlug(request.getCategory()).ifPresent(product::setCategory);
+        }
+        // If a brand slug/ID is provided, resolve it and assign
+        if (request.getBrand() != null && !request.getBrand().isBlank()) {
+            catalogService.getByBrandSlug(request.getBrand()).ifPresent(product::setBrand);
+        }
+        // Persist the associations
+        product = catalogService.updateProduct(product.getId(), product);
         return ResponseEntity.status(HttpStatus.CREATED).body(product);
     }
 
     @PostMapping("/{productId}/variants")
-    public ResponseEntity<ProductVariant> addProductVariant(@PathVariable UUID productId,
-                                                            @Valid @RequestBody VariantRequest request) {
-        Money price = Money.of(request.getAmount(), request.getCurrency());
-        ProductVariant variant = catalogService.addVariant(productId,
-                request.getSku(),
-                request.getName(),
-                price,
-                request.getStock());
+    public ResponseEntity<?> addProductVariant(@PathVariable UUID productId,
+                                               @Valid @RequestBody VariantRequest request) {
+        var price = com.example.common.domain.Money.of(request.getAmount(), request.getCurrency());
+        var variant = catalogService.addVariant(productId, request.getSku(), request.getName(), price, request.getStock());
         return ResponseEntity.status(HttpStatus.CREATED).body(variant);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Product> getProductById(@PathVariable UUID id) {
-        Product product = catalogService.getProduct(id).orElseThrow(() ->
-                new IllegalArgumentException("Product not found: " + id));
+        var product = catalogService.getProduct(id).orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
         return ResponseEntity.ok(product);
     }
 
     @GetMapping
     public ResponseEntity<List<Product>> getProducts(@RequestParam(required = false) String category,
                                                      @RequestParam(required = false) String brand) {
-        if ((category != null && !category.isBlank()) ||
-                (brand != null && !brand.isBlank())) {
-            List<Product> filtered = catalogService.getProducts(category, brand);
+        if ((category != null && !category.isBlank()) || (brand != null && !brand.isBlank())) {
+            var filtered = catalogService.getProducts(category, brand);
             return ResponseEntity.ok(filtered);
         }
+        return ResponseEntity.ok(catalogService.getAllProducts());
+    }
 
-        // Otherwise return all products
-        List<Product> products = catalogService.getAllProducts();
-        return ResponseEntity.ok(products);
+    @PutMapping("/{id}")
+    public ResponseEntity<Product> updateProduct(@PathVariable UUID id,
+                                                 @Valid @RequestBody ProductRequest request) {
+        // Build the updates object
+        Product updates = new Product(request.getName(), request.getDescription(), request.getSlug());
+        // Resolve category and brand if provided
+        if (request.getCategory() != null && !request.getCategory().isBlank()) {
+            catalogService.getBySlug(request.getCategory()).ifPresent(updates::setCategory);
+        }
+        if (request.getBrand() != null && !request.getBrand().isBlank()) {
+            catalogService.getByBrandSlug(request.getBrand()).ifPresent(updates::setBrand);
+        }
+        var updated = catalogService.updateProduct(id, updates);
+        return ResponseEntity.ok(updated);
     }
 
     public static class ProductRequest {
@@ -73,6 +87,8 @@ public class CatalogController {
         private String description;
         @NotBlank
         private String slug;
+        private String category;
+        private String brand;
 
         public String getName() {
             return name;
@@ -97,8 +113,27 @@ public class CatalogController {
         public void setSlug(String slug) {
             this.slug = slug;
         }
+
+        public String getCategory() {
+            return category;
+        }
+
+        public void setCategory(String category) {
+            this.category = category;
+        }
+
+        public String getBrand() {
+            return brand;
+        }
+
+        public void setBrand(String brand) {
+            this.brand = brand;
+        }
     }
 
+    /**
+     * Request body for product variant creation.
+     */
     public static class VariantRequest {
         @NotBlank
         private String sku;
@@ -111,6 +146,7 @@ public class CatalogController {
         @NotNull
         private Integer stock;
 
+        // getters and setters
         public String getSku() {
             return sku;
         }
@@ -152,4 +188,3 @@ public class CatalogController {
         }
     }
 }
-
