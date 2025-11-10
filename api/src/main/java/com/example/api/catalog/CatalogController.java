@@ -131,9 +131,6 @@ public class CatalogController {
         }
     }
 
-    /**
-     * Request body for product variant creation.
-     */
     public static class VariantRequest {
         @NotBlank
         private String sku;
@@ -146,7 +143,6 @@ public class CatalogController {
         @NotNull
         private Integer stock;
 
-        // getters and setters
         public String getSku() {
             return sku;
         }
