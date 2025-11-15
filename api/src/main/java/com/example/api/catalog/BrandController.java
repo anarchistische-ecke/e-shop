@@ -50,6 +50,13 @@ public class BrandController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteBrand(@PathVariable UUID id) {
+        catalogService.deleteBrand(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
     @PutMapping("/{id}")
     public ResponseEntity<Brand> updateBrand(@PathVariable UUID id, @Valid @RequestBody BrandRequest request) {
         Brand updates = new Brand(request.getName(), request.getDescription(), request.getSlug());

@@ -22,6 +22,9 @@ public class AuthController {
 
     private final AdminService adminService;
     private final CustomerService customerService;
+
+    private String jwtSecret;
+
     @Autowired
     public AuthController(AdminService adminService, CustomerService customerService) {
         this.adminService = adminService;
@@ -35,8 +38,10 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", "Invalid credentials"));
         }
         Admin admin = adminOpt.get();
-        // Generate JWT for admin (subject = username, role = ROLE_ADMIN)
-        String token = JwtTokenUtil.generateToken(admin.getUsername(), "ROLE_ADMIN", 24 * 60 * 60 * 1000, adminServicePasswordSecret());
+        String token = JwtTokenUtil.generateToken(admin.getUsername(),
+                "ROLE_ADMIN",
+                24*60*60*1000,
+                jwtSecret);
         return ResponseEntity.ok(Collections.singletonMap("token", token));
     }
 
@@ -47,8 +52,10 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", "Invalid credentials"));
         }
         Customer customer = custOpt.get();
-        // Generate JWT for customer (subject = email, role = ROLE_CUSTOMER)
-        String token = JwtTokenUtil.generateToken(customer.getEmail(), "ROLE_CUSTOMER", 24 * 60 * 60 * 1000, adminServicePasswordSecret());
+        String token = JwtTokenUtil.generateToken(customer.getEmail(),
+                "ROLE_CUSTOMER",
+                24*60*60*1000,
+                jwtSecret);
         return ResponseEntity.ok(Collections.singletonMap("token", token));
     }
 

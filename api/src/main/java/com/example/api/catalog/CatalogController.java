@@ -81,6 +81,13 @@ public class CatalogController {
         return ResponseEntity.ok(updated);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteProduct(@PathVariable UUID id) {
+        catalogService.deleteProduct(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
     public static class ProductRequest {
         @NotBlank
         private String name;

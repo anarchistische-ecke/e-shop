@@ -83,6 +83,13 @@ public class CategoryController {
         return ResponseEntity.ok(updated);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCategory(@PathVariable UUID id) {
+        catalogService.deleteCategory(id);
+        return ResponseEntity.noContent().build();
+    }
+
+
     public static class CategoryRequest {
         @NotBlank
         private String name;
