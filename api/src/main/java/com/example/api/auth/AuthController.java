@@ -8,6 +8,7 @@ import com.example.api.config.JwtTokenUtil;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ public class AuthController {
     private final AdminService adminService;
     private final CustomerService customerService;
 
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     @Autowired
@@ -57,12 +59,6 @@ public class AuthController {
                 24*60*60*1000,
                 jwtSecret);
         return ResponseEntity.ok(Collections.singletonMap("token", token));
-    }
-
-    // (In a real implementation, you'd inject the JWT secret rather than calling adminService; here we reuse same secret as in SecurityConfig)
-    private String adminServicePasswordSecret() {
-        // For simplicity, reuse the default admin password hash as a pseudo-secret (in practice, use environment config)
-        return "myverysecuresecretkey";  // replace with actual secret or retrieve from config
     }
 
     // Request DTOs for login
