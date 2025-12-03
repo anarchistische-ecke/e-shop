@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth")
@@ -23,14 +24,16 @@ public class AuthController {
 
     private final AdminService adminService;
     private final CustomerService customerService;
+    private final SocialAuthService socialAuthService;
 
     @Value("${jwt.secret}")
     private String jwtSecret;
 
     @Autowired
-    public AuthController(AdminService adminService, CustomerService customerService) {
+    public AuthController(AdminService adminService, CustomerService customerService, SocialAuthService socialAuthService) {
         this.adminService = adminService;
         this.customerService = customerService;
+        this.socialAuthService = socialAuthService;
     }
 
     @PostMapping("/admin/login")
@@ -48,17 +51,57 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> customerLogin(@RequestBody CustomerLoginRequest request) {
+    public ResponseEntity<AuthResponse> customerLogin(@RequestBody CustomerLoginRequest request) {
         Optional<Customer> custOpt = customerService.authenticate(request.getEmail(), request.getPassword());
         if (custOpt.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", "Invalid credentials"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         Customer customer = custOpt.get();
-        String token = JwtTokenUtil.generateToken(customer.getEmail(),
-                "ROLE_CUSTOMER",
-                24*60*60*1000,
-                jwtSecret);
-        return ResponseEntity.ok(Collections.singletonMap("token", token));
+        return ResponseEntity.ok(toAuthResponse(customer));
+    }
+
+    @PostMapping("/login/yandex")
+    public ResponseEntity<AuthResponse> customerLoginWithYandex(@RequestBody YandexLoginRequest request) {
+        try {
+            SocialAuthService.SocialProfile profile = socialAuthService.fetchYandexProfile(
+                    request.getAccessToken(),
+                    request.getYandexId(),
+                    request.getEmail(),
+                    request.getFirstName(),
+                    request.getLastName()
+            );
+            Customer customer = customerService.findOrCreateByYandex(
+                    profile.externalId(),
+                    profile.email(),
+                    profile.firstName(),
+                    profile.lastName()
+            );
+            return ResponseEntity.ok(toAuthResponse(customer));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @PostMapping("/login/vk")
+    public ResponseEntity<AuthResponse> customerLoginWithVk(@RequestBody VkLoginRequest request) {
+        try {
+            SocialAuthService.SocialProfile profile = socialAuthService.fetchVkProfile(
+                    request.getAccessToken(),
+                    request.getVkUserId(),
+                    request.getEmail(),
+                    request.getFirstName(),
+                    request.getLastName()
+            );
+            Customer customer = customerService.findOrCreateByVk(
+                    profile.externalId(),
+                    profile.email(),
+                    profile.firstName(),
+                    profile.lastName()
+            );
+            return ResponseEntity.ok(toAuthResponse(customer));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     // Request DTOs for login
@@ -81,5 +124,209 @@ public class AuthController {
         public void setEmail(String email) { this.email = email; }
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
+    }
+
+    public static class YandexLoginRequest {
+        private String accessToken;
+        private String yandexId;
+        private String email;
+        private String firstName;
+        private String lastName;
+
+        public String getAccessToken() {
+            return accessToken;
+        }
+
+        public void setAccessToken(String accessToken) {
+            this.accessToken = accessToken;
+        }
+
+        public String getYandexId() {
+            return yandexId;
+        }
+
+        public void setYandexId(String yandexId) {
+            this.yandexId = yandexId;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getFirstName() {
+            return firstName;
+        }
+
+        public void setFirstName(String firstName) {
+            this.firstName = firstName;
+        }
+
+        public String getLastName() {
+            return lastName;
+        }
+
+        public void setLastName(String lastName) {
+            this.lastName = lastName;
+        }
+    }
+
+    public static class VkLoginRequest {
+        private String accessToken;
+        private String vkUserId;
+        private String email;
+        private String firstName;
+        private String lastName;
+
+        public String getAccessToken() {
+            return accessToken;
+        }
+
+        public void setAccessToken(String accessToken) {
+            this.accessToken = accessToken;
+        }
+
+        public String getVkUserId() {
+            return vkUserId;
+        }
+
+        public void setVkUserId(String vkUserId) {
+            this.vkUserId = vkUserId;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getFirstName() {
+            return firstName;
+        }
+
+        public void setFirstName(String firstName) {
+            this.firstName = firstName;
+        }
+
+        public String getLastName() {
+            return lastName;
+        }
+
+        public void setLastName(String lastName) {
+            this.lastName = lastName;
+        }
+    }
+
+    public static class AuthResponse {
+        private String token;
+        private CustomerProfile customer;
+
+        public AuthResponse(String token, CustomerProfile customer) {
+            this.token = token;
+            this.customer = customer;
+        }
+
+        public String getToken() {
+            return token;
+        }
+
+        public void setToken(String token) {
+            this.token = token;
+        }
+
+        public CustomerProfile getCustomer() {
+            return customer;
+        }
+
+        public void setCustomer(CustomerProfile customer) {
+            this.customer = customer;
+        }
+    }
+
+    public static class CustomerProfile {
+        private UUID id;
+        private String email;
+        private String firstName;
+        private String lastName;
+        private String yandexId;
+        private String vkId;
+
+        public CustomerProfile(UUID id, String email, String firstName, String lastName, String yandexId, String vkId) {
+            this.id = id;
+            this.email = email;
+            this.firstName = firstName;
+            this.lastName = lastName;
+            this.yandexId = yandexId;
+            this.vkId = vkId;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public void setId(UUID id) {
+            this.id = id;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public void setEmail(String email) {
+            this.email = email;
+        }
+
+        public String getFirstName() {
+            return firstName;
+        }
+
+        public void setFirstName(String firstName) {
+            this.firstName = firstName;
+        }
+
+        public String getLastName() {
+            return lastName;
+        }
+
+        public void setLastName(String lastName) {
+            this.lastName = lastName;
+        }
+
+        public String getYandexId() {
+            return yandexId;
+        }
+
+        public void setYandexId(String yandexId) {
+            this.yandexId = yandexId;
+        }
+
+        public String getVkId() {
+            return vkId;
+        }
+
+        public void setVkId(String vkId) {
+            this.vkId = vkId;
+        }
+    }
+
+    private AuthResponse toAuthResponse(Customer customer) {
+        String token = JwtTokenUtil.generateToken(customer.getEmail(),
+                "ROLE_CUSTOMER",
+                24*60*60*1000,
+                jwtSecret);
+        CustomerProfile profile = new CustomerProfile(
+                customer.getId(),
+                customer.getEmail(),
+                customer.getFirstName(),
+                customer.getLastName(),
+                customer.getYandexId(),
+                customer.getVkId()
+        );
+        return new AuthResponse(token, profile);
     }
 }

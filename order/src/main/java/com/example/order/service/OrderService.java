@@ -3,11 +3,12 @@ package com.example.order.service;
 import com.example.cart.domain.Cart;
 import com.example.cart.domain.CartItem;
 import com.example.cart.repository.CartRepository;
+import com.example.catalog.service.InventoryService;
+import com.example.common.domain.Money;
 import com.example.order.domain.Order;
 import com.example.order.domain.OrderItem;
 import com.example.order.repository.OrderItemRepository;
 import com.example.order.repository.OrderRepository;
-import com.example.common.domain.Money;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,14 +22,17 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final CartRepository cartRepository;
+    private final InventoryService inventoryService;
 
     @Autowired
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
-                        CartRepository cartRepository) {
+                        CartRepository cartRepository,
+                        InventoryService inventoryService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.cartRepository = cartRepository;
+        this.inventoryService = inventoryService;
     }
 
     public Order createOrderFromCart(UUID cartId) {
@@ -37,15 +41,18 @@ public class OrderService {
         // calculate total amount in smallest units
         long total = cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
         Money totalMoney = Money.of(total, "RUB");
+        // idempotency key per cart+variant so repeated requests won't double-decrement stock
+        String baseKey = "order-cart-" + cartId;
+
         Order order = new Order(cart.getCustomerId(), "PENDING", totalMoney);
-        // copy cart items into order items
         for (CartItem ci : cart.getItems()) {
+            String itemKey = baseKey + "-" + ci.getVariantId();
+            inventoryService.adjustStock(ci.getVariantId(), -ci.getQuantity(), itemKey, "ORDER");
             OrderItem oi = new OrderItem(ci.getVariantId(), ci.getQuantity(), ci.getUnitPrice());
             order.addItem(oi);
         }
-        // persist order (cascade persists items)
+
         order = orderRepository.save(order);
-        // clear cart items but keep the cart record
         cart.getItems().clear();
         cartRepository.save(cart);
         return order;

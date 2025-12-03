@@ -1,5 +1,15 @@
 spring:
   profiles.active: dev
+  servlet:
+    multipart:
+      max-file-size: 8MB
+      max-request-size: 32MB
 
 jwt:
   secret: ${JWT_SECRET:MY_SUPER_SECRET_KEY}
+
+yandex:
+  storage:
+    bucket: ${YANDEX_STORAGE_BUCKET:dummy-bucket}
+    access-key: ${YANDEX_STORAGE_KEY:dummy-access-key}
+    secret-key: ${YANDEX_STORAGE_SECRET:dummy-secret-key}

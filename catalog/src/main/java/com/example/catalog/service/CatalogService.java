@@ -3,10 +3,12 @@ package com.example.catalog.service;
 import com.example.catalog.domain.Brand;
 import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
+import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.repository.BrandRepository;
 import com.example.catalog.repository.CategoryRepository;
 import com.example.catalog.repository.ProductRepository;
+import com.example.catalog.repository.ProductImageRepository;
 import com.example.catalog.repository.ProductVariantRepository;
 import com.example.common.domain.Money;
 import jakarta.transaction.Transactional;
@@ -24,13 +26,15 @@ public class CatalogService {
     private final ProductVariantRepository variantRepository;
     private final BrandRepository brandRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductImageRepository imageRepository;
 
     @Autowired
-    public CatalogService(ProductRepository productRepository, ProductVariantRepository variantRepository, BrandRepository brandRepository, CategoryRepository categoryRepository) {
+    public CatalogService(ProductRepository productRepository, ProductVariantRepository variantRepository, BrandRepository brandRepository, CategoryRepository categoryRepository, ProductImageRepository imageRepository) {
         this.productRepository = productRepository;
         this.variantRepository = variantRepository;
         this.brandRepository = brandRepository;
         this.categoryRepository = categoryRepository;
+        this.imageRepository = imageRepository;
     }
 
     public Product createProduct(String name, String description, String slug) {
@@ -45,6 +49,46 @@ public class CatalogService {
         // saving the product will cascade to the variant
         productRepository.save(product);
         return variant;
+    }
+
+    public ProductVariant updateVariant(UUID productId, UUID variantId, String name, Money price, int stock) {
+        ProductVariant variant = variantRepository.findById(variantId)
+                .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+        if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
+            throw new IllegalArgumentException("Variant does not belong to product: " + productId);
+        }
+        if (name != null && !name.isBlank()) {
+            variant.setName(name);
+        }
+        if (price != null) {
+            variant.setPrice(price);
+        }
+        variant.setStockQuantity(stock);
+        return variantRepository.save(variant);
+    }
+
+    public ProductImage addProductImage(UUID productId, String url, String objectKey, int position) {
+        Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
+        int safePosition = Math.max(0, position);
+        ProductImage image = new ProductImage(product, url, objectKey, safePosition);
+        product.addImage(image);
+        return imageRepository.save(image);
+    }
+
+    public List<ProductImage> getProductImages(UUID productId) {
+        return imageRepository.findByProduct_IdOrderByPositionAscCreatedAtDesc(productId);
+    }
+
+    public String removeProductImage(UUID productId, UUID imageId) {
+        ProductImage image = imageRepository.findById(imageId)
+                .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
+        if (image.getProduct() == null || !image.getProduct().getId().equals(productId)) {
+            throw new IllegalArgumentException("Image does not belong to product: " + productId);
+        }
+        String objectKey = image.getObjectKey();
+        image.getProduct().removeImage(image);
+        imageRepository.delete(image);
+        return objectKey;
     }
 
     public List<Product> getProducts(String categorySlug, String brandSlug) {

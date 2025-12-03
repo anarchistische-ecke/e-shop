@@ -41,6 +41,9 @@ public class CartService {
                 .orElseThrow(() -> new IllegalArgumentException("Cart not found: " + cartId));
         ProductVariant variant = variantRepository.findById(variantId)
                 .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+        if (quantity > variant.getStockQuantity()) {
+            throw new IllegalStateException("Недостаточно запаса на складе. Доступно: " + variant.getStockQuantity());
+        }
         // use the variant's current price
         Money price = variant.getPrice();
         CartItem item = new CartItem(variantId, quantity, price);
@@ -73,6 +76,11 @@ public class CartService {
                 .orElseThrow(() -> new IllegalArgumentException("Cart item not found: " + itemId));
         if (!item.getCart().getId().equals(cart.getId())) {
             throw new IllegalStateException("Item does not belong to the specified cart");
+        }
+        ProductVariant variant = variantRepository.findById(item.getVariantId())
+                .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + item.getVariantId()));
+        if (quantity > variant.getStockQuantity()) {
+            throw new IllegalStateException("Недостаточно запаса на складе. Доступно: " + variant.getStockQuantity());
         }
         item.setQuantity(quantity);
         cartItemRepository.save(item);

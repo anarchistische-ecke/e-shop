@@ -28,6 +28,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/auth/**", "/customers/register").permitAll()
                 // Allow anyone to view products, categories and brands via GET
                 .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/brands/**").permitAll()
+                // Inventory adjustments require admin privileges
+                .requestMatchers(HttpMethod.POST, "/inventory/**").hasRole("ADMIN")
                 // Require admin for creating, updating or deleting products, categories and brands
                 .requestMatchers(HttpMethod.POST, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")

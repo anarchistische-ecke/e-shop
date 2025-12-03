@@ -34,6 +34,11 @@ public class Product extends BaseEntity {
     @JoinColumn(name = "brand_id", columnDefinition = "uuid")
     private Brand brand;
 
+    @OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL,
+            orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("position ASC, createdAt DESC")
+    private Set<ProductImage> images = new HashSet<>();
+
     public Product() {
 
     }
@@ -92,6 +97,14 @@ public class Product extends BaseEntity {
         this.brand = brand;
     }
 
+    public Set<ProductImage> getImages() {
+        return images;
+    }
+
+    public void setImages(Set<ProductImage> images) {
+        this.images = images;
+    }
+
     public void addVariant(ProductVariant variant) {
         variants.add(variant);
         variant.setProduct(this);
@@ -100,5 +113,15 @@ public class Product extends BaseEntity {
     public void removeVariant(ProductVariant variant) {
         variants.remove(variant);
         variant.setProduct(null);
+    }
+
+    public void addImage(ProductImage image) {
+        images.add(image);
+        image.setProduct(this);
+    }
+
+    public void removeImage(ProductImage image) {
+        images.remove(image);
+        image.setProduct(null);
     }
 }
