@@ -2,6 +2,7 @@ package com.example.api.auth;
 
 import com.example.admin.domain.Admin;
 import com.example.admin.service.AdminService;
+import com.example.admin.service.AdminActivityService;
 import com.example.customer.domain.Customer;
 import com.example.customer.service.CustomerService;
 import com.example.api.config.JwtTokenUtil;
@@ -23,6 +24,7 @@ import java.util.UUID;
 public class AuthController {
 
     private final AdminService adminService;
+    private final AdminActivityService adminActivityService;
     private final CustomerService customerService;
     private final SocialAuthService socialAuthService;
 
@@ -30,8 +32,12 @@ public class AuthController {
     private String jwtSecret;
 
     @Autowired
-    public AuthController(AdminService adminService, CustomerService customerService, SocialAuthService socialAuthService) {
+    public AuthController(AdminService adminService,
+                          AdminActivityService adminActivityService,
+                          CustomerService customerService,
+                          SocialAuthService socialAuthService) {
         this.adminService = adminService;
+        this.adminActivityService = adminActivityService;
         this.customerService = customerService;
         this.socialAuthService = socialAuthService;
     }
@@ -47,6 +53,7 @@ public class AuthController {
                 "ROLE_ADMIN",
                 24*60*60*1000,
                 jwtSecret);
+        adminActivityService.record(admin.getUsername(), "Admin login");
         return ResponseEntity.ok(Collections.singletonMap("token", token));
     }
 

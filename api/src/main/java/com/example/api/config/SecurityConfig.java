@@ -24,8 +24,13 @@ public class SecurityConfig {
         http.cors();
         http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
         http.authorizeHttpRequests(auth -> auth
+                // Health/diagnostics endpoints
+                .requestMatchers("/health/**").permitAll()
                 // Allow login and user registration without authentication
                 .requestMatchers(HttpMethod.POST, "/auth/**", "/customers/register").permitAll()
+                // Allow cart operations and checkout for guests
+                .requestMatchers("/carts/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/orders").permitAll()
                 // Allow anyone to view products, categories and brands via GET
                 .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/brands/**").permitAll()
                 // Inventory adjustments require admin privileges
@@ -34,6 +39,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")
+                // Admin-only endpoints
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 // Only admins can view orders, customers and shipments
                 .requestMatchers(HttpMethod.GET, "/orders", "/orders/*", "/customers/**", "/shipments/**").hasRole("ADMIN")
                 // All other API calls require authentication

@@ -67,16 +67,31 @@ public class CatalogService {
         return variantRepository.save(variant);
     }
 
-    public ProductImage addProductImage(UUID productId, String url, String objectKey, int position) {
+    public ProductImage addProductImage(UUID productId, String url, String objectKey, int position, UUID variantId) {
         Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
+        ProductVariant variant = null;
+        if (variantId != null) {
+            variant = variantRepository.findById(variantId)
+                    .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+            if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
+                throw new IllegalArgumentException("Variant does not belong to product: " + productId);
+            }
+        }
         int safePosition = Math.max(0, position);
         ProductImage image = new ProductImage(product, url, objectKey, safePosition);
+        image.setVariant(variant);
         product.addImage(image);
         return imageRepository.save(image);
     }
 
     public List<ProductImage> getProductImages(UUID productId) {
-        return imageRepository.findByProduct_IdOrderByPositionAscCreatedAtDesc(productId);
+        List<ProductImage> images = imageRepository.findByProduct_IdOrderByPositionAscCreatedAtDesc(productId);
+        images.forEach(img -> {
+            if (img.getVariant() != null) {
+                img.getVariant().getId(); // initialize lazy relation for mapping
+            }
+        });
+        return images;
     }
 
     public String removeProductImage(UUID productId, UUID imageId) {
@@ -89,6 +104,27 @@ public class CatalogService {
         image.getProduct().removeImage(image);
         imageRepository.delete(image);
         return objectKey;
+    }
+
+    public ProductImage updateProductImage(UUID productId, UUID imageId, UUID variantId, Integer position) {
+        ProductImage image = imageRepository.findById(imageId)
+                .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
+        if (image.getProduct() == null || !image.getProduct().getId().equals(productId)) {
+            throw new IllegalArgumentException("Image does not belong to product: " + productId);
+        }
+        ProductVariant variant = null;
+        if (variantId != null) {
+            variant = variantRepository.findById(variantId)
+                    .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+            if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
+                throw new IllegalArgumentException("Variant does not belong to product: " + productId);
+            }
+        }
+        image.setVariant(variant);
+        if (position != null) {
+            image.setPosition(Math.max(0, position));
+        }
+        return imageRepository.save(image);
     }
 
     public List<Product> getProducts(String categorySlug, String brandSlug) {

@@ -15,8 +15,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "cart")
 public class Cart extends BaseEntity {
-    @NotNull
-    @Column(name = "customer_id", nullable = false, columnDefinition = "uuid")
+    @Column(name = "customer_id", columnDefinition = "uuid")
     private UUID customerId;
 
     @OneToMany(mappedBy = "cart", cascade = jakarta.persistence.CascadeType.ALL,

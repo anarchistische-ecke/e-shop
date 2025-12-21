@@ -19,6 +19,8 @@ public class YandexObjectStorageConfig {
     private String accessKey;
     @Value("${yandex.storage.secret-key}")
     private String secretKey;
+    @Value("${yandex.storage.endpoint:https://storage.yandexcloud.net}")
+    private String endpoint;
 
     @Bean
     public S3Client yandexS3Client() {
@@ -28,7 +30,7 @@ public class YandexObjectStorageConfig {
         AwsBasicCredentials creds = AwsBasicCredentials.create(accessKey, secretKey);
         return S3Client.builder()
                 .region(Region.of("ru-central1"))
-                .endpointOverride(URI.create("https://storage.yandexcloud.net"))
+                .endpointOverride(URI.create(endpoint))
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
                 .credentialsProvider(StaticCredentialsProvider.create(creds))
                 .build();

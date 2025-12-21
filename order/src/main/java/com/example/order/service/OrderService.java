@@ -2,7 +2,7 @@ package com.example.order.service;
 
 import com.example.cart.domain.Cart;
 import com.example.cart.domain.CartItem;
-import com.example.cart.repository.CartRepository;
+import com.example.cart.service.CartService;
 import com.example.catalog.service.InventoryService;
 import com.example.common.domain.Money;
 import com.example.order.domain.Order;
@@ -21,30 +21,30 @@ import java.util.UUID;
 public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
-    private final CartRepository cartRepository;
+    private final CartService cartService;
     private final InventoryService inventoryService;
 
     @Autowired
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
-                        CartRepository cartRepository,
+                        CartService cartService,
                         InventoryService inventoryService) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
-        this.cartRepository = cartRepository;
+        this.cartService = cartService;
         this.inventoryService = inventoryService;
     }
 
     public Order createOrderFromCart(UUID cartId) {
-        Cart cart = cartRepository.findById(cartId)
-                .orElseThrow(() -> new IllegalArgumentException("Cart not found: " + cartId));
+        Cart cart = cartService.getCartById(cartId);
         // calculate total amount in smallest units
         long total = cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
         Money totalMoney = Money.of(total, "RUB");
         // idempotency key per cart+variant so repeated requests won't double-decrement stock
         String baseKey = "order-cart-" + cartId;
 
-        Order order = new Order(cart.getCustomerId(), "PENDING", totalMoney);
+        UUID customerId = cart.getCustomerId() != null ? cart.getCustomerId() : cartId;
+        Order order = new Order(customerId, "PENDING", totalMoney);
         for (CartItem ci : cart.getItems()) {
             String itemKey = baseKey + "-" + ci.getVariantId();
             inventoryService.adjustStock(ci.getVariantId(), -ci.getQuantity(), itemKey, "ORDER");
@@ -53,8 +53,7 @@ public class OrderService {
         }
 
         order = orderRepository.save(order);
-        cart.getItems().clear();
-        cartRepository.save(cart);
+        cartService.clearCart(cartId);
         return order;
     }
 

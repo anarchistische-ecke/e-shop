@@ -70,7 +70,8 @@ public class CatalogController {
     @PostMapping(value = "/{productId}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<List<ImageResponse>> uploadProductImages(@PathVariable UUID productId,
                                                                    @RequestPart("files") List<MultipartFile> files,
-                                                                   @RequestParam(value = "position", required = false) Integer position) {
+                                                                   @RequestParam(value = "position", required = false) Integer position,
+                                                                   @RequestParam(value = "variantId", required = false) UUID variantId) {
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("Не переданы файлы изображений");
         }
@@ -80,7 +81,7 @@ public class CatalogController {
         int offset = 0;
         for (MultipartFile file : files) {
             var stored = imageStorageService.upload(productId, file, startPosition + offset);
-            var image = catalogService.addProductImage(productId, stored.url(), stored.objectKey(), stored.position());
+            var image = catalogService.addProductImage(productId, stored.url(), stored.objectKey(), stored.position(), variantId);
             responses.add(mapImage(image));
             offset++;
         }
@@ -100,6 +101,14 @@ public class CatalogController {
         String objectKey = catalogService.removeProductImage(productId, imageId);
         imageStorageService.delete(objectKey);
         return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{productId}/images/{imageId}")
+    public ResponseEntity<ImageResponse> updateProductImage(@PathVariable UUID productId,
+                                                            @PathVariable UUID imageId,
+                                                            @Valid @RequestBody ImageUpdateRequest request) {
+        var updated = catalogService.updateProductImage(productId, imageId, request.getVariantId(), request.getPosition());
+        return ResponseEntity.ok(mapImage(updated));
     }
 
     @GetMapping("/{id}")
@@ -437,6 +446,7 @@ public class CatalogController {
         private UUID id;
         private String url;
         private int position;
+        private UUID variantId;
 
         public UUID getId() {
             return id;
@@ -459,6 +469,35 @@ public class CatalogController {
         }
 
         public void setPosition(int position) {
+            this.position = position;
+        }
+
+        public UUID getVariantId() {
+            return variantId;
+        }
+
+        public void setVariantId(UUID variantId) {
+            this.variantId = variantId;
+        }
+    }
+
+    public static class ImageUpdateRequest {
+        private UUID variantId;
+        private Integer position;
+
+        public UUID getVariantId() {
+            return variantId;
+        }
+
+        public void setVariantId(UUID variantId) {
+            this.variantId = variantId;
+        }
+
+        public Integer getPosition() {
+            return position;
+        }
+
+        public void setPosition(Integer position) {
             this.position = position;
         }
     }
@@ -500,6 +539,7 @@ public class CatalogController {
         response.setId(image.getId());
         response.setUrl(image.getUrl());
         response.setPosition(image.getPosition());
+        response.setVariantId(image.getVariant() != null ? image.getVariant().getId() : null);
         return response;
     }
 }

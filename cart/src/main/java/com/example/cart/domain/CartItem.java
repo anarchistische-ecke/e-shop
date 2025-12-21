@@ -2,6 +2,8 @@ package com.example.cart.domain;
 
 import com.example.common.domain.BaseEntity;
 import com.example.common.domain.Money;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -15,6 +17,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "cart_item")
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CartItem extends BaseEntity {
 
     @NotNull
@@ -31,6 +34,7 @@ public class CartItem extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cart_id", nullable = false, columnDefinition = "uuid")
+    @JsonIgnore
     private Cart cart;
 
     public CartItem() {
@@ -74,6 +78,7 @@ public class CartItem extends BaseEntity {
         this.cart = cart;
     }
 
+    @JsonIgnore
     public long getTotalAmount() {
         return unitPrice.getAmount() * quantity;
     }

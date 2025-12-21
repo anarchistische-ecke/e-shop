@@ -3,14 +3,16 @@ package com.example.catalog.domain;
 import com.example.common.domain.BaseEntity;
 import jakarta.persistence.*;
 
-import java.util.UUID;
-
 @Entity
 @Table(name = "product_image")
 public class ProductImage extends BaseEntity {
     @ManyToOne(optional = false)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "variant_id")
+    private ProductVariant variant;
 
     @Column(name = "url", nullable = false)
     private String url;
@@ -41,6 +43,14 @@ public class ProductImage extends BaseEntity {
 
     public void setProduct(Product product) {
         this.product = product;
+    }
+
+    public ProductVariant getVariant() {
+        return variant;
+    }
+
+    public void setVariant(ProductVariant variant) {
+        this.variant = variant;
     }
 
     public String getUrl() {
