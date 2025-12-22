@@ -3,6 +3,7 @@ WORKDIR /app
 
 # Preload dependency graph for better caching
 COPY pom.xml mvnw mvnw.cmd ./
+COPY .mvn .mvn
 COPY common/pom.xml common/pom.xml
 COPY catalog/pom.xml catalog/pom.xml
 COPY cart/pom.xml cart/pom.xml
