@@ -15,8 +15,10 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -128,41 +130,60 @@ public class CatalogService {
     }
 
     public List<Product> getProducts(String categorySlug, String brandSlug) {
-        if (categorySlug != null && !categorySlug.isBlank() &&
-                brandSlug != null && !brandSlug.isBlank()) {
-            return productRepository.findByCategory_SlugAndBrand_Slug(categorySlug, brandSlug);
+        boolean hasCategory = categorySlug != null && !categorySlug.isBlank();
+        boolean hasBrand = brandSlug != null && !brandSlug.isBlank();
+        String categoryPath = null;
+        if (hasCategory) {
+            categoryPath = resolveCategory(categorySlug).map(Category::getFullPath).orElse(null);
+            if (categoryPath == null) {
+                return List.of();
+            }
         }
-        if (categorySlug != null && !categorySlug.isBlank()) {
-            return productRepository.findByCategory_Slug(categorySlug);
+        List<Product> products;
+        if (hasCategory && hasBrand) {
+            products = productRepository.findDistinctByCategories_FullPathStartingWithAndBrand_Slug(categoryPath, brandSlug);
+        } else if (hasCategory) {
+            products = productRepository.findDistinctByCategories_FullPathStartingWith(categoryPath);
+        } else if (hasBrand) {
+            products = productRepository.findByBrand_Slug(brandSlug);
+        } else {
+            products = productRepository.findAll();
         }
-        if (brandSlug != null && !brandSlug.isBlank()) {
-            return productRepository.findByBrand_Slug(brandSlug);
-        }
-        return productRepository.findAll();
+        products.forEach(this::hydrateProduct);
+        return products;
     }
 
     @Transactional
     public Optional<Product> getProduct(UUID id) {
-        return productRepository.findById(id);
+        Optional<Product> product = productRepository.findById(id);
+        product.ifPresent(this::hydrateProduct);
+        return product;
     }
 
     public List<Product> getAllProducts() {
-        return productRepository.findAll();
+        List<Product> products = productRepository.findAll();
+        products.forEach(this::hydrateProduct);
+        return products;
     }
 
     @Transactional
-    public Product updateProduct(UUID id, Product updates) {
+    public Product updateProduct(UUID id, Product updates, boolean categoriesProvided) {
         return productRepository.findById(id).map(p -> {
             p.setName(updates.getName());
             p.setDescription(updates.getDescription());
             p.setSlug(updates.getSlug());
-            if (updates.getCategory() != null) {
-                p.setCategory(updates.getCategory());
+            if (categoriesProvided) {
+                Set<Category> nextCategories = updates.getCategories() != null
+                        ? new HashSet<>(updates.getCategories())
+                        : new HashSet<>();
+                p.setCategories(nextCategories);
             }
             if (updates.getBrand() != null) {
                 p.setBrand(updates.getBrand());
             }
-            return productRepository.save(p);
+            Product saved = productRepository.save(p);
+            hydrateProduct(saved);
+            return saved;
         }).orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
     }
 
@@ -172,6 +193,25 @@ public class CatalogService {
             throw new IllegalArgumentException("Product not found: " + id);
         }
         productRepository.deleteById(id);
+    }
+
+    private void hydrateProduct(Product product) {
+        if (product == null) {
+            return;
+        }
+        if (product.getCategories() != null) {
+            product.getCategories().forEach(cat -> {
+                if (cat != null) {
+                    cat.getSlug();
+                }
+            });
+        }
+        if (product.getBrand() != null) {
+            product.getBrand().getSlug();
+        }
+        if (product.getVariants() != null) {
+            product.getVariants().size();
+        }
     }
 
 
@@ -217,7 +257,9 @@ public class CatalogService {
             } else {
                 cat.setFullPath(cat.getSlug());
             }
-            return categoryRepository.save(cat);
+            Category saved = categoryRepository.save(cat);
+            updateChildrenFullPaths(saved);
+            return saved;
         }).orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
     }
 
@@ -227,6 +269,36 @@ public class CatalogService {
             throw new IllegalArgumentException("Category not found: " + id);
         }
         categoryRepository.deleteById(id);
+    }
+
+    private void updateChildrenFullPaths(Category parent) {
+        if (parent == null) {
+            return;
+        }
+        List<Category> children = categoryRepository.findByParent_Id(parent.getId());
+        for (Category child : children) {
+            if (child == null) {
+                continue;
+            }
+            child.setFullPath(parent.getFullPath() + "/" + child.getSlug());
+            Category saved = categoryRepository.save(child);
+            updateChildrenFullPaths(saved);
+        }
+    }
+
+    private Optional<Category> resolveCategory(String reference) {
+        if (reference == null || reference.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Category> bySlug = categoryRepository.findBySlug(reference);
+        if (bySlug.isPresent()) {
+            return bySlug;
+        }
+        try {
+            return categoryRepository.findById(UUID.fromString(reference));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
     }
 
     //

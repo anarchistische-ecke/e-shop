@@ -26,9 +26,13 @@ public class Product extends BaseEntity {
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<ProductVariant> variants = new HashSet<>();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id", columnDefinition = "uuid")
-    private Category category;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "product_category",
+            joinColumns = @JoinColumn(name = "product_id", columnDefinition = "uuid"),
+            inverseJoinColumns = @JoinColumn(name = "category_id", columnDefinition = "uuid")
+    )
+    private Set<Category> categories = new HashSet<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "brand_id", columnDefinition = "uuid")
@@ -81,12 +85,12 @@ public class Product extends BaseEntity {
         this.variants = variants;
     }
 
-    public Category getCategory() {
-        return category;
+    public Set<Category> getCategories() {
+        return categories;
     }
 
-    public void setCategory(Category category) {
-        this.category = category;
+    public void setCategories(Set<Category> categories) {
+        this.categories = categories != null ? categories : new HashSet<>();
     }
 
     public Brand getBrand() {
@@ -113,6 +117,16 @@ public class Product extends BaseEntity {
     public void removeVariant(ProductVariant variant) {
         variants.remove(variant);
         variant.setProduct(null);
+    }
+
+    public void addCategory(Category category) {
+        if (category != null) {
+            categories.add(category);
+        }
+    }
+
+    public void removeCategory(Category category) {
+        categories.remove(category);
     }
 
     public void addImage(ProductImage image) {

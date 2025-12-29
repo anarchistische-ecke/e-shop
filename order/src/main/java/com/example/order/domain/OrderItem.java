@@ -2,6 +2,8 @@ package com.example.order.domain;
 
 import com.example.common.domain.BaseEntity;
 import com.example.common.domain.Money;
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -26,6 +28,10 @@ public class OrderItem extends BaseEntity {
     private int quantity;
 
     @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "unit_price_amount", nullable = false)),
+            @AttributeOverride(name = "currency", column = @Column(name = "unit_price_currency", nullable = false, length = 3))
+    })
     @NotNull
     private Money unitPrice;
 

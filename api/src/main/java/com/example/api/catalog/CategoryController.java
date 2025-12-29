@@ -1,6 +1,5 @@
 package com.example.api.catalog;
 
-
 import com.example.catalog.domain.Category;
 import com.example.catalog.service.CatalogService;
 import jakarta.validation.Valid;
@@ -26,27 +25,29 @@ public class CategoryController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Category>> listCategories() {
-        List<Category> categories = catalogService.listAllInCategory();
+    public ResponseEntity<List<CategoryResponse>> listCategories() {
+        List<CategoryResponse> categories = catalogService.listAllInCategory().stream()
+                .map(CategoryController::toResponse)
+                .toList();
         return ResponseEntity.ok(categories);
     }
 
     @GetMapping("/{slug}")
-    public ResponseEntity<Category> getCategoryBySlug(@PathVariable String slug) {
+    public ResponseEntity<CategoryResponse> getCategoryBySlug(@PathVariable String slug) {
         Category category = catalogService.getBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + slug));
-        return ResponseEntity.ok(category);
+        return ResponseEntity.ok(toResponse(category));
     }
 
     @GetMapping("/id/{id}")
-    public ResponseEntity<Category> getCategoryById(@PathVariable UUID id) {
+    public ResponseEntity<CategoryResponse> getCategoryById(@PathVariable UUID id) {
         Category category = catalogService.getByCategoryId(id)
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
-        return ResponseEntity.ok(category);
+        return ResponseEntity.ok(toResponse(category));
     }
 
     @PostMapping
-    public ResponseEntity<Category> createCategory(@Valid @RequestBody CategoryRequest request) {
+    public ResponseEntity<CategoryResponse> createCategory(@Valid @RequestBody CategoryRequest request) {
         Category parent = null;
         if (request.getParentId() != null) {
             parent = catalogService.getByCategoryId(request.getParentId())
@@ -60,11 +61,11 @@ public class CategoryController {
             category.setIsActive(request.getIsActive());
         }
         Category created = catalogService.create(category);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(created));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Category> updateCategory(
+    public ResponseEntity<CategoryResponse> updateCategory(
             @PathVariable UUID id,
             @Valid @RequestBody CategoryRequest request) {
         Category parent = null;
@@ -80,7 +81,7 @@ public class CategoryController {
             updates.setIsActive(request.getIsActive());
         }
         Category updated = catalogService.update(id, updates);
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(toResponse(updated));
     }
 
     @DeleteMapping("/{id}")
@@ -89,6 +90,82 @@ public class CategoryController {
         return ResponseEntity.noContent().build();
     }
 
+    private static CategoryResponse toResponse(Category category) {
+        UUID parentId = category.getParent() != null ? category.getParent().getId() : null;
+        return new CategoryResponse(
+                category.getId(),
+                category.getName(),
+                category.getSlug(),
+                category.getDescription(),
+                parentId,
+                category.getPosition(),
+                category.isIsActive(),
+                category.getFullPath()
+        );
+    }
+
+    public static class CategoryResponse {
+        private final UUID id;
+        private final String name;
+        private final String slug;
+        private final String description;
+        private final UUID parentId;
+        private final int position;
+        private final boolean isActive;
+        private final String fullPath;
+
+        public CategoryResponse(
+                UUID id,
+                String name,
+                String slug,
+                String description,
+                UUID parentId,
+                int position,
+                boolean isActive,
+                String fullPath
+        ) {
+            this.id = id;
+            this.name = name;
+            this.slug = slug;
+            this.description = description;
+            this.parentId = parentId;
+            this.position = position;
+            this.isActive = isActive;
+            this.fullPath = fullPath;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getSlug() {
+            return slug;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public UUID getParentId() {
+            return parentId;
+        }
+
+        public int getPosition() {
+            return position;
+        }
+
+        public boolean getIsActive() {
+            return isActive;
+        }
+
+        public String getFullPath() {
+            return fullPath;
+        }
+    }
 
     public static class CategoryRequest {
         @NotBlank
@@ -150,4 +227,3 @@ public class CategoryController {
         }
     }
 }
-

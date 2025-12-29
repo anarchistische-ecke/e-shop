@@ -52,3 +52,4 @@ yandex:
     access-key: ${YANDEX_STORAGE_KEY:?Access key is required}
     secret-key: ${YANDEX_STORAGE_SECRET:?Secret key is required}
     endpoint: ${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}
+    public-base-url: ${YANDEX_STORAGE_PUBLIC_BASE_URL:${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}}

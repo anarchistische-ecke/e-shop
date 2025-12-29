@@ -11,7 +11,7 @@ import java.util.UUID;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findBySlug(String slug);
-    List<Product> findByCategory_Slug(String categorySlug);
     List<Product> findByBrand_Slug(String brandSlug);
-    List<Product> findByCategory_SlugAndBrand_Slug(String categorySlug, String brandSlug);
+    List<Product> findDistinctByCategories_FullPathStartingWith(String fullPathPrefix);
+    List<Product> findDistinctByCategories_FullPathStartingWithAndBrand_Slug(String fullPathPrefix, String brandSlug);
 }

@@ -35,31 +35,26 @@ jobs:
 
   deploy:
     needs: build
-    if: github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: api-jar
-          path: dist
-
-      - name: Copy jar to VM
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.YC_VM_HOST }}
-          username: ${{ secrets.YC_VM_USER }}
-          key: ${{ secrets.YC_VM_SSH_KEY }}
-          source: "dist/api-*.jar"
-          target: ${{ secrets.YC_VM_DEPLOY_PATH }}
-
-      - name: Restart service on VM
+      - name: Build and deploy on VM
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.YC_VM_HOST }}
           username: ${{ secrets.YC_VM_USER }}
           key: ${{ secrets.YC_VM_SSH_KEY }}
           script: |
+            set -e
             cd ${{ secrets.YC_VM_DEPLOY_PATH }}
-            ln -sf api-*.jar app.jar
-            systemctl --user restart eshop-api
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            if docker compose version >/dev/null 2>&1; then
+              docker compose -f docker-compose.prod.yml up -d --build
+            elif command -v docker-compose >/dev/null 2>&1; then
+              docker-compose -f docker-compose.prod.yml up -d --build
+            else
+              echo "Docker Compose not found on server." >&2
+              exit 1
+            fi

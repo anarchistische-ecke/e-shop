@@ -60,7 +60,10 @@ public class CustomerService {
 
     public Optional<Customer> authenticate(String email, String rawPassword) {
         return customerRepository.findByEmail(email)
-                .filter(customer -> passwordEncoder.matches(rawPassword, customer.getPassword()));
+                .filter(customer -> {
+                    String encoded = customer.getPassword();
+                    return StringUtils.hasText(encoded) && passwordEncoder.matches(rawPassword, encoded);
+                });
     }
 
     public Customer findOrCreateByYandex(String yandexId, String email, String firstName, String lastName) {

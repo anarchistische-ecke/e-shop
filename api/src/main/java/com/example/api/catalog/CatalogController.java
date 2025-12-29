@@ -1,5 +1,6 @@
 package com.example.api.catalog;
 
+import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
 import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
@@ -16,7 +17,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,16 +42,18 @@ public class CatalogController {
     public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody ProductRequest request) {
         // Create the product with basic fields
         Product product = catalogService.createProduct(request.getName(), request.getDescription(), request.getSlug());
-        // If a category slug/ID is provided, resolve it and assign
-        if (request.getCategory() != null && !request.getCategory().isBlank()) {
-            catalogService.getBySlug(request.getCategory()).ifPresent(product::setCategory);
+        // If categories are provided, resolve them and assign
+        Set<Category> categories = resolveCategories(request);
+        if (!categories.isEmpty() || request.getCategories() != null || request.getCategory() != null) {
+            product.setCategories(categories);
         }
         // If a brand slug/ID is provided, resolve it and assign
         if (request.getBrand() != null && !request.getBrand().isBlank()) {
             catalogService.getByBrandSlug(request.getBrand()).ifPresent(product::setBrand);
         }
         // Persist the associations
-        product = catalogService.updateProduct(product.getId(), product);
+        boolean categoriesProvided = request.getCategories() != null || request.getCategory() != null;
+        product = catalogService.updateProduct(product.getId(), product, categoriesProvided);
         return ResponseEntity.status(HttpStatus.CREATED).body(mapProduct(product));
     }
 
@@ -135,14 +142,15 @@ public class CatalogController {
                                                          @Valid @RequestBody ProductRequest request) {
         // Build the updates object
         Product updates = new Product(request.getName(), request.getDescription(), request.getSlug());
-        // Resolve category and brand if provided
-        if (request.getCategory() != null && !request.getCategory().isBlank()) {
-            catalogService.getBySlug(request.getCategory()).ifPresent(updates::setCategory);
+        // Resolve categories and brand if provided
+        if (request.getCategories() != null || request.getCategory() != null) {
+            updates.setCategories(resolveCategories(request));
         }
         if (request.getBrand() != null && !request.getBrand().isBlank()) {
             catalogService.getByBrandSlug(request.getBrand()).ifPresent(updates::setBrand);
         }
-        var updated = catalogService.updateProduct(id, updates);
+        boolean categoriesProvided = request.getCategories() != null || request.getCategory() != null;
+        var updated = catalogService.updateProduct(id, updates, categoriesProvided);
         return ResponseEntity.ok(mapProduct(updated));
     }
 
@@ -162,6 +170,7 @@ public class CatalogController {
         @NotBlank
         private String slug;
         private String category;
+        private List<String> categories;
         private String brand;
 
         public String getName() {
@@ -194,6 +203,14 @@ public class CatalogController {
 
         public void setCategory(String category) {
             this.category = category;
+        }
+
+        public List<String> getCategories() {
+            return categories;
+        }
+
+        public void setCategories(List<String> categories) {
+            this.categories = categories;
         }
 
         public String getBrand() {
@@ -307,6 +324,7 @@ public class CatalogController {
         private String description;
         private String slug;
         private String category;
+        private List<CategorySummary> categories;
         private String brand;
         private List<ImageResponse> images;
         private OffsetDateTime createdAt;
@@ -351,6 +369,14 @@ public class CatalogController {
 
         public void setCategory(String category) {
             this.category = category;
+        }
+
+        public List<CategorySummary> getCategories() {
+            return categories;
+        }
+
+        public void setCategories(List<CategorySummary> categories) {
+            this.categories = categories;
         }
 
         public String getBrand() {
@@ -502,13 +528,45 @@ public class CatalogController {
         }
     }
 
+    public static class CategorySummary {
+        private UUID id;
+        private String name;
+        private String slug;
+        private String fullPath;
+
+        public CategorySummary(UUID id, String name, String slug, String fullPath) {
+            this.id = id;
+            this.name = name;
+            this.slug = slug;
+            this.fullPath = fullPath;
+        }
+
+        public UUID getId() {
+            return id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public String getSlug() {
+            return slug;
+        }
+
+        public String getFullPath() {
+            return fullPath;
+        }
+    }
+
     private ProductResponse mapProduct(Product product) {
         ProductResponse response = new ProductResponse();
         response.setId(product.getId());
         response.setName(product.getName());
         response.setDescription(product.getDescription());
         response.setSlug(product.getSlug());
-        response.setCategory(product.getCategory() != null ? product.getCategory().getSlug() : null);
+        List<CategorySummary> categories = mapCategories(product.getCategories());
+        response.setCategories(categories);
+        response.setCategory(categories.isEmpty() ? null : categories.get(0).getSlug());
         response.setBrand(product.getBrand() != null ? product.getBrand().getSlug() : null);
         var images = catalogService.getProductImages(product.getId());
         response.setImages(images != null
@@ -541,5 +599,47 @@ public class CatalogController {
         response.setPosition(image.getPosition());
         response.setVariantId(image.getVariant() != null ? image.getVariant().getId() : null);
         return response;
+    }
+
+    private List<CategorySummary> mapCategories(Set<Category> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return List.of();
+        }
+        return categories.stream()
+                .filter(cat -> cat != null)
+                .sorted(Comparator.comparing(cat -> Optional.ofNullable(cat.getFullPath()).orElse(cat.getSlug())))
+                .map(cat -> new CategorySummary(cat.getId(), cat.getName(), cat.getSlug(), cat.getFullPath()))
+                .collect(Collectors.toList());
+    }
+
+    private Set<Category> resolveCategories(ProductRequest request) {
+        Set<Category> categories = new HashSet<>();
+        if (request == null) {
+            return categories;
+        }
+        List<String> refs = request.getCategories();
+        if (refs != null) {
+            refs.forEach(ref -> resolveCategoryRef(ref).ifPresent(categories::add));
+            return categories;
+        }
+        if (request.getCategory() != null) {
+            resolveCategoryRef(request.getCategory()).ifPresent(categories::add);
+        }
+        return categories;
+    }
+
+    private Optional<Category> resolveCategoryRef(String reference) {
+        if (reference == null || reference.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Category> bySlug = catalogService.getBySlug(reference);
+        if (bySlug.isPresent()) {
+            return bySlug;
+        }
+        try {
+            return catalogService.getByCategoryId(UUID.fromString(reference));
+        } catch (IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
     }
 }

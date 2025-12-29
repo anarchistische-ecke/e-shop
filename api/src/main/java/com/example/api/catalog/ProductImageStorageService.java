@@ -15,12 +15,19 @@ import java.util.UUID;
 
 @Service
 public class ProductImageStorageService {
+    private static final String DEFAULT_PUBLIC_BASE_URL = "https://storage.yandexcloud.net";
+
     private final S3Client s3Client;
     private final String bucketName;
+    private final String publicBaseUrl;
 
-    public ProductImageStorageService(S3Client s3Client, @Value("${yandex.storage.bucket}") String bucketName) {
+    public ProductImageStorageService(
+            S3Client s3Client,
+            @Value("${yandex.storage.bucket}") String bucketName,
+            @Value("${yandex.storage.public-base-url:${yandex.storage.endpoint:https://storage.yandexcloud.net}}") String publicBaseUrl) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
+        this.publicBaseUrl = normalizeBaseUrl(publicBaseUrl);
     }
 
     public StoredImage upload(UUID productId, MultipartFile file, int position) {
@@ -36,10 +43,11 @@ public class ProductImageStorageService {
                 .bucket(bucketName)
                 .key(key)
                 .contentType(file.getContentType() != null ? file.getContentType() : "application/octet-stream")
+                .cacheControl("public, max-age=31536000, immutable")
                 .acl(ObjectCannedACL.PUBLIC_READ)
                 .build();
         try {
-            s3Client.putObject(request, RequestBody.fromBytes(file.getBytes()));
+            s3Client.putObject(request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
         } catch (IOException e) {
             throw new IllegalArgumentException("Не удалось прочитать файл изображения", e);
         }
@@ -68,8 +76,20 @@ public class ProductImageStorageService {
         return ext.isBlank() ? "" : "." + ext;
     }
 
+    private String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return DEFAULT_PUBLIC_BASE_URL;
+        }
+        String trimmed = baseUrl.trim();
+        return trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
+    }
+
     private String publicUrlFor(String key) {
-        return "https://storage.yandexcloud.net/" + bucketName + "/" + key;
+        String base = publicBaseUrl;
+        if (base.endsWith("/" + bucketName)) {
+            return base + "/" + key;
+        }
+        return base + "/" + bucketName + "/" + key;
     }
 
     public record StoredImage(String objectKey, String url, int position) {
