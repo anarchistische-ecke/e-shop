@@ -1,0 +1,60 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B -ntp -pl api -am verify
+
+      - name: Package API jar
+        run: ./mvnw -B -ntp -pl api -am package -DskipTests
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-jar
+          path: api/target/api-*.jar
+
+  deploy:
+    needs: build
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build and deploy on VM
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.YC_VM_HOST }}
+          username: ${{ secrets.YC_VM_USER }}
+          key: ${{ secrets.YC_VM_SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.YC_VM_DEPLOY_PATH }}
+            git fetch origin main
+            git checkout main
+            git pull --ff-only origin main
+            if docker compose version >/dev/null 2>&1; then
+              docker compose -f docker-compose.prod.yml up -d --build
+            elif command -v docker-compose >/dev/null 2>&1; then
+              docker-compose -f docker-compose.prod.yml up -d --build
+            else
+              echo "Docker Compose not found on server." >&2
+              exit 1
+            fi
