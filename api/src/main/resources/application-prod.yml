@@ -1,4 +1,9 @@
 spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:?KEYCLOAK_ISSUER_URI is required}
   config:
     activate:
       on-profile: prod
@@ -39,7 +44,7 @@ management:
         include: health,info
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://your-frontend-domain.com}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yug-postel.ru}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type}
 
