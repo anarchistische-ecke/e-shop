@@ -44,6 +44,12 @@ public class Order extends BaseEntity {
     @Column(name = "shipment_id", columnDefinition = "uuid")
     private UUID shipmentId;
 
+    @Column(name = "public_token", unique = true)
+    private String publicToken;
+
+    @Column(name = "receipt_email")
+    private String receiptEmail;
+
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<OrderItem> items = new HashSet<>();
@@ -96,6 +102,22 @@ public class Order extends BaseEntity {
 
     public void setPaymentId(UUID paymentId) {
         this.paymentId = paymentId;
+    }
+
+    public String getPublicToken() {
+        return publicToken;
+    }
+
+    public void setPublicToken(String publicToken) {
+        this.publicToken = publicToken;
+    }
+
+    public String getReceiptEmail() {
+        return receiptEmail;
+    }
+
+    public void setReceiptEmail(String receiptEmail) {
+        this.receiptEmail = receiptEmail;
     }
 
     public UUID getShipmentId() {

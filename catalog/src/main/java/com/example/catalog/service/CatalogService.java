@@ -172,6 +172,9 @@ public class CatalogService {
             p.setName(updates.getName());
             p.setDescription(updates.getDescription());
             p.setSlug(updates.getSlug());
+            if (updates.getSpecifications() != null) {
+                p.setSpecifications(updates.getSpecifications());
+            }
             if (categoriesProvided) {
                 Set<Category> nextCategories = updates.getCategories() != null
                         ? new HashSet<>(updates.getCategories())

@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -33,6 +34,15 @@ public class Customer extends BaseEntity {
     @Column(name = "phone", unique = true)
     private String phone;
 
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
+
+    @Column(name = "gender", length = 20)
+    private String gender;
+
+    @Column(name = "marketing_opt_in", nullable = false)
+    private boolean marketingOptIn = false;
+
     @Column(name = "yandex_id", unique = true)
     private String yandexId;
 
@@ -44,6 +54,12 @@ public class Customer extends BaseEntity {
 
     @Column(name = "registered_at", nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime registeredAt;
+
+    @Column(name = "email_verified", nullable = false)
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime emailVerifiedAt;
 
     @NotBlank
     @Column(name = "password", nullable = false)
@@ -102,6 +118,30 @@ public class Customer extends BaseEntity {
         this.phone = phone;
     }
 
+    public LocalDate getBirthDate() {
+        return birthDate;
+    }
+
+    public void setBirthDate(LocalDate birthDate) {
+        this.birthDate = birthDate;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public boolean isMarketingOptIn() {
+        return marketingOptIn;
+    }
+
+    public void setMarketingOptIn(boolean marketingOptIn) {
+        this.marketingOptIn = marketingOptIn;
+    }
+
     public String getYandexId() {
         return yandexId;
     }
@@ -132,6 +172,22 @@ public class Customer extends BaseEntity {
 
     public void setRegisteredAt(OffsetDateTime registeredAt) {
         this.registeredAt = registeredAt;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public OffsetDateTime getEmailVerifiedAt() {
+        return emailVerifiedAt;
+    }
+
+    public void setEmailVerifiedAt(OffsetDateTime emailVerifiedAt) {
+        this.emailVerifiedAt = emailVerifiedAt;
     }
 
     public String getPassword() {

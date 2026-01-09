@@ -18,6 +18,9 @@ public class Product extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "specifications", columnDefinition = "TEXT")
+    private String specifications;
+
     @NotBlank
     @Column(name = "slug", unique = true, nullable = false)
     private String slug;
@@ -75,6 +78,14 @@ public class Product extends BaseEntity {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public String getSpecifications() {
+        return specifications;
+    }
+
+    public void setSpecifications(String specifications) {
+        this.specifications = specifications;
     }
 
     public Set<ProductVariant> getVariants() {
