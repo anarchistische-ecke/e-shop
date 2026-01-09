@@ -165,8 +165,9 @@ public class PaymentService {
         }
         payment = paymentRepository.save(payment);
 
-        Order order = orderRepository.findById(payment.getOrderId())
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + payment.getOrderId()));
+        UUID orderId = payment.getOrderId();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         if (nextStatus == PaymentStatus.COMPLETED) {
             order.setStatus("PAID");
         } else if (nextStatus == PaymentStatus.CANCELLED || nextStatus == PaymentStatus.FAILED) {
@@ -197,8 +198,9 @@ public class PaymentService {
         }
         payment = paymentRepository.save(payment);
 
-        Order order = orderRepository.findById(payment.getOrderId())
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + payment.getOrderId()));
+        UUID orderId = payment.getOrderId();
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         if (nextStatus == PaymentStatus.COMPLETED) {
             order.setStatus("PAID");
         } else if (nextStatus == PaymentStatus.CANCELLED || nextStatus == PaymentStatus.FAILED) {
