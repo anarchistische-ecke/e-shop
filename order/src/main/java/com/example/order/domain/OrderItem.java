@@ -35,6 +35,15 @@ public class OrderItem extends BaseEntity {
     @NotNull
     private Money unitPrice;
 
+    @Column(name = "product_name")
+    private String productName;
+
+    @Column(name = "variant_name")
+    private String variantName;
+
+    @Column(name = "sku")
+    private String sku;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false, columnDefinition = "uuid")
     private Order order;
@@ -70,6 +79,30 @@ public class OrderItem extends BaseEntity {
 
     public void setUnitPrice(Money unitPrice) {
         this.unitPrice = unitPrice;
+    }
+
+    public String getProductName() {
+        return productName;
+    }
+
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+
+    public String getVariantName() {
+        return variantName;
+    }
+
+    public void setVariantName(String variantName) {
+        this.variantName = variantName;
+    }
+
+    public String getSku() {
+        return sku;
+    }
+
+    public void setSku(String sku) {
+        this.sku = sku;
     }
 
     public Order getOrder() {

@@ -31,13 +31,23 @@ public class SecurityConfig {
                 .requestMatchers("/health/**").permitAll()
                 // Allow login and user registration without authentication
                 .requestMatchers(HttpMethod.POST, "/auth/**", "/customers/register").permitAll()
+                .requestMatchers(HttpMethod.POST, "/customers/verify/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.PUT, "/customers/me").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.PUT, "/customers/me/subscription").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/orders/me").hasRole("CUSTOMER")
                 // Allow cart operations and checkout for guests
                 .requestMatchers("/carts/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/orders").permitAll()
+                .requestMatchers(HttpMethod.POST, "/orders/checkout").permitAll()
+                .requestMatchers(HttpMethod.GET, "/orders/public/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/orders/public/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/payments/yookassa/webhook").permitAll()
                 // Allow anyone to view products, categories and brands via GET
                 .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/brands/**").permitAll()
                 // Inventory adjustments require admin privileges
                 .requestMatchers(HttpMethod.POST, "/inventory/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/orders/admin-link").hasRole("ADMIN")
                 // Require admin for creating, updating or deleting products, categories and brands
                 .requestMatchers(HttpMethod.POST, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/products/**", "/categories/**", "/brands/**").hasRole("ADMIN")

@@ -5,6 +5,8 @@ import com.example.catalog.domain.Product;
 import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -31,17 +33,22 @@ public class CatalogController {
 
     private final CatalogService catalogService;
     private final ProductImageStorageService imageStorageService;
+    private final ObjectMapper objectMapper;
 
     @Autowired
-    public CatalogController(CatalogService catalogService, ProductImageStorageService imageStorageService) {
+    public CatalogController(CatalogService catalogService, ProductImageStorageService imageStorageService, ObjectMapper objectMapper) {
         this.catalogService = catalogService;
         this.imageStorageService = imageStorageService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
     public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody ProductRequest request) {
         // Create the product with basic fields
         Product product = catalogService.createProduct(request.getName(), request.getDescription(), request.getSlug());
+        if (request.getSpecifications() != null) {
+            product.setSpecifications(serializeSpecifications(request.getSpecifications()));
+        }
         // If categories are provided, resolve them and assign
         Set<Category> categories = resolveCategories(request);
         if (!categories.isEmpty() || request.getCategories() != null || request.getCategory() != null) {
@@ -142,6 +149,9 @@ public class CatalogController {
                                                          @Valid @RequestBody ProductRequest request) {
         // Build the updates object
         Product updates = new Product(request.getName(), request.getDescription(), request.getSlug());
+        if (request.getSpecifications() != null) {
+            updates.setSpecifications(serializeSpecifications(request.getSpecifications()));
+        }
         // Resolve categories and brand if provided
         if (request.getCategories() != null || request.getCategory() != null) {
             updates.setCategories(resolveCategories(request));
@@ -172,6 +182,7 @@ public class CatalogController {
         private String category;
         private List<String> categories;
         private String brand;
+        private List<SpecificationSection> specifications;
 
         public String getName() {
             return name;
@@ -219,6 +230,14 @@ public class CatalogController {
 
         public void setBrand(String brand) {
             this.brand = brand;
+        }
+
+        public List<SpecificationSection> getSpecifications() {
+            return specifications;
+        }
+
+        public void setSpecifications(List<SpecificationSection> specifications) {
+            this.specifications = specifications;
         }
     }
 
@@ -330,6 +349,7 @@ public class CatalogController {
         private OffsetDateTime createdAt;
         private OffsetDateTime updatedAt;
         private List<VariantResponse> variants;
+        private List<SpecificationSection> specifications;
 
         public UUID getId() {
             return id;
@@ -417,6 +437,14 @@ public class CatalogController {
 
         public void setImages(List<ImageResponse> images) {
             this.images = images;
+        }
+
+        public List<SpecificationSection> getSpecifications() {
+            return specifications;
+        }
+
+        public void setSpecifications(List<SpecificationSection> specifications) {
+            this.specifications = specifications;
         }
     }
 
@@ -528,6 +556,57 @@ public class CatalogController {
         }
     }
 
+    public static class SpecificationSection {
+        private String title;
+        private String description;
+        private List<SpecificationItem> items;
+
+        public String getTitle() {
+            return title;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(String description) {
+            this.description = description;
+        }
+
+        public List<SpecificationItem> getItems() {
+            return items;
+        }
+
+        public void setItems(List<SpecificationItem> items) {
+            this.items = items;
+        }
+    }
+
+    public static class SpecificationItem {
+        private String label;
+        private String value;
+
+        public String getLabel() {
+            return label;
+        }
+
+        public void setLabel(String label) {
+            this.label = label;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public void setValue(String value) {
+            this.value = value;
+        }
+    }
+
     public static class CategorySummary {
         private UUID id;
         private String name;
@@ -564,6 +643,7 @@ public class CatalogController {
         response.setName(product.getName());
         response.setDescription(product.getDescription());
         response.setSlug(product.getSlug());
+        response.setSpecifications(deserializeSpecifications(product.getSpecifications()));
         List<CategorySummary> categories = mapCategories(product.getCategories());
         response.setCategories(categories);
         response.setCategory(categories.isEmpty() ? null : categories.get(0).getSlug());
@@ -640,6 +720,28 @@ public class CatalogController {
             return catalogService.getByCategoryId(UUID.fromString(reference));
         } catch (IllegalArgumentException ignored) {
             return Optional.empty();
+        }
+    }
+
+    private String serializeSpecifications(List<SpecificationSection> sections) {
+        if (sections == null) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(sections);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid specifications payload");
+        }
+    }
+
+    private List<SpecificationSection> deserializeSpecifications(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(raw, new TypeReference<List<SpecificationSection>>() {});
+        } catch (Exception e) {
+            return List.of();
         }
     }
 }

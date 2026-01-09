@@ -1,9 +1,13 @@
 package com.example.api.payment;
 
 import com.example.payment.domain.Payment;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.example.payment.service.PaymentService;
 import com.example.payment.service.BrowserInfo;
 import com.example.common.domain.Money;
+import com.example.api.notification.EmailService;
+import com.example.order.domain.Order;
+import com.example.order.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -20,10 +24,14 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final OrderService orderService;
+    private final EmailService emailService;
 
     @Autowired
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, OrderService orderService, EmailService emailService) {
         this.paymentService = paymentService;
+        this.orderService = orderService;
+        this.emailService = emailService;
     }
 
     @PostMapping
@@ -68,6 +76,24 @@ public class PaymentController {
         Payment payment = paymentService.processPayment(
                 request.getOrderId(), amount, request.getMethod(), cardToken, browserInfo);
         return ResponseEntity.status(HttpStatus.CREATED).body(payment);
+    }
+
+    @PostMapping("/yookassa/webhook")
+    public ResponseEntity<Void> handleYooKassaWebhook(@RequestBody YooKassaNotification notification) {
+        if (notification == null || notification.object == null || notification.object.id == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        PaymentService.PaymentUpdateResult result =
+                paymentService.refreshYooKassaPaymentWithResult(notification.object.id);
+        if (result.completedNow()) {
+            Payment payment = result.payment();
+            Order order = orderService.findById(payment.getOrderId());
+            String email = order.getReceiptEmail();
+            if (email != null && !email.isBlank()) {
+                emailService.sendPaymentReceipt(order, payment, email);
+            }
+        }
+        return ResponseEntity.ok().build();
     }
 
     public static class PaymentRequest {
@@ -219,5 +245,17 @@ public class PaymentController {
         public void setJavaEnabled(Boolean javaEnabled) {
             this.javaEnabled = javaEnabled;
         }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class YooKassaNotification {
+        public String event;
+        public YooKassaPaymentObject object;
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class YooKassaPaymentObject {
+        public String id;
+        public String status;
     }
 }

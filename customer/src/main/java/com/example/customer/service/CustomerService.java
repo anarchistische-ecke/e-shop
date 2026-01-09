@@ -9,6 +9,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -119,6 +120,68 @@ public class CustomerService {
         Customer customer = buildCustomer(safeFirst, safeLast, resolvedEmail, null, emptyAddress());
         customer.setVkId(vkId);
         customer.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        return customerRepository.save(customer);
+    }
+
+    public Customer findOrCreateByEmail(String email, String firstName, String lastName) {
+        if (!StringUtils.hasText(email)) {
+            throw new IllegalArgumentException("Email must be provided");
+        }
+        Optional<Customer> existing = customerRepository.findByEmail(email);
+        if (existing.isPresent()) {
+            Customer customer = existing.get();
+            if (StringUtils.hasText(firstName)) {
+                customer.setFirstName(firstName);
+            }
+            if (StringUtils.hasText(lastName)) {
+                customer.setLastName(lastName);
+            }
+            return customerRepository.save(customer);
+        }
+        Customer customer = buildCustomer(firstName, lastName, email, null, emptyAddress());
+        customer.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        return customerRepository.save(customer);
+    }
+
+    public Customer updateCustomerProfile(Customer customer,
+                                          String email,
+                                          String firstName,
+                                          String lastName,
+                                          String phone,
+                                          LocalDate birthDate,
+                                          String gender,
+                                          Boolean marketingOptIn) {
+        if (StringUtils.hasText(email) && !email.equalsIgnoreCase(customer.getEmail())) {
+            customerRepository.findByEmail(email)
+                    .filter(existing -> !existing.getId().equals(customer.getId()))
+                    .ifPresent(existing -> {
+                        throw new IllegalArgumentException("Email already in use");
+                    });
+            customer.setEmail(email);
+        }
+        if (StringUtils.hasText(phone) && !phone.equals(customer.getPhone())) {
+            customerRepository.findByPhone(phone)
+                    .filter(existing -> !existing.getId().equals(customer.getId()))
+                    .ifPresent(existing -> {
+                        throw new IllegalArgumentException("Phone already in use");
+                    });
+            customer.setPhone(phone);
+        }
+        if (StringUtils.hasText(firstName)) {
+            customer.setFirstName(firstName);
+        }
+        if (StringUtils.hasText(lastName)) {
+            customer.setLastName(lastName);
+        }
+        if (birthDate != null) {
+            customer.setBirthDate(birthDate);
+        }
+        if (StringUtils.hasText(gender)) {
+            customer.setGender(gender);
+        }
+        if (marketingOptIn != null) {
+            customer.setMarketingOptIn(marketingOptIn);
+        }
         return customerRepository.save(customer);
     }
 

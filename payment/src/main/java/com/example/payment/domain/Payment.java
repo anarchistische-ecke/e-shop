@@ -31,6 +31,12 @@ public class Payment extends BaseEntity {
     @Column(name = "payment_date", nullable = false, columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime paymentDate;
 
+    @Column(name = "provider_payment_id")
+    private String providerPaymentId;
+
+    @Column(name = "confirmation_url")
+    private String confirmationUrl;
+
     public Payment() {
     }
 
@@ -80,5 +86,21 @@ public class Payment extends BaseEntity {
 
     public void setPaymentDate(OffsetDateTime paymentDate) {
         this.paymentDate = paymentDate;
+    }
+
+    public String getProviderPaymentId() {
+        return providerPaymentId;
+    }
+
+    public void setProviderPaymentId(String providerPaymentId) {
+        this.providerPaymentId = providerPaymentId;
+    }
+
+    public String getConfirmationUrl() {
+        return confirmationUrl;
+    }
+
+    public void setConfirmationUrl(String confirmationUrl) {
+        this.confirmationUrl = confirmationUrl;
     }
 }
