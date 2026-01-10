@@ -7,8 +7,10 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,10 +20,12 @@ import java.util.UUID;
 public class CategoryController {
 
     private final CatalogService catalogService;
+    private final CategoryImageStorageService categoryImageStorageService;
 
     @Autowired
-    public CategoryController(CatalogService catalogService) {
+    public CategoryController(CatalogService catalogService, CategoryImageStorageService categoryImageStorageService) {
         this.catalogService = catalogService;
+        this.categoryImageStorageService = categoryImageStorageService;
     }
 
     @GetMapping
@@ -87,6 +91,19 @@ public class CategoryController {
             updates.setImageUrl(request.getImageUrl());
         }
         Category updated = catalogService.update(id, updates);
+        return ResponseEntity.ok(toResponse(updated));
+    }
+
+    @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CategoryResponse> uploadCategoryImage(@PathVariable UUID id,
+                                                                @RequestPart("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Не передан файл изображения");
+        }
+        catalogService.getByCategoryId(id)
+                .orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
+        var stored = categoryImageStorageService.upload(id, file);
+        Category updated = catalogService.updateCategoryImage(id, stored.url());
         return ResponseEntity.ok(toResponse(updated));
     }
 
