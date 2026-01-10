@@ -60,6 +60,9 @@ public class CategoryController {
         if (request.getIsActive() != null) {
             category.setIsActive(request.getIsActive());
         }
+        if (request.getImageUrl() != null) {
+            category.setImageUrl(request.getImageUrl());
+        }
         Category created = catalogService.create(category);
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(created));
     }
@@ -80,6 +83,9 @@ public class CategoryController {
         if (request.getIsActive() != null) {
             updates.setIsActive(request.getIsActive());
         }
+        if (request.getImageUrl() != null) {
+            updates.setImageUrl(request.getImageUrl());
+        }
         Category updated = catalogService.update(id, updates);
         return ResponseEntity.ok(toResponse(updated));
     }
@@ -97,6 +103,7 @@ public class CategoryController {
                 category.getName(),
                 category.getSlug(),
                 category.getDescription(),
+                category.getImageUrl(),
                 parentId,
                 category.getPosition(),
                 category.isIsActive(),
@@ -109,6 +116,7 @@ public class CategoryController {
         private final String name;
         private final String slug;
         private final String description;
+        private final String imageUrl;
         private final UUID parentId;
         private final int position;
         private final boolean isActive;
@@ -119,6 +127,7 @@ public class CategoryController {
                 String name,
                 String slug,
                 String description,
+                String imageUrl,
                 UUID parentId,
                 int position,
                 boolean isActive,
@@ -128,6 +137,7 @@ public class CategoryController {
             this.name = name;
             this.slug = slug;
             this.description = description;
+            this.imageUrl = imageUrl;
             this.parentId = parentId;
             this.position = position;
             this.isActive = isActive;
@@ -148,6 +158,10 @@ public class CategoryController {
 
         public String getDescription() {
             return description;
+        }
+
+        public String getImageUrl() {
+            return imageUrl;
         }
 
         public UUID getParentId() {
@@ -173,6 +187,7 @@ public class CategoryController {
         @NotBlank
         private String slug;
         private String description;
+        private String imageUrl;
         private UUID parentId;
         @Min(0)
         private Integer position;
@@ -200,6 +215,14 @@ public class CategoryController {
 
         public void setDescription(String description) {
             this.description = description;
+        }
+
+        public String getImageUrl() {
+            return imageUrl;
+        }
+
+        public void setImageUrl(String imageUrl) {
+            this.imageUrl = imageUrl;
         }
 
         public UUID getParentId() {

@@ -250,6 +250,7 @@ public class CatalogService {
         return categoryRepository.findById(id).map(cat -> {
             cat.setName(updates.getName());
             cat.setDescription(updates.getDescription());
+            cat.setImageUrl(updates.getImageUrl());
             cat.setSlug(updates.getSlug());
             cat.setParent(updates.getParent());
             cat.setPosition(updates.getPosition());
