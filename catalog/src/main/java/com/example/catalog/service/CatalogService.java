@@ -250,7 +250,9 @@ public class CatalogService {
         return categoryRepository.findById(id).map(cat -> {
             cat.setName(updates.getName());
             cat.setDescription(updates.getDescription());
-            cat.setImageUrl(updates.getImageUrl());
+            if (updates.getImageUrl() != null) {
+                cat.setImageUrl(updates.getImageUrl());
+            }
             cat.setSlug(updates.getSlug());
             cat.setParent(updates.getParent());
             cat.setPosition(updates.getPosition());
@@ -264,6 +266,13 @@ public class CatalogService {
             Category saved = categoryRepository.save(cat);
             updateChildrenFullPaths(saved);
             return saved;
+        }).orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
+    }
+
+    public Category updateCategoryImage(UUID id, String imageUrl) {
+        return categoryRepository.findById(id).map(cat -> {
+            cat.setImageUrl(imageUrl);
+            return categoryRepository.save(cat);
         }).orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
     }
 
