@@ -25,6 +25,9 @@ public class Product extends BaseEntity {
     @Column(name = "slug", unique = true, nullable = false)
     private String slug;
 
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
+
     @OneToMany(mappedBy = "product", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<ProductVariant> variants = new HashSet<>();
@@ -78,6 +81,14 @@ public class Product extends BaseEntity {
 
     public void setSlug(String slug) {
         this.slug = slug;
+    }
+
+    public boolean isIsActive() {
+        return isActive;
+    }
+
+    public void setIsActive(boolean isActive) {
+        this.isActive = isActive;
     }
 
     public String getSpecifications() {

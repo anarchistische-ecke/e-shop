@@ -60,7 +60,7 @@ public class CatalogController {
         }
         // Persist the associations
         boolean categoriesProvided = request.getCategories() != null || request.getCategory() != null;
-        product = catalogService.updateProduct(product.getId(), product, categoriesProvided);
+        product = catalogService.updateProduct(product.getId(), product, categoriesProvided, request.getIsActive());
         return ResponseEntity.status(HttpStatus.CREATED).body(mapProduct(product));
     }
 
@@ -126,19 +126,27 @@ public class CatalogController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProductResponse> getProductById(@PathVariable UUID id) {
+    public ResponseEntity<ProductResponse> getProductById(@PathVariable UUID id,
+                                                          @RequestParam(defaultValue = "false") boolean includeInactive) {
         var product = catalogService.getProduct(id).orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+        if (!includeInactive && !product.isIsActive()) {
+            throw new IllegalArgumentException("Product not found: " + id);
+        }
         return ResponseEntity.ok(mapProduct(product));
     }
 
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getProducts(@RequestParam(required = false) String category,
-                                                             @RequestParam(required = false) String brand) {
+                                                             @RequestParam(required = false) String brand,
+                                                             @RequestParam(defaultValue = "false") boolean includeInactive) {
         List<Product> source;
         if ((category != null && !category.isBlank()) || (brand != null && !brand.isBlank())) {
             source = catalogService.getProducts(category, brand);
         } else {
             source = catalogService.getAllProducts();
+        }
+        if (!includeInactive) {
+            source = source.stream().filter(Product::isIsActive).collect(Collectors.toList());
         }
         var response = source.stream().map(this::mapProduct).collect(Collectors.toList());
         return ResponseEntity.ok(response);
@@ -160,7 +168,7 @@ public class CatalogController {
             catalogService.getByBrandSlug(request.getBrand()).ifPresent(updates::setBrand);
         }
         boolean categoriesProvided = request.getCategories() != null || request.getCategory() != null;
-        var updated = catalogService.updateProduct(id, updates, categoriesProvided);
+        var updated = catalogService.updateProduct(id, updates, categoriesProvided, request.getIsActive());
         return ResponseEntity.ok(mapProduct(updated));
     }
 
@@ -182,6 +190,7 @@ public class CatalogController {
         private String category;
         private List<String> categories;
         private String brand;
+        private Boolean isActive;
         private List<SpecificationSection> specifications;
 
         public String getName() {
@@ -230,6 +239,14 @@ public class CatalogController {
 
         public void setBrand(String brand) {
             this.brand = brand;
+        }
+
+        public Boolean getIsActive() {
+            return isActive;
+        }
+
+        public void setIsActive(Boolean isActive) {
+            this.isActive = isActive;
         }
 
         public List<SpecificationSection> getSpecifications() {
@@ -345,6 +362,7 @@ public class CatalogController {
         private String category;
         private List<CategorySummary> categories;
         private String brand;
+        private boolean isActive;
         private List<ImageResponse> images;
         private OffsetDateTime createdAt;
         private OffsetDateTime updatedAt;
@@ -405,6 +423,14 @@ public class CatalogController {
 
         public void setBrand(String brand) {
             this.brand = brand;
+        }
+
+        public boolean getIsActive() {
+            return isActive;
+        }
+
+        public void setIsActive(boolean isActive) {
+            this.isActive = isActive;
         }
 
         public OffsetDateTime getCreatedAt() {
@@ -648,6 +674,7 @@ public class CatalogController {
         response.setCategories(categories);
         response.setCategory(categories.isEmpty() ? null : categories.get(0).getSlug());
         response.setBrand(product.getBrand() != null ? product.getBrand().getSlug() : null);
+        response.setIsActive(product.isIsActive());
         var images = catalogService.getProductImages(product.getId());
         response.setImages(images != null
                 ? images.stream().map(this::mapImage).collect(Collectors.toList())
