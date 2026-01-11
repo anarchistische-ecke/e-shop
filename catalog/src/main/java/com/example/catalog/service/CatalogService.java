@@ -167,7 +167,7 @@ public class CatalogService {
     }
 
     @Transactional
-    public Product updateProduct(UUID id, Product updates, boolean categoriesProvided) {
+    public Product updateProduct(UUID id, Product updates, boolean categoriesProvided, Boolean isActiveOverride) {
         return productRepository.findById(id).map(p -> {
             p.setName(updates.getName());
             p.setDescription(updates.getDescription());
@@ -183,6 +183,9 @@ public class CatalogService {
             }
             if (updates.getBrand() != null) {
                 p.setBrand(updates.getBrand());
+            }
+            if (isActiveOverride != null) {
+                p.setIsActive(isActiveOverride);
             }
             Product saved = productRepository.save(p);
             hydrateProduct(saved);
