@@ -1,6 +1,6 @@
 package com.example.payment.service;
 
-import com.example.order.domain.Order;
+import  com.example.order.domain.Order;
 import com.example.order.repository.OrderRepository;
 import com.example.payment.domain.Payment;
 import com.example.payment.domain.PaymentStatus;

@@ -57,6 +57,22 @@ public class AuthController {
         return ResponseEntity.ok(Collections.singletonMap("token", token));
     }
 
+    @PostMapping("/register")
+    public ResponseEntity<AuthResponse> customerRegister(@RequestBody CustomerRegisterRequest request) {
+        try {
+            Customer customer = customerService.registerCustomerMinimal(
+                    request.getFirstName(),
+                    request.getLastName(),
+                    request.getEmail(),
+                    request.getPassword(),
+                    request.getPhone()
+            );
+            return ResponseEntity.status(HttpStatus.CREATED).body(toAuthResponse(customer));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> customerLogin(@RequestBody CustomerLoginRequest request) {
         Optional<Customer> custOpt = customerService.authenticate(request.getEmail(), request.getPassword());
@@ -122,6 +138,29 @@ public class AuthController {
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
     }
+    public static class CustomerRegisterRequest {
+        @NotBlank
+        private String firstName;
+        @NotBlank
+        private String lastName;
+        @Email @NotBlank
+        private String email;
+        @NotBlank
+        private String password;
+        private String phone;
+
+        public String getFirstName() { return firstName; }
+        public void setFirstName(String firstName) { this.firstName = firstName; }
+        public String getLastName() { return lastName; }
+        public void setLastName(String lastName) { this.lastName = lastName; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+    }
+
     public static class CustomerLoginRequest {
         @Email @NotBlank
         private String email;

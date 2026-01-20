@@ -27,6 +27,25 @@ public class CustomerService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    public Customer registerCustomerMinimal(String firstName, String lastName, String email, String rawPassword, String phone) {
+        if (!StringUtils.hasText(email) || !StringUtils.hasText(rawPassword)) {
+            throw new IllegalArgumentException("Email and password must be provided");
+        }
+        if (customerRepository.findByEmail(email).isPresent()) {
+            throw new IllegalArgumentException("Email already in use");
+        }
+        if (StringUtils.hasText(phone)) {
+            customerRepository.findByPhone(phone)
+                    .ifPresent(existing -> {
+                        throw new IllegalArgumentException("Phone already in use");
+                    });
+        }
+        String hashed = passwordEncoder.encode(rawPassword);
+        Customer customer = buildCustomer(firstName, lastName, email, phone, emptyAddress());
+        customer.setPassword(hashed);
+        return customerRepository.save(customer);
+    }
+
     public Customer registerCustomer(String firstName, String lastName, String email, String rawPassword, Address address) {
         if (!StringUtils.hasText(email) || !StringUtils.hasText(rawPassword)) {
             throw new IllegalArgumentException("Email and password must be provided");

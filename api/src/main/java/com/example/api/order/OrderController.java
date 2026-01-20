@@ -153,6 +153,7 @@ public class OrderController {
             throw new IllegalArgumentException("Missing authentication token");
         }
         String email = jwt.getClaimAsString("email");
+        String subject = jwt.getSubject();
         String preferredUsername = jwt.getClaimAsString("preferred_username");
         String firstName = jwt.getClaimAsString("given_name");
         String lastName = jwt.getClaimAsString("family_name");
@@ -168,6 +169,9 @@ public class OrderController {
         }
         if (!StringUtils.hasText(email) && StringUtils.hasText(preferredUsername) && preferredUsername.contains("@")) {
             email = preferredUsername;
+        }
+        if (!StringUtils.hasText(email) && StringUtils.hasText(subject) && subject.contains("@")) {
+            email = subject;
         }
         if (!StringUtils.hasText(email)) {
             throw new IllegalArgumentException("Email is required to resolve customer profile");
