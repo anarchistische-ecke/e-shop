@@ -18,12 +18,27 @@ public class KeycloakJwtAuthoritiesConverter implements Converter<Jwt, Collectio
         Set<String> roles = new HashSet<>();
         extractRealmRoles(roles, jwt.getClaim("realm_access"));
         extractResourceRoles(roles, jwt.getClaim("resource_access"));
+        extractCustomRoles(roles, jwt);
 
         return roles.stream()
                 .filter(role -> role != null && !role.isBlank())
                 .map(this::normalizeRole)
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toSet());
+    }
+
+    private void extractCustomRoles(Set<String> roles, Jwt jwt) {
+        if (jwt == null) {
+            return;
+        }
+        Object roleClaim = jwt.getClaim("role");
+        addRole(roles, roleClaim);
+        Object rolesClaim = jwt.getClaim("roles");
+        if (rolesClaim instanceof Collection<?> list) {
+            for (Object role : list) {
+                addRole(roles, role);
+            }
+        }
     }
 
     private void extractRealmRoles(Set<String> roles, Map<String, Object> realmAccess) {
