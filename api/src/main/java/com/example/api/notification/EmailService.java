@@ -16,7 +16,7 @@ import java.math.RoundingMode;
 public class EmailService {
     private final JavaMailSender mailSender;
 
-    @Value("${mail.from:no-reply@example.com}")
+    @Value("${mail.from:yug-postel@yandex.ru}")
     private String fromAddress;
 
     public EmailService(JavaMailSender mailSender) {
@@ -30,8 +30,8 @@ public class EmailService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(toEmail);
-        message.setSubject("Your confirmation code");
-        message.setText("Use this confirmation code to finish creating your account: " + code);
+        message.setSubject("Подтвердите электронную почту");
+        message.setText("Код для подтверждения адреса электронной почты: " + code);
         mailSender.send(message);
     }
 
@@ -42,41 +42,46 @@ public class EmailService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(toEmail);
-        message.setSubject("Order created");
+        message.setSubject("Заказ создан");
         StringBuilder body = new StringBuilder();
-        body.append("Your order has been created.\n\n");
+        body.append("Спасибо за заказ в магазине Постельное Белье-ЮГ.\n\n");
         body.append(buildOrderSummary(order));
         if (orderUrl != null && !orderUrl.isBlank()) {
-            body.append("\nPay your order: ").append(orderUrl).append('\n');
+            body.append("\nОплатите заказ: ").append(orderUrl).append('\n');
         }
         message.setText(body.toString());
         mailSender.send(message);
     }
 
     public void sendPaymentReceipt(Order order, Payment payment, String toEmail) {
+
         if (toEmail == null || toEmail.isBlank()) {
             return;
         }
+
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromAddress);
         message.setTo(toEmail);
-        message.setSubject("Payment receipt");
+        message.setSubject("Ваш чек");
         StringBuilder body = new StringBuilder();
-        body.append("We received your payment.\n\n");
+        body.append("Заказ оплачен.\n\n");
         body.append(buildOrderSummary(order));
         if (payment != null && payment.getProviderPaymentId() != null) {
-            body.append("\nPayment ID: ").append(payment.getProviderPaymentId()).append('\n');
+
+            body.append("\nНомер заказа: ").append(payment.getProviderPaymentId()).append('\n');
+
         }
+
         message.setText(body.toString());
         mailSender.send(message);
     }
 
     private String buildOrderSummary(Order order) {
         StringBuilder body = new StringBuilder();
-        body.append("Order ID: ").append(order.getId()).append('\n');
-        body.append("Status: ").append(order.getStatus()).append('\n');
-        body.append("Total: ").append(formatMoney(order.getTotalAmount())).append(" ").append(order.getTotalAmount().getCurrency()).append('\n');
-        body.append("Items:\n");
+        body.append("Нмер заказа: ").append(order.getId()).append('\n');
+        body.append("Статус заказа: ").append(order.getStatus()).append('\n');
+        body.append("Сумма: ").append(formatMoney(order.getTotalAmount())).append(" ").append(order.getTotalAmount().getCurrency()).append('\n');
+        body.append("Товары:\n");
         for (OrderItem item : order.getItems()) {
             body.append("- ")
                 .append(itemLabel(item))
@@ -94,7 +99,7 @@ public class EmailService {
     private String itemLabel(OrderItem item) {
         String product = item.getProductName() != null && !item.getProductName().isBlank()
                 ? item.getProductName()
-                : "Item";
+                : "Товары";
         String variant = item.getVariantName() != null && !item.getVariantName().isBlank()
                 ? " (" + item.getVariantName() + ")"
                 : "";
