@@ -1,7 +1,6 @@
 package com.example.api.config;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -10,8 +9,10 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
@@ -21,8 +22,16 @@ import java.nio.charset.StandardCharsets;
 public class SecurityConfig {
 
     @Bean
-    @ConditionalOnProperty(name = "spring.security.oauth2.resourceserver.jwt.issuer-uri", matchIfMissing = true, havingValue = "")
-    public JwtDecoder jwtDecoder(@Value("${jwt.secret}") String secret) {
+    public JwtDecoder jwtDecoder(
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuer,
+            @Value("${jwt.secret:}") String secret
+    ) {
+        if (StringUtils.hasText(issuer)) {
+            return JwtDecoders.fromIssuerLocation(issuer);
+        }
+        if (!StringUtils.hasText(secret)) {
+            throw new IllegalStateException("JWT secret is required when issuer-uri is not configured");
+        }
         SecretKeySpec key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(key).build();
     }
