@@ -62,6 +62,8 @@ public class OrderController {
             Customer customer = resolveCustomer(jwt);
             customerId = customer.getId();
         } else {
+            Customer customer = customerService.findOrCreateByEmail(request.receiptEmail, null, null);
+            customerId = customer.getId();
             savePaymentMethod = false;
         }
         Order order = orderService.createOrderFromCart(
@@ -92,9 +94,8 @@ public class OrderController {
         if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID customerId = customerService.findByEmail(request.receiptEmail)
-                .map(Customer::getId)
-                .orElse(null);
+        UUID customerId = customerService.findOrCreateByEmail(request.receiptEmail, null, null)
+                .getId();
         Order order = orderService.createOrderFromCart(
                 request.cartId,
                 customerId,
@@ -112,12 +113,11 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         String managerSubject = resolveManagerSubject(jwt);
-        UUID customerId = null;
-        if (request.receiptEmail != null && !request.receiptEmail.isBlank()) {
-            customerId = customerService.findByEmail(request.receiptEmail)
-                    .map(Customer::getId)
-                    .orElse(null);
+        if (request.receiptEmail == null || request.receiptEmail.isBlank()) {
+            return ResponseEntity.badRequest().build();
         }
+        UUID customerId = customerService.findOrCreateByEmail(request.receiptEmail, null, null)
+                .getId();
         Order order = orderService.createOrderFromCart(
                 request.cartId,
                 customerId,
@@ -126,9 +126,6 @@ public class OrderController {
         );
         boolean shouldSend = request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail);
         if (shouldSend) {
-            if (request.receiptEmail == null || request.receiptEmail.isBlank()) {
-                return ResponseEntity.badRequest().build();
-            }
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
         }
         return ResponseEntity.status(HttpStatus.CREATED)

@@ -59,7 +59,10 @@ public class OrderService {
 
         UUID customerId = customerIdOverride != null
                 ? customerIdOverride
-                : (cart.getCustomerId() != null ? cart.getCustomerId() : cartId);
+                : cart.getCustomerId();
+        if (customerId == null) {
+            throw new IllegalArgumentException("Customer is required to create an order");
+        }
         Order order = new Order(customerId, "PENDING", totalMoney);
         order.setReceiptEmail(receiptEmail);
         order.setPublicToken(generatePublicToken());
