@@ -61,7 +61,7 @@ public class AuthController {
 
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponse> customerRegister(@RequestBody CustomerRegisterRequest request) {
+    public ResponseEntity<?> customerRegister(@RequestBody CustomerRegisterRequest request) {
         try {
             Customer customer = customerService.registerCustomerMinimal(
                     request.getFirstName(),
@@ -72,7 +72,10 @@ public class AuthController {
             );
             return ResponseEntity.status(HttpStatus.CREATED).body(toAuthResponse(customer));
         } catch (IllegalArgumentException ex) {
-            return ResponseEntity.badRequest().build();
+            if (ex.getMessage() != null && ex.getMessage().toLowerCase().contains("email already in use")) {
+                return ResponseEntity.status(HttpStatus.ACCEPTED).build();
+            }
+            return ResponseEntity.badRequest().body(Collections.singletonMap("error", ex.getMessage()));
         }
     }
 
