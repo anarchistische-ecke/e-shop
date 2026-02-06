@@ -46,6 +46,8 @@ yookassa:
   base-url: ${YOOKASSA_BASE_URL:https://api.yookassa.ru/v3}
   vat-code: ${YOOKASSA_VAT_CODE:1}
   tax-system-code: ${YOOKASSA_TAX_SYSTEM_CODE:1}
+  webhook-secret: ${YOOKASSA_WEBHOOK_SECRET:}
+  webhook-allowed-ips: ${YOOKASSA_WEBHOOK_ALLOWED_IPS:}
 
 email:
   confirmation:

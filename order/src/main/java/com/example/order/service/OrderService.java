@@ -41,10 +41,17 @@ public class OrderService {
     }
 
     public Order createOrderFromCart(UUID cartId) {
-        return createOrderFromCart(cartId, null, null);
+        return createOrderFromCart(cartId, null, null, null);
     }
 
     public Order createOrderFromCart(UUID cartId, UUID customerIdOverride, String receiptEmail) {
+        return createOrderFromCart(cartId, customerIdOverride, receiptEmail, null);
+    }
+
+    public Order createOrderFromCart(UUID cartId,
+                                     UUID customerIdOverride,
+                                     String receiptEmail,
+                                     String managerSubject) {
         Cart cart = cartService.getCartById(cartId);
         long total = cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
         Money totalMoney = Money.of(total, "RUB");
@@ -56,6 +63,7 @@ public class OrderService {
         Order order = new Order(customerId, "PENDING", totalMoney);
         order.setReceiptEmail(receiptEmail);
         order.setPublicToken(generatePublicToken());
+        order.setManagerSubject(managerSubject);
 
         for (CartItem ci : cart.getItems()) {
             String itemKey = baseKey + "-" + ci.getVariantId();
@@ -77,10 +85,49 @@ public class OrderService {
     }
 
     public void updateOrderStatus(UUID orderId, String status) {
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findWithItemsById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        String previousStatus = order.getStatus();
         order.setStatus(status);
         orderRepository.save(order);
+        if (shouldRestock(previousStatus, status)) {
+            restockOrderItems(order, "ORDER_STATUS_" + status, "restock-" + orderId + "-" + status.toLowerCase());
+        }
+    }
+
+    public void restockOrderItems(UUID orderId, String reason, String idempotencyPrefix) {
+        if (orderId == null) {
+            return;
+        }
+        Order order = orderRepository.findWithItemsById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        restockOrderItems(order, reason, idempotencyPrefix);
+    }
+
+    private void restockOrderItems(Order order, String reason, String idempotencyPrefix) {
+        if (order == null || order.getItems() == null || order.getItems().isEmpty()) {
+            return;
+        }
+        String baseKey = idempotencyPrefix != null && !idempotencyPrefix.isBlank()
+                ? idempotencyPrefix
+                : "restock-" + order.getId();
+        for (OrderItem item : order.getItems()) {
+            String key = baseKey + "-" + item.getVariantId();
+            inventoryService.adjustStock(item.getVariantId(), item.getQuantity(), key, reason);
+        }
+    }
+
+    private boolean shouldRestock(String previousStatus, String nextStatus) {
+        if (nextStatus == null) {
+            return false;
+        }
+        if (!"CANCELLED".equalsIgnoreCase(nextStatus) && !"REFUNDED".equalsIgnoreCase(nextStatus)) {
+            return false;
+        }
+        if (previousStatus == null) {
+            return true;
+        }
+        return !previousStatus.equalsIgnoreCase(nextStatus);
     }
 
     public List<Order> getOrdersByCustomerId(UUID customerId) {

@@ -50,6 +50,12 @@ public class Order extends BaseEntity {
     @Column(name = "receipt_email")
     private String receiptEmail;
 
+    @Column(name = "manager_id", columnDefinition = "uuid")
+    private UUID managerId;
+
+    @Column(name = "manager_subject")
+    private String managerSubject;
+
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<OrderItem> items = new HashSet<>();
@@ -118,6 +124,22 @@ public class Order extends BaseEntity {
 
     public void setReceiptEmail(String receiptEmail) {
         this.receiptEmail = receiptEmail;
+    }
+
+    public UUID getManagerId() {
+        return managerId;
+    }
+
+    public void setManagerId(UUID managerId) {
+        this.managerId = managerId;
+    }
+
+    public String getManagerSubject() {
+        return managerSubject;
+    }
+
+    public void setManagerSubject(String managerSubject) {
+        this.managerSubject = managerSubject;
     }
 
     public UUID getShipmentId() {

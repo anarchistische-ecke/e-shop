@@ -45,17 +45,20 @@ public class AuthController {
     @PostMapping("/admin/login")
     public ResponseEntity<Map<String, String>> adminLogin(@RequestBody AdminLoginRequest request) {
         Optional<Admin> adminOpt = adminService.authenticate(request.getUsername(), request.getPassword());
-        if (adminOpt.isEmpty()) {
+        if (adminOpt.isEmpty() || !Admin.ROLE_ADMIN.equalsIgnoreCase(adminOpt.get().getRole())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", "Invalid credentials"));
         }
         Admin admin = adminOpt.get();
-        String token = JwtTokenUtil.generateToken(admin.getUsername(),
+        String token = JwtTokenUtil.generateToken(
+                admin.getUsername(),
                 "ROLE_ADMIN",
                 24*60*60*1000,
-                jwtSecret);
+                jwtSecret
+        );
         adminActivityService.record(admin.getUsername(), "Admin login");
         return ResponseEntity.ok(Collections.singletonMap("token", token));
     }
+
 
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> customerRegister(@RequestBody CustomerRegisterRequest request) {

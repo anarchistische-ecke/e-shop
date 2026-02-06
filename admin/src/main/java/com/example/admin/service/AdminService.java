@@ -33,7 +33,7 @@ public class AdminService {
     @PostConstruct
     public void init() {
         if (adminRepository.count() == 0) {
-            Admin admin = new Admin(defaultUsername, passwordEncoder.encode(defaultPassword));
+            Admin admin = new Admin(defaultUsername, passwordEncoder.encode(defaultPassword), Admin.ROLE_ADMIN);
             adminRepository.save(admin);
         }
     }
@@ -41,5 +41,12 @@ public class AdminService {
     public Optional<Admin> authenticate(String username, String password) {
         return adminRepository.findByUsername(username)
                 .filter(admin -> passwordEncoder.matches(password, admin.getPassword()));
+    }
+
+    public Optional<Admin> findByUsername(String username) {
+        if (username == null || username.isBlank()) {
+            return Optional.empty();
+        }
+        return adminRepository.findByUsername(username);
     }
 }
