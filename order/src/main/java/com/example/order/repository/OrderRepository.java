@@ -23,6 +23,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     @EntityGraph(attributePaths = "items")
     Optional<Order> findWithItemsById(UUID id);
 
+    @EntityGraph(attributePaths = "items")
+    List<Order> findAllByOrderByOrderDateDesc();
+
     List<Order> findByManagerSubject(String managerSubject);
 
     Page<Order> findByManagerSubject(String managerSubject, Pageable pageable);
