@@ -204,6 +204,16 @@ public class CustomerService {
         return customerRepository.save(customer);
     }
 
+    public void updatePasswordByEmail(String email, String rawPassword) {
+        if (!StringUtils.hasText(email) || !StringUtils.hasText(rawPassword)) {
+            return;
+        }
+        customerRepository.findByEmail(email).ifPresent(customer -> {
+            customer.setPassword(passwordEncoder.encode(rawPassword));
+            customerRepository.save(customer);
+        });
+    }
+
     public Optional<Customer> findById(UUID id) {
         return customerRepository.findById(id);
     }

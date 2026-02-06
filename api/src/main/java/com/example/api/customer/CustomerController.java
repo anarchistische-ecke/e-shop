@@ -145,6 +145,9 @@ public class CustomerController {
         if (!confirmed) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
+        if (StringUtils.hasText(request.password())) {
+            customerService.updatePasswordByEmail(request.email(), request.password());
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -222,7 +225,8 @@ public class CustomerController {
 
     public record EmailVerificationConfirmRequest(
             @Email @NotBlank String email,
-            @NotBlank String code
+            @NotBlank String code,
+            String password
     ) {}
 
     public static class CustomerRegistrationRequest {
