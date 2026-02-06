@@ -2,6 +2,7 @@ package com.example.order.domain;
 
 import com.example.common.domain.BaseEntity;
 import com.example.common.domain.Money;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
@@ -46,6 +47,7 @@ public class OrderItem extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false, columnDefinition = "uuid")
+    @JsonIgnore
     private Order order;
 
     public OrderItem() {
