@@ -1,16 +1,13 @@
 package com.example.api.payment;
 
 import com.example.payment.domain.Payment;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.example.payment.service.PaymentService;
-import com.example.payment.service.BrowserInfo;
-import com.example.common.domain.Money;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.example.api.notification.EmailService;
 import com.example.order.domain.Order;
 import com.example.order.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -26,97 +23,40 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final OrderService orderService;
     private final EmailService emailService;
+    private final YooKassaWebhookVerifier webhookVerifier;
 
     @Autowired
-    public PaymentController(PaymentService paymentService, OrderService orderService, EmailService emailService) {
+    public PaymentController(PaymentService paymentService,
+                             OrderService orderService,
+                             EmailService emailService,
+                             YooKassaWebhookVerifier webhookVerifier) {
         this.paymentService = paymentService;
         this.orderService = orderService;
         this.emailService = emailService;
-    }
-
-    @PostMapping
-    public ResponseEntity<Payment> processPayment(@Valid @RequestBody PaymentRequest request,
-                                                  HttpServletRequest httpRequest) {
-        Money amount = Money.of(request.getAmount(), request.getCurrency());
-        String ip = httpRequest.getRemoteAddr();
-        String userAgent = httpRequest.getHeader("User-Agent");
-        String acceptHdr = httpRequest.getHeader("Accept");
-        String language = httpRequest.getHeader("Accept-Language");
-        if (language == null || language.isEmpty()) {
-            language = "en-US";
-        }
-        int screenWidth = (request.getScreenWidth() != null ? request.getScreenWidth() : 1920);
-        int screenHeight = (request.getScreenHeight() != null ? request.getScreenHeight() : 1080);
-        int colorDepth = (request.getColorDepth() != null ? request.getColorDepth() : 24);
-        int timezoneOffset = (request.getTimezoneOffset() != null ? request.getTimezoneOffset() : 0);
-        boolean jsEnabled = (request.getJavascriptEnabled() != null ? request.getJavascriptEnabled() : true);
-        boolean javaEnabled = (request.getJavaEnabled() != null ? request.getJavaEnabled() : false);
-
-        BrowserInfo browserInfo = new BrowserInfo(
-                ip,
-                (acceptHdr != null ? acceptHdr : "*/*"),
-                jsEnabled,
-                language,
-                screenHeight,
-                screenWidth,
-                timezoneOffset,
-                (userAgent != null ? userAgent : ""),
-                javaEnabled,
-                colorDepth
-        );
-
-        String cardToken = request.getCardToken();
-        if ((cardToken == null || cardToken.isEmpty()) && request.getCardNumber() != null) {
-            // In a real scenario, we should not be here because card should be tokenized on frontend.
-            // We could encrypt card details with LifePay's public key to create a token, but that is omitted for brevity.
-            // Throw an error or handle accordingly:
-            throw new IllegalArgumentException("Card token not provided. Please tokenize card details.");
-        }
-
-        Payment payment = paymentService.processPayment(
-                request.getOrderId(), amount, request.getMethod(), cardToken, browserInfo);
-        return ResponseEntity.status(HttpStatus.CREATED).body(payment);
+        this.webhookVerifier = webhookVerifier;
     }
 
     @PostMapping("/yookassa/webhook")
-    public ResponseEntity<Void> handleYooKassaWebhook(@RequestBody YooKassaNotification notification) {
-        if (notification == null || notification.object == null || notification.object.id == null) {
-            return ResponseEntity.badRequest().build();
-        }
-        PaymentService.PaymentUpdateResult result =
-                paymentService.refreshYooKassaPaymentWithResult(notification.object.id);
-        if (result.completedNow()) {
-            Payment payment = result.payment();
-            Order order = orderService.findById(payment.getOrderId());
-            String email = order.getReceiptEmail();
-            if (email != null && !email.isBlank()) {
-                emailService.sendPaymentReceipt(order, payment, email);
-            }
-        }
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> handleYooKassaWebhook(@RequestBody YooKassaNotification notification,
+                                                      HttpServletRequest request) {
+        return handleYooKassaNotification(notification, request);
     }
 
-    public static class PaymentRequest {
+    @PostMapping("/yookassa/refund")
+    public ResponseEntity<Payment> refundYooKassaPayment(@Valid @RequestBody RefundRequest request) {
+        Payment payment = paymentService.refundYooKassaPayment(request.getOrderId());
+        return ResponseEntity.ok(payment);
+    }
+
+    @PostMapping("/yookassa/cancel")
+    public ResponseEntity<Payment> cancelYooKassaPayment(@Valid @RequestBody CancelRequest request) {
+        Payment payment = paymentService.cancelYooKassaPayment(request.getOrderId());
+        return ResponseEntity.ok(payment);
+    }
+
+    public static class RefundRequest {
         @NotNull
         private UUID orderId;
-        @NotNull
-        private Long amount;
-        @NotBlank
-        private String currency;
-        @NotBlank
-        private String method;
-        private String cardNumber;
-        private String cardExpiryMonth;
-        private String cardExpiryYear;
-        private String cardCvv;
-        private String cardHolderName;
-        private String cardToken;
-        private Integer screenWidth;
-        private Integer screenHeight;
-        private Integer colorDepth;
-        private Integer timezoneOffset;
-        private Boolean javascriptEnabled;
-        private Boolean javaEnabled;
 
         public UUID getOrderId() {
             return orderId;
@@ -125,137 +65,72 @@ public class PaymentController {
         public void setOrderId(UUID orderId) {
             this.orderId = orderId;
         }
+    }
 
-        public Long getAmount() {
-            return amount;
+    public static class CancelRequest {
+        @NotNull
+        private UUID orderId;
+
+        public UUID getOrderId() {
+            return orderId;
         }
 
-        public void setAmount(Long amount) {
-            this.amount = amount;
-        }
-
-        public String getCurrency() {
-            return currency;
-        }
-
-        public void setCurrency(String currency) {
-            this.currency = currency;
-        }
-
-        public String getMethod() {
-            return method;
-        }
-
-        public void setMethod(String method) {
-            this.method = method;
-        }
-
-        public String getCardNumber() {
-            return cardNumber;
-        }
-
-        public void setCardNumber(String cardNumber) {
-            this.cardNumber = cardNumber;
-        }
-
-        public String getCardExpiryMonth() {
-            return cardExpiryMonth;
-        }
-
-        public void setCardExpiryMonth(String cardExpiryMonth) {
-            this.cardExpiryMonth = cardExpiryMonth;
-        }
-
-        public String getCardExpiryYear() {
-            return cardExpiryYear;
-        }
-
-        public void setCardExpiryYear(String cardExpiryYear) {
-            this.cardExpiryYear = cardExpiryYear;
-        }
-
-        public String getCardCvv() {
-            return cardCvv;
-        }
-
-        public void setCardCvv(String cardCvv) {
-            this.cardCvv = cardCvv;
-        }
-
-        public String getCardHolderName() {
-            return cardHolderName;
-        }
-
-        public void setCardHolderName(String cardHolderName) {
-            this.cardHolderName = cardHolderName;
-        }
-
-        public String getCardToken() {
-            return cardToken;
-        }
-
-        public void setCardToken(String cardToken) {
-            this.cardToken = cardToken;
-        }
-
-        public Integer getScreenWidth() {
-            return screenWidth;
-        }
-
-        public void setScreenWidth(Integer screenWidth) {
-            this.screenWidth = screenWidth;
-        }
-
-        public Integer getScreenHeight() {
-            return screenHeight;
-        }
-
-        public void setScreenHeight(Integer screenHeight) {
-            this.screenHeight = screenHeight;
-        }
-
-        public Integer getColorDepth() {
-            return colorDepth;
-        }
-
-        public void setColorDepth(Integer colorDepth) {
-            this.colorDepth = colorDepth;
-        }
-
-        public Integer getTimezoneOffset() {
-            return timezoneOffset;
-        }
-
-        public void setTimezoneOffset(Integer timezoneOffset) {
-            this.timezoneOffset = timezoneOffset;
-        }
-
-        public Boolean getJavascriptEnabled() {
-            return javascriptEnabled;
-        }
-
-        public void setJavascriptEnabled(Boolean javascriptEnabled) {
-            this.javascriptEnabled = javascriptEnabled;
-        }
-
-        public Boolean getJavaEnabled() {
-            return javaEnabled;
-        }
-
-        public void setJavaEnabled(Boolean javaEnabled) {
-            this.javaEnabled = javaEnabled;
+        public void setOrderId(UUID orderId) {
+            this.orderId = orderId;
         }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class YooKassaNotification {
         public String event;
-        public YooKassaPaymentObject object;
+        public YooKassaEventObject object;
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public static class YooKassaPaymentObject {
+    public static class YooKassaEventObject {
         public String id;
         public String status;
+        @com.fasterxml.jackson.annotation.JsonProperty("payment_id")
+        public String paymentId;
+    }
+
+    private ResponseEntity<Void> handleYooKassaNotification(YooKassaNotification notification,
+                                                            HttpServletRequest request) {
+        if (!webhookVerifier.isValid(request)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (notification == null || notification.object == null || notification.object.id == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            String event = notification.event != null ? notification.event : "";
+            if (event.startsWith("payment_method")) {
+                paymentService.handlePaymentMethodActiveWebhook(notification.object.id);
+                return ResponseEntity.ok().build();
+            }
+            if (event.startsWith("refund")) {
+                paymentService.handleYooKassaRefundWebhook(
+                        notification.object.id,
+                        notification.object.paymentId
+                );
+                return ResponseEntity.ok().build();
+            }
+            if (event.startsWith("payment")) {
+                PaymentService.PaymentUpdateResult result =
+                        paymentService.refreshYooKassaPaymentWithResult(notification.object.id);
+                if (result.completedNow()) {
+                    Payment payment = result.payment();
+                    Order order = orderService.findById(payment.getOrderId());
+                    String email = order.getReceiptEmail();
+                    if (email != null && !email.isBlank()) {
+                        emailService.sendPaymentReceipt(order, payment, email);
+                    }
+                }
+                return ResponseEntity.ok().build();
+            }
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().build();
+        }
+        return ResponseEntity.badRequest().build();
     }
 }

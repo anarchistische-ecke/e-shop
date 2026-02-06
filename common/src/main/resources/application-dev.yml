@@ -18,13 +18,6 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  lifepay:
-    enabled: false
-    base-url: https://api.lifepay.ru
-    api-key: ${LIFEPAY_API_KEY:}
-    connect-timeout: 5s
-    read-timeout: 10s
-
   redis:
     host: localhost
     port: 6379

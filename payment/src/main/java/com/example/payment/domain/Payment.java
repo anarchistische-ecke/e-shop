@@ -23,7 +23,7 @@ public class Payment extends BaseEntity {
     @Column(name = "method", nullable = false)
     private String method;
 
-    @NotBlank
+    @NotNull
     @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
     private PaymentStatus status;
@@ -36,6 +36,22 @@ public class Payment extends BaseEntity {
 
     @Column(name = "confirmation_url")
     private String confirmationUrl;
+
+    @Column(name = "refund_id")
+    private String refundId;
+
+    @Column(name = "refund_status")
+    private String refundStatus;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "refund_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "refund_currency", length = 3))
+    })
+    private Money refundAmount;
+
+    @Column(name = "refund_date", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime refundDate;
 
     public Payment() {
     }
@@ -102,5 +118,37 @@ public class Payment extends BaseEntity {
 
     public void setConfirmationUrl(String confirmationUrl) {
         this.confirmationUrl = confirmationUrl;
+    }
+
+    public String getRefundId() {
+        return refundId;
+    }
+
+    public void setRefundId(String refundId) {
+        this.refundId = refundId;
+    }
+
+    public String getRefundStatus() {
+        return refundStatus;
+    }
+
+    public void setRefundStatus(String refundStatus) {
+        this.refundStatus = refundStatus;
+    }
+
+    public Money getRefundAmount() {
+        return refundAmount;
+    }
+
+    public void setRefundAmount(Money refundAmount) {
+        this.refundAmount = refundAmount;
+    }
+
+    public OffsetDateTime getRefundDate() {
+        return refundDate;
+    }
+
+    public void setRefundDate(OffsetDateTime refundDate) {
+        this.refundDate = refundDate;
     }
 }

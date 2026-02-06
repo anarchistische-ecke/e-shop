@@ -57,9 +57,12 @@ public class OrderController {
     public ResponseEntity<OrderCheckoutResponse> checkout(@Valid @RequestBody CheckoutRequest request,
                                                           @AuthenticationPrincipal Jwt jwt) {
         UUID customerId = null;
+        boolean savePaymentMethod = Boolean.TRUE.equals(request.savePaymentMethod());
         if (jwt != null) {
             Customer customer = resolveCustomer(jwt);
             customerId = customer.getId();
+        } else {
+            savePaymentMethod = false;
         }
         Order order = orderService.createOrderFromCart(
                 request.cartId,
@@ -74,7 +77,9 @@ public class OrderController {
                 order.getId(),
                 request.receiptEmail,
                 returnUrl,
-                "order-" + order.getId()
+                "order-" + order.getId(),
+                savePaymentMethod,
+                customerId != null ? customerId.toString() : null
         );
         emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -96,6 +101,36 @@ public class OrderController {
                 request.receiptEmail
         );
         emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new OrderLinkResponse(order.getId(), order.getPublicToken()));
+    }
+
+    @PostMapping("/manager-link")
+    public ResponseEntity<OrderLinkResponse> createManagerLink(@Valid @RequestBody ManagerLinkRequest request,
+                                                               @AuthenticationPrincipal Jwt jwt) {
+        if (jwt == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String managerSubject = resolveManagerSubject(jwt);
+        UUID customerId = null;
+        if (request.receiptEmail != null && !request.receiptEmail.isBlank()) {
+            customerId = customerService.findByEmail(request.receiptEmail)
+                    .map(Customer::getId)
+                    .orElse(null);
+        }
+        Order order = orderService.createOrderFromCart(
+                request.cartId,
+                customerId,
+                request.receiptEmail,
+                managerSubject
+        );
+        boolean shouldSend = request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail);
+        if (shouldSend) {
+            if (request.receiptEmail == null || request.receiptEmail.isBlank()) {
+                return ResponseEntity.badRequest().build();
+            }
+            emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
+        }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new OrderLinkResponse(order.getId(), order.getPublicToken()));
     }
@@ -142,10 +177,20 @@ public class OrderController {
                 order.getId(),
                 request.receiptEmail,
                 returnUrl,
-                "order-" + order.getId()
+                "order-" + order.getId(),
+                false,
+                null
         );
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new PaymentResponse(payment.getId(), payment.getConfirmationUrl()));
+    }
+
+    @PostMapping("/public/{token}/refresh-payment")
+    public ResponseEntity<Order> refreshPaymentByToken(@PathVariable String token) {
+        Order order = orderService.findByPublicToken(token);
+        paymentService.refreshLatestYooKassaPaymentForOrder(order.getId());
+        Order updated = orderService.findByPublicToken(token);
+        return ResponseEntity.ok(updated);
     }
 
     private Customer resolveCustomer(Jwt jwt) {
@@ -179,17 +224,44 @@ public class OrderController {
         return customerService.findOrCreateByEmail(email, firstName, lastName);
     }
 
+    private String resolveManagerSubject(Jwt jwt) {
+        if (jwt == null) {
+            throw new IllegalArgumentException("Missing authentication token");
+        }
+        String subject = jwt.getSubject();
+        if (StringUtils.hasText(subject)) {
+            return subject;
+        }
+        String preferred = jwt.getClaimAsString("preferred_username");
+        if (StringUtils.hasText(preferred)) {
+            return preferred;
+        }
+        String email = jwt.getClaimAsString("email");
+        if (StringUtils.hasText(email)) {
+            return email;
+        }
+        throw new IllegalArgumentException("Manager subject is required");
+    }
+
     public record CheckoutRequest(
             @NotNull UUID cartId,
             @Email @NotBlank String receiptEmail,
             String returnUrl,
-            String orderPageUrl
+            String orderPageUrl,
+            Boolean savePaymentMethod
     ) {}
 
     public record AdminLinkRequest(
             @NotNull UUID cartId,
             @Email @NotBlank String receiptEmail,
             String orderPageUrl
+    ) {}
+
+    public record ManagerLinkRequest(
+            @NotNull UUID cartId,
+            @Email String receiptEmail,
+            String orderPageUrl,
+            Boolean sendEmail
     ) {}
 
     public record PublicPayRequest(

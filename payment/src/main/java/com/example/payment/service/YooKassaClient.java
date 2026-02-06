@@ -56,6 +56,28 @@ public class YooKassaClient {
                 .getBody();
     }
 
+    public CreatePaymentResponse cancelPayment(String paymentId, String idempotencyKey) {
+        String url = baseUrl + "/payments/" + paymentId + "/cancel";
+        HttpHeaders headers = buildHeaders(idempotencyKey);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        return restTemplate.postForObject(url, entity, CreatePaymentResponse.class);
+    }
+
+    public RefundResponse createRefund(CreateRefundRequest request, String idempotencyKey) {
+        String url = baseUrl + "/refunds";
+        HttpHeaders headers = buildHeaders(idempotencyKey);
+        HttpEntity<CreateRefundRequest> entity = new HttpEntity<>(request, headers);
+        return restTemplate.postForObject(url, entity, RefundResponse.class);
+    }
+
+    public RefundResponse getRefund(String refundId) {
+        String url = baseUrl + "/refunds/" + refundId;
+        HttpHeaders headers = buildHeaders(null);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, RefundResponse.class)
+                .getBody();
+    }
+
     private HttpHeaders buildHeaders(String idempotencyKey) {
         HttpHeaders headers = new HttpHeaders();
         headers.setBasicAuth(shopId, secretKey);
@@ -75,6 +97,10 @@ public class YooKassaClient {
         public Confirmation confirmation;
         public Receipt receipt;
         public Metadata metadata;
+        @JsonProperty("save_payment_method")
+        public Boolean savePaymentMethod;
+        @JsonProperty("merchant_customer_id")
+        public String merchantCustomerId;
     }
 
     public static class CreatePaymentResponse {
@@ -83,6 +109,58 @@ public class YooKassaClient {
         public Amount amount;
         public Confirmation confirmation;
         public Metadata metadata;
+        @JsonProperty("payment_method")
+        public PaymentMethod paymentMethod;
+    }
+
+    public PaymentMethod getPaymentMethod(String paymentMethodId) {
+        String url = baseUrl + "/payment_methods/" + paymentMethodId;
+        HttpHeaders headers = buildHeaders(null);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+        return restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, PaymentMethod.class)
+                .getBody();
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class CreateRefundRequest {
+        @JsonProperty("payment_id")
+        public String paymentId;
+        public Amount amount;
+        public Receipt receipt;
+        public Metadata metadata;
+    }
+
+    public static class RefundResponse {
+        public String id;
+        public String status;
+        @JsonProperty("payment_id")
+        public String paymentId;
+        public Amount amount;
+        public Metadata metadata;
+        @JsonProperty("created_at")
+        public java.time.OffsetDateTime createdAt;
+    }
+
+    public static class PaymentMethod {
+        public String id;
+        public String type;
+        public Boolean saved;
+        public String status;
+        public String title;
+        public BankCard card;
+    }
+
+    public static class BankCard {
+        public String first6;
+        public String last4;
+        @JsonProperty("expiry_year")
+        public String expiryYear;
+        @JsonProperty("expiry_month")
+        public String expiryMonth;
+        @JsonProperty("card_type")
+        public String cardType;
+        @JsonProperty("issuer_name")
+        public String issuerName;
     }
 
     public static class Amount {
