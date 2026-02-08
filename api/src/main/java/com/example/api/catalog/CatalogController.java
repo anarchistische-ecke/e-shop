@@ -68,7 +68,17 @@ public class CatalogController {
     public ResponseEntity<VariantResponse> addProductVariant(@PathVariable UUID productId,
                                                              @Valid @RequestBody VariantRequest request) {
         var price = com.example.common.domain.Money.of(request.getAmount(), request.getCurrency());
-        var variant = catalogService.addVariant(productId, request.getSku(), request.getName(), price, request.getStock());
+        var variant = catalogService.addVariant(
+                productId,
+                request.getSku(),
+                request.getName(),
+                price,
+                request.getStock(),
+                request.getWeightGrossG(),
+                request.getLengthMm(),
+                request.getWidthMm(),
+                request.getHeightMm()
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(mapVariant(variant));
     }
 
@@ -77,7 +87,17 @@ public class CatalogController {
                                                                 @PathVariable UUID variantId,
                                                                 @Valid @RequestBody VariantUpdateRequest request) {
         var price = com.example.common.domain.Money.of(request.getAmount(), request.getCurrency());
-        var updated = catalogService.updateVariant(productId, variantId, request.getName(), price, request.getStock());
+        var updated = catalogService.updateVariant(
+                productId,
+                variantId,
+                request.getName(),
+                price,
+                request.getStock(),
+                request.getWeightGrossG(),
+                request.getLengthMm(),
+                request.getWidthMm(),
+                request.getHeightMm()
+        );
         return ResponseEntity.ok(mapVariant(updated));
     }
 
@@ -269,6 +289,10 @@ public class CatalogController {
         private String currency;
         @NotNull
         private Integer stock;
+        private Integer weightGrossG;
+        private Integer lengthMm;
+        private Integer widthMm;
+        private Integer heightMm;
 
         public String getSku() {
             return sku;
@@ -309,6 +333,38 @@ public class CatalogController {
         public void setStock(Integer stock) {
             this.stock = stock;
         }
+
+        public Integer getWeightGrossG() {
+            return weightGrossG;
+        }
+
+        public void setWeightGrossG(Integer weightGrossG) {
+            this.weightGrossG = weightGrossG;
+        }
+
+        public Integer getLengthMm() {
+            return lengthMm;
+        }
+
+        public void setLengthMm(Integer lengthMm) {
+            this.lengthMm = lengthMm;
+        }
+
+        public Integer getWidthMm() {
+            return widthMm;
+        }
+
+        public void setWidthMm(Integer widthMm) {
+            this.widthMm = widthMm;
+        }
+
+        public Integer getHeightMm() {
+            return heightMm;
+        }
+
+        public void setHeightMm(Integer heightMm) {
+            this.heightMm = heightMm;
+        }
     }
 
     public static class VariantUpdateRequest {
@@ -320,6 +376,10 @@ public class CatalogController {
         private String currency;
         @NotNull
         private Integer stock;
+        private Integer weightGrossG;
+        private Integer lengthMm;
+        private Integer widthMm;
+        private Integer heightMm;
 
         public String getName() {
             return name;
@@ -351,6 +411,38 @@ public class CatalogController {
 
         public void setStock(Integer stock) {
             this.stock = stock;
+        }
+
+        public Integer getWeightGrossG() {
+            return weightGrossG;
+        }
+
+        public void setWeightGrossG(Integer weightGrossG) {
+            this.weightGrossG = weightGrossG;
+        }
+
+        public Integer getLengthMm() {
+            return lengthMm;
+        }
+
+        public void setLengthMm(Integer lengthMm) {
+            this.lengthMm = lengthMm;
+        }
+
+        public Integer getWidthMm() {
+            return widthMm;
+        }
+
+        public void setWidthMm(Integer widthMm) {
+            this.widthMm = widthMm;
+        }
+
+        public Integer getHeightMm() {
+            return heightMm;
+        }
+
+        public void setHeightMm(Integer heightMm) {
+            this.heightMm = heightMm;
         }
     }
 
@@ -480,6 +572,10 @@ public class CatalogController {
         private String name;
         private com.example.common.domain.Money price;
         private int stock;
+        private Integer weightGrossG;
+        private Integer lengthMm;
+        private Integer widthMm;
+        private Integer heightMm;
 
         public UUID getId() {
             return id;
@@ -519,6 +615,38 @@ public class CatalogController {
 
         public void setStock(int stock) {
             this.stock = stock;
+        }
+
+        public Integer getWeightGrossG() {
+            return weightGrossG;
+        }
+
+        public void setWeightGrossG(Integer weightGrossG) {
+            this.weightGrossG = weightGrossG;
+        }
+
+        public Integer getLengthMm() {
+            return lengthMm;
+        }
+
+        public void setLengthMm(Integer lengthMm) {
+            this.lengthMm = lengthMm;
+        }
+
+        public Integer getWidthMm() {
+            return widthMm;
+        }
+
+        public void setWidthMm(Integer widthMm) {
+            this.widthMm = widthMm;
+        }
+
+        public Integer getHeightMm() {
+            return heightMm;
+        }
+
+        public void setHeightMm(Integer heightMm) {
+            this.heightMm = heightMm;
         }
     }
 
@@ -696,6 +824,10 @@ public class CatalogController {
         response.setName(variant.getName());
         response.setPrice(variant.getPrice());
         response.setStock(variant.getStockQuantity());
+        response.setWeightGrossG(variant.getWeightGrossG());
+        response.setLengthMm(variant.getLengthMm());
+        response.setWidthMm(variant.getWidthMm());
+        response.setHeightMm(variant.getHeightMm());
         return response;
     }
 

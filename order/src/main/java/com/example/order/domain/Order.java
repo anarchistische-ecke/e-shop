@@ -38,6 +38,13 @@ public class Order extends BaseEntity {
     @NotNull
     private Money totalAmount;
 
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "delivery_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "delivery_currency", length = 3))
+    })
+    private Money deliveryAmount;
+
     @Column(name = "payment_id", columnDefinition = "uuid")
     private UUID paymentId;
 
@@ -49,6 +56,36 @@ public class Order extends BaseEntity {
 
     @Column(name = "receipt_email")
     private String receiptEmail;
+
+    @Column(name = "delivery_provider")
+    private String deliveryProvider;
+
+    @Column(name = "delivery_method")
+    private String deliveryMethod;
+
+    @Column(name = "delivery_address")
+    private String deliveryAddress;
+
+    @Column(name = "delivery_pickup_point_id")
+    private String deliveryPickupPointId;
+
+    @Column(name = "delivery_pickup_point_name")
+    private String deliveryPickupPointName;
+
+    @Column(name = "delivery_interval_from", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime deliveryIntervalFrom;
+
+    @Column(name = "delivery_interval_to", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime deliveryIntervalTo;
+
+    @Column(name = "delivery_offer_id")
+    private String deliveryOfferId;
+
+    @Column(name = "delivery_request_id")
+    private String deliveryRequestId;
+
+    @Column(name = "delivery_status")
+    private String deliveryStatus;
 
     @Column(name = "manager_id", columnDefinition = "uuid")
     private UUID managerId;
@@ -102,6 +139,14 @@ public class Order extends BaseEntity {
         this.totalAmount = totalAmount;
     }
 
+    public Money getDeliveryAmount() {
+        return deliveryAmount;
+    }
+
+    public void setDeliveryAmount(Money deliveryAmount) {
+        this.deliveryAmount = deliveryAmount;
+    }
+
     public UUID getPaymentId() {
         return paymentId;
     }
@@ -124,6 +169,86 @@ public class Order extends BaseEntity {
 
     public void setReceiptEmail(String receiptEmail) {
         this.receiptEmail = receiptEmail;
+    }
+
+    public String getDeliveryProvider() {
+        return deliveryProvider;
+    }
+
+    public void setDeliveryProvider(String deliveryProvider) {
+        this.deliveryProvider = deliveryProvider;
+    }
+
+    public String getDeliveryMethod() {
+        return deliveryMethod;
+    }
+
+    public void setDeliveryMethod(String deliveryMethod) {
+        this.deliveryMethod = deliveryMethod;
+    }
+
+    public String getDeliveryAddress() {
+        return deliveryAddress;
+    }
+
+    public void setDeliveryAddress(String deliveryAddress) {
+        this.deliveryAddress = deliveryAddress;
+    }
+
+    public String getDeliveryPickupPointId() {
+        return deliveryPickupPointId;
+    }
+
+    public void setDeliveryPickupPointId(String deliveryPickupPointId) {
+        this.deliveryPickupPointId = deliveryPickupPointId;
+    }
+
+    public String getDeliveryPickupPointName() {
+        return deliveryPickupPointName;
+    }
+
+    public void setDeliveryPickupPointName(String deliveryPickupPointName) {
+        this.deliveryPickupPointName = deliveryPickupPointName;
+    }
+
+    public OffsetDateTime getDeliveryIntervalFrom() {
+        return deliveryIntervalFrom;
+    }
+
+    public void setDeliveryIntervalFrom(OffsetDateTime deliveryIntervalFrom) {
+        this.deliveryIntervalFrom = deliveryIntervalFrom;
+    }
+
+    public OffsetDateTime getDeliveryIntervalTo() {
+        return deliveryIntervalTo;
+    }
+
+    public void setDeliveryIntervalTo(OffsetDateTime deliveryIntervalTo) {
+        this.deliveryIntervalTo = deliveryIntervalTo;
+    }
+
+    public String getDeliveryOfferId() {
+        return deliveryOfferId;
+    }
+
+    public void setDeliveryOfferId(String deliveryOfferId) {
+        this.deliveryOfferId = deliveryOfferId;
+    }
+
+    public String getDeliveryRequestId() {
+        return deliveryRequestId;
+    }
+
+    public void setDeliveryRequestId(String deliveryRequestId) {
+        this.deliveryRequestId = deliveryRequestId;
+    }
+
+    public String getDeliveryStatus() {
+        return deliveryStatus;
+    }
+
+    public void setDeliveryStatus(String deliveryStatus) {
+        this.deliveryStatus = deliveryStatus;
     }
 
     public UUID getManagerId() {

@@ -1,0 +1,5 @@
+ALTER TABLE product_variant
+    ADD COLUMN IF NOT EXISTS weight_gross_g INTEGER,
+    ADD COLUMN IF NOT EXISTS length_mm INTEGER,
+    ADD COLUMN IF NOT EXISTS width_mm INTEGER,
+    ADD COLUMN IF NOT EXISTS height_mm INTEGER;

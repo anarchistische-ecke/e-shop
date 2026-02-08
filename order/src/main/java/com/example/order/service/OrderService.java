@@ -15,6 +15,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,20 +42,43 @@ public class OrderService {
     }
 
     public Order createOrderFromCart(UUID cartId) {
-        return createOrderFromCart(cartId, null, null, null);
+        return createOrderFromCart(cartId, null, null, null, null);
     }
 
     public Order createOrderFromCart(UUID cartId, UUID customerIdOverride, String receiptEmail) {
-        return createOrderFromCart(cartId, customerIdOverride, receiptEmail, null);
+        return createOrderFromCart(cartId, customerIdOverride, receiptEmail, null, null);
     }
 
     public Order createOrderFromCart(UUID cartId,
                                      UUID customerIdOverride,
                                      String receiptEmail,
                                      String managerSubject) {
+        return createOrderFromCart(cartId, customerIdOverride, receiptEmail, managerSubject, null);
+    }
+
+    public Order createOrderFromCart(UUID cartId,
+                                     UUID customerIdOverride,
+                                     String receiptEmail,
+                                     String managerSubject,
+                                     DeliverySpec deliverySpec) {
         Cart cart = cartService.getCartById(cartId);
-        long total = cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
-        Money totalMoney = Money.of(total, "RUB");
+        long itemsTotal = cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
+        String currency = cart.getItems().stream()
+                .map(CartItem::getUnitPrice)
+                .filter(money -> money != null && money.getCurrency() != null && !money.getCurrency().isBlank())
+                .map(Money::getCurrency)
+                .findFirst()
+                .orElse("RUB");
+        long deliveryAmount = deliverySpec != null && deliverySpec.amount() != null
+                ? deliverySpec.amount().getAmount()
+                : 0L;
+        if (deliverySpec != null && deliverySpec.amount() != null) {
+            String deliveryCurrency = deliverySpec.amount().getCurrency();
+            if (deliveryCurrency != null && !deliveryCurrency.isBlank() && !deliveryCurrency.equalsIgnoreCase(currency)) {
+                throw new IllegalArgumentException("Delivery currency mismatch");
+            }
+        }
+        Money totalMoney = Money.of(itemsTotal + deliveryAmount, currency);
         String baseKey = "order-cart-" + cartId;
 
         UUID customerId = customerIdOverride != null
@@ -64,6 +88,19 @@ public class OrderService {
             throw new IllegalArgumentException("Customer is required to create an order");
         }
         Order order = new Order(customerId, "PENDING", totalMoney);
+        if (deliverySpec != null) {
+            order.setDeliveryAmount(deliverySpec.amount());
+            order.setDeliveryProvider(deliverySpec.provider());
+            order.setDeliveryMethod(deliverySpec.method());
+            order.setDeliveryAddress(deliverySpec.address());
+            order.setDeliveryPickupPointId(deliverySpec.pickupPointId());
+            order.setDeliveryPickupPointName(deliverySpec.pickupPointName());
+            order.setDeliveryIntervalFrom(deliverySpec.intervalFrom());
+            order.setDeliveryIntervalTo(deliverySpec.intervalTo());
+            order.setDeliveryOfferId(deliverySpec.offerId());
+            order.setDeliveryRequestId(deliverySpec.requestId());
+            order.setDeliveryStatus(deliverySpec.status());
+        }
         order.setReceiptEmail(receiptEmail);
         order.setPublicToken(generatePublicToken());
         order.setManagerSubject(managerSubject);
@@ -154,7 +191,37 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
     }
 
+    public Order updateDeliveryStatus(UUID orderId,
+                                      String status,
+                                      OffsetDateTime intervalFrom,
+                                      OffsetDateTime intervalTo) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        if (status != null && !status.isBlank()) {
+            order.setDeliveryStatus(status);
+        }
+        if (intervalFrom != null) {
+            order.setDeliveryIntervalFrom(intervalFrom);
+        }
+        if (intervalTo != null) {
+            order.setDeliveryIntervalTo(intervalTo);
+        }
+        return orderRepository.save(order);
+    }
+
     private String generatePublicToken() {
         return UUID.randomUUID().toString().replace("-", "");
     }
+
+    public record DeliverySpec(Money amount,
+                               String provider,
+                               String method,
+                               String address,
+                               String pickupPointId,
+                               String pickupPointName,
+                               OffsetDateTime intervalFrom,
+                               OffsetDateTime intervalTo,
+                               String offerId,
+                               String requestId,
+                               String status) {}
 }

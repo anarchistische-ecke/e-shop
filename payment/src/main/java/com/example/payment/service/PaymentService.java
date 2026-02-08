@@ -1,6 +1,7 @@
 package com.example.payment.service;
 
 import com.example.common.domain.Money;
+import com.example.delivery.YandexDeliveryClient;
 import com.example.customer.domain.Customer;
 import com.example.customer.repository.CustomerRepository;
 import com.example.order.domain.Order;
@@ -17,17 +18,23 @@ import com.example.payment.repository.SavedPaymentMethodRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 @Transactional
 public class PaymentService {
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
     private final SavedPaymentMethodRepository savedPaymentMethodRepository;
@@ -35,6 +42,7 @@ public class PaymentService {
     private final CustomerRepository customerRepository;
     private final YooKassaClient yooKassaClient;
     private final OrderService orderService;
+    private final YandexDeliveryClient yandexDeliveryClient;
 
     @Autowired
     public PaymentService(PaymentRepository paymentRepository,
@@ -43,7 +51,8 @@ public class PaymentService {
                           OrderRepository orderRepository,
                           ObjectProvider<CustomerRepository> customerRepositoryProvider,
                           ObjectProvider<YooKassaClient> yooKassaClientProvider,
-                          ObjectProvider<OrderService> orderServiceProvider) {
+                          ObjectProvider<OrderService> orderServiceProvider,
+                          ObjectProvider<YandexDeliveryClient> yandexDeliveryClientProvider) {
         this.paymentRepository = paymentRepository;
         this.paymentRefundRepository = paymentRefundRepository;
         this.savedPaymentMethodRepository = savedPaymentMethodRepository;
@@ -51,6 +60,7 @@ public class PaymentService {
         this.customerRepository = customerRepositoryProvider.getIfAvailable();
         this.yooKassaClient = yooKassaClientProvider.getIfAvailable();
         this.orderService = orderServiceProvider.getIfAvailable();
+        this.yandexDeliveryClient = yandexDeliveryClientProvider.getIfAvailable();
     }
 
     public Payment createYooKassaPayment(UUID orderId,
@@ -336,6 +346,7 @@ public class PaymentService {
             order.setStatus("REFUNDED");
             orderRepository.save(order);
             restockOrder(order.getId(), "PAYMENT_REFUNDED", "restock-refund-" + order.getId());
+            cancelYandexDeliveryIfNeeded(order);
         }
         return payment;
     }
@@ -351,7 +362,8 @@ public class PaymentService {
         if (StringUtils.hasText(phone)) {
             receipt.customer.phone = phone;
         }
-        receipt.items = order.getItems().stream()
+        List<YooKassaClient.ReceiptItem> receiptItems = new ArrayList<>();
+        receiptItems.addAll(order.getItems().stream()
                 .map(item -> {
                     YooKassaClient.ReceiptItem receiptItem = new YooKassaClient.ReceiptItem();
                     receiptItem.description = buildItemDescription(item);
@@ -362,7 +374,18 @@ public class PaymentService {
                     receiptItem.paymentSubject = "commodity";
                     return receiptItem;
                 })
-                .toList();
+                .toList());
+        if (order.getDeliveryAmount() != null && order.getDeliveryAmount().getAmount() > 0) {
+            YooKassaClient.ReceiptItem deliveryItem = new YooKassaClient.ReceiptItem();
+            deliveryItem.description = "Доставка";
+            deliveryItem.quantity = BigDecimal.ONE;
+            deliveryItem.amount = YooKassaClient.Amount.of(formatAmount(order.getDeliveryAmount()), order.getDeliveryAmount().getCurrency());
+            deliveryItem.vatCode = yooKassaClient.getVatCode();
+            deliveryItem.paymentMode = "full_payment";
+            deliveryItem.paymentSubject = "service";
+            receiptItems.add(deliveryItem);
+        }
+        receipt.items = receiptItems;
         receipt.taxSystemCode = yooKassaClient.getTaxSystemCode();
         return receipt;
     }
@@ -491,6 +514,7 @@ public class PaymentService {
         }
         if (changed && isCancelledStatus(order.getStatus()) && !isCancelledStatus(previousStatus)) {
             restockOrder(order.getId(), "PAYMENT_CANCELLED", "restock-cancel-" + order.getId());
+            cancelYandexDeliveryIfNeeded(order);
         }
     }
 
@@ -533,6 +557,25 @@ public class PaymentService {
             return;
         }
         orderService.restockOrderItems(orderId, reason, idempotencyPrefix);
+    }
+
+    private void cancelYandexDeliveryIfNeeded(Order order) {
+        if (order == null || yandexDeliveryClient == null) {
+            return;
+        }
+        String requestId = order.getDeliveryRequestId();
+        if (!StringUtils.hasText(requestId)) {
+            return;
+        }
+        try {
+            yandexDeliveryClient.cancelRequest(requestId);
+            if (!"CANCELLED".equalsIgnoreCase(order.getDeliveryStatus())) {
+                order.setDeliveryStatus("CANCELLED");
+                orderRepository.save(order);
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to cancel Yandex delivery request {}", requestId, ex);
+        }
     }
 
     private PaymentRefund upsertRefundRecord(Payment payment, YooKassaClient.RefundResponse response) {

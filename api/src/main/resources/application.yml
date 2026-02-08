@@ -32,6 +32,16 @@ yandex:
     secret-key: ${YANDEX_STORAGE_SECRET:dummy-secret-key}
     endpoint: ${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}
     public-base-url: ${YANDEX_STORAGE_PUBLIC_BASE_URL:${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}}
+  delivery:
+    enabled: ${YANDEX_DELIVERY_ENABLED:false}
+    base-url: ${YANDEX_DELIVERY_BASE_URL:https://b2b.taxi.tst.yandex.net}
+    token: ${YANDEX_DELIVERY_TOKEN:}
+    platform-station-id: ${YANDEX_DELIVERY_PLATFORM_STATION_ID:}
+    defaults:
+      weight-g: ${YANDEX_DELIVERY_DEFAULT_WEIGHT_G:1000}
+      length-cm: ${YANDEX_DELIVERY_DEFAULT_LENGTH_CM:30}
+      width-cm: ${YANDEX_DELIVERY_DEFAULT_WIDTH_CM:20}
+      height-cm: ${YANDEX_DELIVERY_DEFAULT_HEIGHT_CM:10}
 
 app:
   public-base-url: ${PUBLIC_BASE_URL:}
@@ -51,4 +61,4 @@ yookassa:
 
 email:
   confirmation:
-    ttl-minutes: ${EMAIL_CONFIRM_TTL_MINUTES:15}
+    ttl-minutes: ${EMAIL_CONFIRM_TTL_MINUTES:60}
