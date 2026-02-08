@@ -10,9 +10,9 @@ import java.util.UUID;
 
 @Repository
 public interface EmailConfirmationRepository extends JpaRepository<EmailConfirmation, UUID> {
-    Optional<EmailConfirmation> findFirstByEmailOrderByCreatedAtDesc(String email);
+    Optional<EmailConfirmation> findFirstByEmailIgnoreCaseOrderByCreatedAtDesc(String email);
 
-    Optional<EmailConfirmation> findFirstByEmailAndCodeAndExpiresAtAfterAndVerifiedAtIsNullOrderByCreatedAtDesc(
+    Optional<EmailConfirmation> findFirstByEmailIgnoreCaseAndCodeAndExpiresAtAfterAndVerifiedAtIsNullOrderByCreatedAtDesc(
             String email,
             String code,
             OffsetDateTime now

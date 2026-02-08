@@ -37,6 +37,18 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "stock_quantity", nullable = false)
     private int stockQuantity;
 
+    @Column(name = "weight_gross_g")
+    private Integer weightGrossG;
+
+    @Column(name = "length_mm")
+    private Integer lengthMm;
+
+    @Column(name = "width_mm")
+    private Integer widthMm;
+
+    @Column(name = "height_mm")
+    private Integer heightMm;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false, columnDefinition = "uuid")
     private Product product;
@@ -82,6 +94,38 @@ public class ProductVariant extends BaseEntity {
 
     public void setStockQuantity(int stockQuantity) {
         this.stockQuantity = stockQuantity;
+    }
+
+    public Integer getWeightGrossG() {
+        return weightGrossG;
+    }
+
+    public void setWeightGrossG(Integer weightGrossG) {
+        this.weightGrossG = weightGrossG;
+    }
+
+    public Integer getLengthMm() {
+        return lengthMm;
+    }
+
+    public void setLengthMm(Integer lengthMm) {
+        this.lengthMm = lengthMm;
+    }
+
+    public Integer getWidthMm() {
+        return widthMm;
+    }
+
+    public void setWidthMm(Integer widthMm) {
+        this.widthMm = widthMm;
+    }
+
+    public Integer getHeightMm() {
+        return heightMm;
+    }
+
+    public void setHeightMm(Integer heightMm) {
+        this.heightMm = heightMm;
     }
 
     public Product getProduct() {

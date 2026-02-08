@@ -44,16 +44,36 @@ public class CatalogService {
         return productRepository.save(product);
     }
 
-    public ProductVariant addVariant(UUID productId, String sku, String name, Money price, int stock) {
+    public ProductVariant addVariant(UUID productId,
+                                     String sku,
+                                     String name,
+                                     Money price,
+                                     int stock,
+                                     Integer weightGrossG,
+                                     Integer lengthMm,
+                                     Integer widthMm,
+                                     Integer heightMm) {
         Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
         ProductVariant variant = new ProductVariant(sku, name, price, stock);
+        variant.setWeightGrossG(weightGrossG);
+        variant.setLengthMm(lengthMm);
+        variant.setWidthMm(widthMm);
+        variant.setHeightMm(heightMm);
         product.addVariant(variant);
         // saving the product will cascade to the variant
         productRepository.save(product);
         return variant;
     }
 
-    public ProductVariant updateVariant(UUID productId, UUID variantId, String name, Money price, int stock) {
+    public ProductVariant updateVariant(UUID productId,
+                                        UUID variantId,
+                                        String name,
+                                        Money price,
+                                        int stock,
+                                        Integer weightGrossG,
+                                        Integer lengthMm,
+                                        Integer widthMm,
+                                        Integer heightMm) {
         ProductVariant variant = variantRepository.findById(variantId)
                 .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
         if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
@@ -66,6 +86,18 @@ public class CatalogService {
             variant.setPrice(price);
         }
         variant.setStockQuantity(stock);
+        if (weightGrossG != null) {
+            variant.setWeightGrossG(weightGrossG);
+        }
+        if (lengthMm != null) {
+            variant.setLengthMm(lengthMm);
+        }
+        if (widthMm != null) {
+            variant.setWidthMm(widthMm);
+        }
+        if (heightMm != null) {
+            variant.setHeightMm(heightMm);
+        }
         return variantRepository.save(variant);
     }
 

@@ -1,5 +1,6 @@
 package com.example.api.order;
 
+import com.example.api.delivery.YandexDeliveryService;
 import com.example.order.domain.Order;
 import com.example.customer.domain.Customer;
 import com.example.customer.service.CustomerService;
@@ -20,6 +21,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -32,6 +34,7 @@ public class OrderController {
     private final CustomerService customerService;
     private final PaymentService paymentService;
     private final EmailService emailService;
+    private final YandexDeliveryService deliveryService;
 
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
@@ -40,11 +43,13 @@ public class OrderController {
     public OrderController(OrderService orderService,
                            CustomerService customerService,
                            PaymentService paymentService,
-                           EmailService emailService) {
+                           EmailService emailService,
+                           YandexDeliveryService deliveryService) {
         this.orderService = orderService;
         this.customerService = customerService;
         this.paymentService = paymentService;
         this.emailService = emailService;
+        this.deliveryService = deliveryService;
     }
 
     @PostMapping
@@ -66,11 +71,62 @@ public class OrderController {
             customerId = customer.getId();
             savePaymentMethod = false;
         }
-        Order order = orderService.createOrderFromCart(
-                request.cartId,
-                customerId,
-                request.receiptEmail
-        );
+        OrderService.DeliverySpec deliverySpec = null;
+        YandexDeliveryService.DeliveryConfirmResult confirmResult = null;
+        if (request.delivery != null) {
+            DeliveryRequest delivery = request.delivery;
+            validateDeliveryRequest(delivery);
+            YandexDeliveryService.DeliveryOffersRequest offersRequest = new YandexDeliveryService.DeliveryOffersRequest();
+            offersRequest.cartId = request.cartId;
+            offersRequest.deliveryType = delivery.deliveryType;
+            offersRequest.address = delivery.address;
+            offersRequest.pickupPointId = delivery.pickupPointId;
+            offersRequest.pickupPointName = delivery.pickupPointName;
+            offersRequest.intervalFrom = delivery.intervalFrom;
+            offersRequest.intervalTo = delivery.intervalTo;
+            offersRequest.firstName = delivery.firstName;
+            offersRequest.lastName = delivery.lastName;
+            offersRequest.phone = delivery.phone;
+            offersRequest.email = StringUtils.hasText(delivery.email) ? delivery.email : request.receiptEmail;
+            offersRequest.comment = delivery.comment;
+            YandexDeliveryService.DeliveryOffer offer = deliveryService.resolveOffer(offersRequest, delivery.offerId);
+            var deliveryAmount = offer.pricingTotal() != null ? offer.pricingTotal() : offer.pricing();
+            if (deliveryAmount == null) {
+                throw new IllegalArgumentException("Delivery price is required");
+            }
+            confirmResult = deliveryService.confirmOffer(offer.offerId());
+            deliverySpec = new OrderService.DeliverySpec(
+                    deliveryAmount,
+                    "YANDEX",
+                    delivery.deliveryType.name(),
+                    delivery.address,
+                    delivery.pickupPointId,
+                    delivery.pickupPointName,
+                    offer.intervalFrom(),
+                    offer.intervalTo(),
+                    offer.offerId(),
+                    confirmResult.requestId(),
+                    "REQUESTED"
+            );
+        }
+        Order order;
+        try {
+            order = orderService.createOrderFromCart(
+                    request.cartId,
+                    customerId,
+                    request.receiptEmail,
+                    null,
+                    deliverySpec
+            );
+        } catch (RuntimeException ex) {
+            if (confirmResult != null) {
+                try {
+                    deliveryService.cancelRequest(confirmResult.requestId());
+                } catch (Exception cancelEx) {
+                }
+            }
+            throw ex;
+        }
         String returnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, order);
         if (returnUrl == null || returnUrl.isBlank()) {
             return ResponseEntity.badRequest().build();
@@ -137,6 +193,33 @@ public class OrderController {
                                                   @RequestParam String status) {
         orderService.updateOrderStatus(id, status);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/delivery/refresh")
+    public ResponseEntity<Order> refreshDelivery(@PathVariable UUID id) {
+        Order order = orderService.findById(id);
+        if (order.getDeliveryRequestId() == null || order.getDeliveryRequestId().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        YandexDeliveryService.DeliveryRequestInfo info = deliveryService.getRequestInfo(order.getDeliveryRequestId());
+        Order updated = orderService.updateDeliveryStatus(
+                order.getId(),
+                info.status(),
+                info.intervalFrom(),
+                info.intervalTo()
+        );
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/{id}/delivery/cancel")
+    public ResponseEntity<Order> cancelDelivery(@PathVariable UUID id) {
+        Order order = orderService.findById(id);
+        if (order.getDeliveryRequestId() == null || order.getDeliveryRequestId().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        deliveryService.cancelRequest(order.getDeliveryRequestId());
+        Order updated = orderService.updateDeliveryStatus(order.getId(), "CANCELLED", null, null);
+        return ResponseEntity.ok(updated);
     }
 
     @GetMapping("/me")
@@ -240,12 +323,55 @@ public class OrderController {
         throw new IllegalArgumentException("Manager subject is required");
     }
 
+    private void validateDeliveryRequest(DeliveryRequest delivery) {
+        if (delivery == null) {
+            return;
+        }
+        if (delivery.deliveryType == null) {
+            throw new IllegalArgumentException("Delivery type is required");
+        }
+        if (!StringUtils.hasText(delivery.offerId)) {
+            throw new IllegalArgumentException("Delivery offer is required");
+        }
+        if (!StringUtils.hasText(delivery.firstName)) {
+            throw new IllegalArgumentException("Recipient first name is required");
+        }
+        if (!StringUtils.hasText(delivery.phone)) {
+            throw new IllegalArgumentException("Recipient phone is required");
+        }
+        if (delivery.deliveryType == YandexDeliveryService.DeliveryType.COURIER) {
+            if (!StringUtils.hasText(delivery.address)) {
+                throw new IllegalArgumentException("Delivery address is required");
+            }
+        } else if (delivery.deliveryType == YandexDeliveryService.DeliveryType.PICKUP) {
+            if (!StringUtils.hasText(delivery.pickupPointId)) {
+                throw new IllegalArgumentException("Pickup point is required");
+            }
+        }
+    }
+
+    public record DeliveryRequest(
+            YandexDeliveryService.DeliveryType deliveryType,
+            String offerId,
+            String address,
+            String pickupPointId,
+            String pickupPointName,
+            OffsetDateTime intervalFrom,
+            OffsetDateTime intervalTo,
+            String firstName,
+            String lastName,
+            String phone,
+            String email,
+            String comment
+    ) {}
+
     public record CheckoutRequest(
             @NotNull UUID cartId,
             @Email @NotBlank String receiptEmail,
             String returnUrl,
             String orderPageUrl,
-            Boolean savePaymentMethod
+            Boolean savePaymentMethod,
+            DeliveryRequest delivery
     ) {}
 
     public record AdminLinkRequest(
