@@ -5,13 +5,36 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 public class KeycloakJwtAuthoritiesConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
+
+    private final Set<String> trustedResourceRoleClients;
+
+    public KeycloakJwtAuthoritiesConverter() {
+        this(Collections.emptySet());
+    }
+
+    public KeycloakJwtAuthoritiesConverter(Set<String> trustedResourceRoleClients) {
+        if (trustedResourceRoleClients == null) {
+            this.trustedResourceRoleClients = Collections.emptySet();
+            return;
+        }
+        this.trustedResourceRoleClients = trustedResourceRoleClients.stream()
+                .filter(client -> client != null && !client.isBlank())
+                .map(String::trim)
+                .collect(Collectors.toSet());
+    }
+
+    public KeycloakJwtAuthoritiesConverter(String trustedResourceRoleClients) {
+        this(parseClients(trustedResourceRoleClients));
+    }
 
     @Override
     public Collection<GrantedAuthority> convert(Jwt jwt) {
@@ -54,10 +77,14 @@ public class KeycloakJwtAuthoritiesConverter implements Converter<Jwt, Collectio
     }
 
     private void extractResourceRoles(Set<String> roles, Map<String, Object> resourceAccess) {
-        if (resourceAccess == null) {
+        if (resourceAccess == null || trustedResourceRoleClients.isEmpty()) {
             return;
         }
-        for (Object value : resourceAccess.values()) {
+        for (Map.Entry<String, Object> entry : resourceAccess.entrySet()) {
+            if (!trustedResourceRoleClients.contains(entry.getKey())) {
+                continue;
+            }
+            Object value = entry.getValue();
             if (value instanceof Map<?, ?> clientAccess) {
                 Object clientRoles = clientAccess.get("roles");
                 if (clientRoles instanceof Collection<?> roleList) {
@@ -84,5 +111,15 @@ public class KeycloakJwtAuthoritiesConverter implements Converter<Jwt, Collectio
             return role;
         }
         return "ROLE_" + role.toUpperCase();
+    }
+
+    private static Set<String> parseClients(String rawClients) {
+        if (rawClients == null || rawClients.isBlank()) {
+            return Collections.emptySet();
+        }
+        return Arrays.stream(rawClients.split(","))
+                .map(String::trim)
+                .filter(client -> !client.isEmpty())
+                .collect(Collectors.toSet());
     }
 }

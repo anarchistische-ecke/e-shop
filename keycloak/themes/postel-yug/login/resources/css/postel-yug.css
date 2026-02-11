@@ -3,25 +3,28 @@
 :root {
   --brand-cream: 249 244 236;
   --brand-sand: 231 221 206;
-  --brand-rose: 198 115 92;
-  --brand-sage: 211 223 215;
-  --brand-blush: 244 235 226;
+  --brand-rose: 182 91 74;
+  --brand-sage: 217 229 223;
   --brand-ink: 43 39 34;
   --brand-primary: #b65b4a;
   --brand-primary-dark: #a85041;
+  --brand-card: rgba(255, 255, 255, 0.9);
 }
 
 html, body {
   height: 100%;
 }
 
-body.login-pf {
-  font-family: 'Manrope', 'Segoe UI', sans-serif;
+html.login-pf,
+html.login-pf body,
+body {
+  font-family: 'Manrope', 'Segoe UI', sans-serif !important;
   background:
-    radial-gradient(circle at 10% 14%, rgba(var(--brand-rose), 0.22), transparent 45%),
-    radial-gradient(circle at 88% 8%, rgba(var(--brand-sage), 0.32), transparent 42%),
-    radial-gradient(circle at 72% 86%, rgba(var(--brand-blush), 0.5), transparent 46%),
-    linear-gradient(180deg, #fbf7f1 0%, #f5eee6 50%, #efe7de 100%);
+    radial-gradient(circle at 8% 8%, rgba(var(--brand-rose), 0.2), transparent 28%),
+    radial-gradient(circle at 92% 10%, rgba(var(--brand-sage), 0.5), transparent 34%),
+    linear-gradient(180deg, #f7efe7 0%, #efe6dd 100%) !important;
+  background-image: none !important;
+  background-color: #f7efe7 !important;
   color: rgb(var(--brand-ink));
 }
 
@@ -44,17 +47,21 @@ body.login-pf {
   padding-top: 2rem;
 }
 
-.login-pf-page .card-pf {
-  background: rgba(255, 255, 255, 0.92);
+.login-pf-page .card-pf,
+.login-pf-page .card-pf[class*="pf-m-card"],
+.login-pf-page .pf-c-card {
+  background: var(--brand-card);
   border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  box-shadow: 0 24px 50px rgba(43, 39, 34, 0.12);
+  border: 1px solid rgba(var(--brand-ink), 0.1);
+  box-shadow: 0 24px 50px rgba(43, 39, 34, 0.13);
   padding: 2.4rem 2.2rem;
   max-width: 520px;
   margin: 0 auto;
 }
 
-#kc-page-title {
+#kc-page-title,
+.login-pf-page h1,
+.login-pf-page h2 {
   font-family: 'Cormorant Garamond', 'Times New Roman', serif;
   font-size: clamp(1.6rem, 3vw, 2.1rem);
   font-weight: 600;
@@ -63,11 +70,13 @@ body.login-pf {
 
 .login-pf-page .card-pf p,
 .login-pf-page .card-pf label,
-.login-pf-page .card-pf .control-label {
+.login-pf-page .card-pf .control-label,
+.login-pf-page .pf-c-form__label-text {
   color: rgba(var(--brand-ink), 0.75);
 }
 
-.login-pf-page .form-control {
+.login-pf-page .form-control,
+.login-pf-page .pf-c-form-control {
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(var(--brand-ink), 0.12);
   border-radius: 16px;
@@ -76,18 +85,21 @@ body.login-pf {
   color: rgb(var(--brand-ink));
 }
 
-.login-pf-page .form-control:focus {
+.login-pf-page .form-control:focus,
+.login-pf-page .pf-c-form-control:focus {
   border-color: rgba(182, 91, 74, 0.5);
   box-shadow: 0 0 0 2px rgba(182, 91, 74, 0.18);
 }
 
 .login-pf-page .btn-primary,
-.login-pf-page #kc-login {
+.login-pf-page #kc-login,
+.login-pf-page .pf-c-button.pf-m-primary {
   background: var(--brand-primary);
   border: none;
   border-radius: 18px;
   padding: 0.65rem 1.1rem;
   font-weight: 600;
+  color: #fff;
   box-shadow: 0 18px 36px rgba(182, 91, 74, 0.35);
   transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
@@ -95,7 +107,9 @@ body.login-pf {
 .login-pf-page .btn-primary:hover,
 .login-pf-page .btn-primary:focus,
 .login-pf-page #kc-login:hover,
-.login-pf-page #kc-login:focus {
+.login-pf-page #kc-login:focus,
+.login-pf-page .pf-c-button.pf-m-primary:hover,
+.login-pf-page .pf-c-button.pf-m-primary:focus {
   background: var(--brand-primary-dark);
   box-shadow: 0 22px 40px rgba(182, 91, 74, 0.4);
   transform: translateY(-1px);
@@ -114,40 +128,228 @@ body.login-pf {
   margin-top: 1.25rem;
 }
 
-.login-pf-page .pf-c-form__label-text,
-.login-pf-page .control-label {
-  font-weight: 600;
-}
-
 .login-pf-page .alert {
   border-radius: 16px;
 }
 
-#kc-social-providers ul {
-  margin-top: 0.5rem;
-  display: grid;
-  gap: 0.5rem;
+/* Remove locale dropdown */
+#kc-locale,
+#kc-locale-wrapper,
+#kc-locale-dropdown,
+#kc-locale .pf-c-dropdown,
+#kc-locale .pf-c-select,
+#kc-locale .kc-dropdown,
+.kc-dropdown {
+  display: none !important;
 }
 
-#kc-social-providers a {
-  display: inline-flex;
+/* Social providers section wrapper */
+#kc-social-providers {
+  margin-top: 1.4rem;
+  padding-top: 1.9rem;
+  position: relative;
+}
+
+/* divider line with a gap for the label */
+#kc-social-providers::before {
+  content: '';
+  position: absolute;
+  top: 0.75rem;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background:
+    linear-gradient(
+      to right,
+      rgb(var(--brand-ink) / 0.38) 0,
+      rgb(var(--brand-ink) / 0.38) calc(50% - 28px),
+      transparent calc(50% - 30px),
+      transparent calc(50% + 30px),
+      rgb(var(--brand-ink) / 0.38) calc(50% + 28px),
+      rgb(var(--brand-ink) / 0.38) 100%
+    );
+  z-index: 0;
+}
+
+/* divider label */
+#kc-social-providers::after {
+  content: 'или';
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  color: rgb(var(--brand-ink) / 0.65);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 12px;
+  z-index: 1;
+}
+
+#kc-social-providers hr {
+  display: none !important;
+}
+
+/* Hide built-in title */
+#kc-social-providers h1,
+#kc-social-providers h2,
+#kc-social-providers h3,
+#kc-social-providers h4,
+#kc-social-providers p,
+#kc-social-providers .kc-social-title,
+#kc-social-providers .kc-social-provider-name,
+#kc-social-providers .kc-social-section-title,
+#kc-social-providers .pf-c-title {
+  display: none !important;
+}
+
+#kc-social-providers ul,
+#kc-social-providers .kc-social-links,
+#kc-social-providers .pf-c-login__main-footer-links {
+  margin: 1.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  justify-items: stretch !important;
+  align-items: stretch !important;
+  gap: 0.6rem;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+#kc-social-providers li {
+  margin: 0;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* Remove oauth2 and VK buttons */
+#kc-social-providers [id*="oauth"],
+#kc-social-providers [data-provider*="oauth"],
+#kc-social-providers #zocial-vk,
+#kc-social-providers #zocial-vkontakte,
+#kc-social-providers #zocial-vk-id {
+  display: none !important;
+}
+
+/* Yandex ID button (centered label) */
+#kc-social-providers a[id*="yandex"],
+#kc-social-providers a[data-provider*="yandex"] {
+  background: #000 !important;
+  color: #fff !important;
+  border-radius: 999px;
+  border: none !important;
+  height: 52px;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  padding: 0 20px 0 56px;
+  font-weight: 600;
+  display: flex !important;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  border: 1px solid rgba(var(--brand-ink), 0.12);
-  padding: 0.6rem 0.9rem;
-  background: rgba(255, 255, 255, 0.85);
-  color: rgb(var(--brand-ink));
-  font-weight: 600;
+  position: relative;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+  text-decoration: none;
+  font-size: 16px !important;
+  line-height: 1;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-align: center;
 }
 
-#kc-social-providers a:hover {
-  border-color: rgba(182, 91, 74, 0.5);
-  color: var(--brand-primary-dark);
+#kc-social-providers a[id*="yandex"]::before,
+#kc-social-providers a[data-provider*="yandex"]::before {
+  content: 'Я';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translateY(-50%);
+  border-radius: 50%;
+  background: #fc3f1d;
+  color: #fff;
+  font-family: 'Manrope', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#kc-social-providers a[id*="yandex"]::after,
+#kc-social-providers a[data-provider*="yandex"]::after {
+  content: none !important;
+  display: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+#kc-social-providers a[id*="yandex"] .kc-social-provider-name,
+#kc-social-providers a[data-provider*="yandex"] .kc-social-provider-name {
+  display: block !important;
+  margin: 0 auto;
+  font-size: 0 !important;
+  line-height: 1;
+  white-space: nowrap;
+  color: #fff !important;
+}
+
+#kc-social-providers a[id*="yandex"] .kc-social-provider-name::before,
+#kc-social-providers a[data-provider*="yandex"] .kc-social-provider-name::before {
+  content: 'Войти с Яндекс ID';
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+}
+
+#kc-social-providers a[id*="yandex"]:hover,
+#kc-social-providers a[id*="yandex"]:focus,
+#kc-social-providers a[data-provider*="yandex"]:hover,
+#kc-social-providers a[data-provider*="yandex"]:focus {
+  background: #111 !important;
+}
+
+/* Register page polish */
+body[data-page-id="login-register"] #kc-page-title {
+  margin-top: 0.25rem;
+  margin-bottom: 1rem;
+}
+
+body[data-page-id="login-register"] .subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(var(--brand-ink), 0.72);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+body[data-page-id="login-register"] .subtitle .required {
+  color: var(--brand-primary);
+}
+
+body[data-page-id="login-register"] #kc-form-options {
+  margin-bottom: 0.75rem;
+}
+
+body[data-page-id="login-register"] #kc-social-providers {
+  margin-top: 1.6rem;
+}
+
+body[data-page-id="login-register"] #kc-social-providers a[id*="yandex"] .kc-social-provider-name::before,
+body[data-page-id="login-register"] #kc-social-providers a[data-provider*="yandex"] .kc-social-provider-name::before {
+  content: 'Зарегистрироваться с Яндекс ID';
 }
 
 @media (max-width: 640px) {
-  .login-pf-page .card-pf {
+  .login-pf-page .card-pf,
+  .login-pf-page .pf-c-card {
     padding: 2rem 1.6rem;
   }
 }
