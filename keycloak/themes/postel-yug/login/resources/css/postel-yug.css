@@ -1,0 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&display=swap');
+
+:root {
+  --brand-cream: 249 244 236;
+  --brand-sand: 231 221 206;
+  --brand-rose: 198 115 92;
+  --brand-sage: 211 223 215;
+  --brand-blush: 244 235 226;
+  --brand-ink: 43 39 34;
+  --brand-primary: #b65b4a;
+  --brand-primary-dark: #a85041;
+}
+
+html, body {
+  height: 100%;
+}
+
+body.login-pf {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at 10% 14%, rgba(var(--brand-rose), 0.22), transparent 45%),
+    radial-gradient(circle at 88% 8%, rgba(var(--brand-sage), 0.32), transparent 42%),
+    radial-gradient(circle at 72% 86%, rgba(var(--brand-blush), 0.5), transparent 46%),
+    linear-gradient(180deg, #fbf7f1 0%, #f5eee6 50%, #efe7de 100%);
+  color: rgb(var(--brand-ink));
+}
+
+#kc-header {
+  padding-top: 2.5rem;
+  padding-bottom: 1.25rem;
+  background: transparent;
+  border: none;
+}
+
+#kc-header-wrapper {
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--brand-ink));
+}
+
+.login-pf-page {
+  padding-top: 2rem;
+}
+
+.login-pf-page .card-pf {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 24px 50px rgba(43, 39, 34, 0.12);
+  padding: 2.4rem 2.2rem;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+#kc-page-title {
+  font-family: 'Cormorant Garamond', 'Times New Roman', serif;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 600;
+  color: rgb(var(--brand-ink));
+}
+
+.login-pf-page .card-pf p,
+.login-pf-page .card-pf label,
+.login-pf-page .card-pf .control-label {
+  color: rgba(var(--brand-ink), 0.75);
+}
+
+.login-pf-page .form-control {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(var(--brand-ink), 0.12);
+  border-radius: 16px;
+  box-shadow: 0 10px 20px rgba(43, 39, 34, 0.08);
+  padding: 0.7rem 0.9rem;
+  color: rgb(var(--brand-ink));
+}
+
+.login-pf-page .form-control:focus {
+  border-color: rgba(182, 91, 74, 0.5);
+  box-shadow: 0 0 0 2px rgba(182, 91, 74, 0.18);
+}
+
+.login-pf-page .btn-primary,
+.login-pf-page #kc-login {
+  background: var(--brand-primary);
+  border: none;
+  border-radius: 18px;
+  padding: 0.65rem 1.1rem;
+  font-weight: 600;
+  box-shadow: 0 18px 36px rgba(182, 91, 74, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.login-pf-page .btn-primary:hover,
+.login-pf-page .btn-primary:focus,
+.login-pf-page #kc-login:hover,
+.login-pf-page #kc-login:focus {
+  background: var(--brand-primary-dark);
+  box-shadow: 0 22px 40px rgba(182, 91, 74, 0.4);
+  transform: translateY(-1px);
+}
+
+.login-pf-page a {
+  color: var(--brand-primary);
+}
+
+.login-pf-page a:hover {
+  color: var(--brand-primary-dark);
+}
+
+#kc-form-options,
+#kc-registration {
+  margin-top: 1.25rem;
+}
+
+.login-pf-page .pf-c-form__label-text,
+.login-pf-page .control-label {
+  font-weight: 600;
+}
+
+.login-pf-page .alert {
+  border-radius: 16px;
+}
+
+#kc-social-providers ul {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+#kc-social-providers a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 1px solid rgba(var(--brand-ink), 0.12);
+  padding: 0.6rem 0.9rem;
+  background: rgba(255, 255, 255, 0.85);
+  color: rgb(var(--brand-ink));
+  font-weight: 600;
+}
+
+#kc-social-providers a:hover {
+  border-color: rgba(182, 91, 74, 0.5);
+  color: var(--brand-primary-dark);
+}
+
+@media (max-width: 640px) {
+  .login-pf-page .card-pf {
+    padding: 2rem 1.6rem;
+  }
+}

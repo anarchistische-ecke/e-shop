@@ -23,18 +23,6 @@ public class EmailService {
         this.mailSender = mailSender;
     }
 
-    public void sendConfirmationCode(String toEmail, String code) {
-        if (toEmail == null || toEmail.isBlank()) {
-            return;
-        }
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setFrom(fromAddress);
-        message.setTo(toEmail);
-        message.setSubject("Подтвердите электронную почту");
-        message.setText("Код для подтверждения адреса электронной почты: " + code);
-        mailSender.send(message);
-    }
-
     public void sendOrderCreatedEmail(Order order, String toEmail, String orderUrl) {
         if (toEmail == null || toEmail.isBlank()) {
             return;
