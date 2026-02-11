@@ -35,14 +35,18 @@ public class ShipmentService {
         return shipment;
     }
 
-    public void markDelivered(UUID shipmentId) {
+    public DeliveryTransition markDelivered(UUID shipmentId) {
         Shipment shipment = shipmentRepository.findById(shipmentId)
                 .orElseThrow(() -> new IllegalArgumentException("Shipment not found: " + shipmentId));
         shipment.setDeliveredAt(OffsetDateTime.now());
         shipmentRepository.save(shipment);
         Order order = orderRepository.findById(shipment.getOrderId())
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + shipment.getOrderId()));
+        String previousStatus = order.getStatus();
         order.setStatus("DELIVERED");
         orderRepository.save(order);
+        return new DeliveryTransition(order.getId(), previousStatus, order.getStatus());
     }
+
+    public record DeliveryTransition(UUID orderId, String previousStatus, String currentStatus) {}
 }

@@ -124,15 +124,16 @@ public class OrderService {
         return order;
     }
 
-    public void updateOrderStatus(UUID orderId, String status) {
+    public Order updateOrderStatus(UUID orderId, String status) {
         Order order = orderRepository.findWithItemsById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
         String previousStatus = order.getStatus();
         order.setStatus(status);
-        orderRepository.save(order);
+        order = orderRepository.save(order);
         if (shouldRestock(previousStatus, status)) {
             restockOrderItems(order, "ORDER_STATUS_" + status, "restock-" + orderId + "-" + status.toLowerCase());
         }
+        return order;
     }
 
     public void restockOrderItems(UUID orderId, String reason, String idempotencyPrefix) {

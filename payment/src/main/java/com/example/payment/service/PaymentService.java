@@ -143,6 +143,13 @@ public class PaymentService {
         return refreshYooKassaPaymentWithResult(providerPaymentId).payment();
     }
 
+    public Payment findByProviderPaymentId(String providerPaymentId) {
+        if (!StringUtils.hasText(providerPaymentId)) {
+            return null;
+        }
+        return paymentRepository.findByProviderPaymentId(providerPaymentId).orElse(null);
+    }
+
     public PaymentUpdateResult refreshYooKassaPaymentWithResult(String providerPaymentId) {
         if (yooKassaClient == null) {
             throw new IllegalStateException("YooKassa integration is disabled (set yookassa.enabled=true to enable).");
