@@ -22,9 +22,6 @@ spring:
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:true}
 
-jwt:
-  secret: ${JWT_SECRET:MY_SUPER_SECRET_KEY}
-
 yandex:
   storage:
     bucket: ${YANDEX_STORAGE_BUCKET:dummy-bucket}
@@ -58,7 +55,3 @@ yookassa:
   tax-system-code: ${YOOKASSA_TAX_SYSTEM_CODE:1}
   webhook-secret: ${YOOKASSA_WEBHOOK_SECRET:}
   webhook-allowed-ips: ${YOOKASSA_WEBHOOK_ALLOWED_IPS:}
-
-email:
-  confirmation:
-    ttl-minutes: ${EMAIL_CONFIRM_TTL_MINUTES:60}

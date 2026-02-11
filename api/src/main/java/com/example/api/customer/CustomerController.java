@@ -2,15 +2,10 @@ package com.example.api.customer;
 
 import com.example.customer.domain.Customer;
 import com.example.customer.service.CustomerService;
-import com.example.customer.service.EmailConfirmationService;
-import com.example.api.notification.EmailService;
-import com.example.common.domain.Address;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -27,40 +22,10 @@ import java.util.UUID;
 public class CustomerController {
 
     private final CustomerService customerService;
-    private final EmailConfirmationService emailConfirmationService;
-    private final EmailService emailService;
 
     @Autowired
-    public CustomerController(CustomerService customerService,
-                              EmailConfirmationService emailConfirmationService,
-                              EmailService emailService) {
+    public CustomerController(CustomerService customerService) {
         this.customerService = customerService;
-        this.emailConfirmationService = emailConfirmationService;
-        this.emailService = emailService;
-    }
-
-    @PostMapping("/register")
-    public ResponseEntity<Customer> registerCustomer(@Valid @RequestBody CustomerRegistrationRequest request) {
-        Address address = new Address(
-                request.getStreet(),
-                request.getCity(),
-                request.getState(),
-                request.getPostalCode(),
-                request.getCountry()
-        );
-        Customer newCustomer = customerService.registerCustomer(
-                request.getFirstName(),
-                request.getLastName(),
-                request.getEmail(),
-                request.getPassword(),
-                address
-        );
-        String email = newCustomer.getEmail();
-        if (email != null && !email.isBlank()) {
-            var confirmation = emailConfirmationService.createCode(email, newCustomer.getId());
-            emailService.sendConfirmationCode(email, confirmation.getCode());
-        }
-        return ResponseEntity.status(HttpStatus.CREATED).body(newCustomer);
     }
 
     @GetMapping("/me")
@@ -127,28 +92,6 @@ public class CustomerController {
     @PostMapping
     public Customer createCustomer(@RequestBody Customer request) {
         return customerService.createCustomer(request);
-    }
-
-    @PostMapping("/verify/request")
-    public ResponseEntity<Void> requestEmailConfirmation(@Valid @RequestBody EmailVerificationRequest request) {
-        Customer customer = customerService.findByEmail(request.email())
-                .orElse(null);
-        UUID customerId = customer != null ? customer.getId() : null;
-        var confirmation = emailConfirmationService.createCode(request.email(), customerId);
-        emailService.sendConfirmationCode(request.email(), confirmation.getCode());
-        return ResponseEntity.status(HttpStatus.ACCEPTED).build();
-    }
-
-    @PostMapping("/verify/confirm")
-    public ResponseEntity<Void> confirmEmail(@Valid @RequestBody EmailVerificationConfirmRequest request) {
-        boolean confirmed = emailConfirmationService.confirmCode(request.email(), request.code());
-        if (!confirmed) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-        if (StringUtils.hasText(request.password())) {
-            customerService.updatePasswordByEmail(request.email(), request.password());
-        }
-        return ResponseEntity.noContent().build();
     }
 
     private Customer resolveCustomer(Jwt jwt) {
@@ -218,107 +161,4 @@ public class CustomerController {
             boolean marketingOptIn,
             boolean emailVerified
     ) {}
-
-    public record EmailVerificationRequest(
-            @Email @NotBlank String email
-    ) {}
-
-    public record EmailVerificationConfirmRequest(
-            @Email @NotBlank String email,
-            @NotBlank String code,
-            String password
-    ) {}
-
-    public static class CustomerRegistrationRequest {
-        @NotBlank
-        private String firstName;
-        @NotBlank
-        private String lastName;
-        @Email
-        @NotBlank
-        private String email;
-        @NotBlank
-        private String password;
-        @NotBlank
-        private String street;
-        @NotBlank
-        private String city;
-        private String state;
-        @NotBlank
-        private String postalCode;
-        @NotBlank
-        private String country;
-
-        public String getFirstName() {
-            return firstName;
-        }
-
-        public void setFirstName(String firstName) {
-            this.firstName = firstName;
-        }
-
-        public String getLastName() {
-            return lastName;
-        }
-
-        public void setLastName(String lastName) {
-            this.lastName = lastName;
-        }
-
-        public String getEmail() {
-            return email;
-        }
-
-        public void setEmail(String email) {
-            this.email = email;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
-        }
-
-        public String getStreet() {
-            return street;
-        }
-
-        public void setStreet(String street) {
-            this.street = street;
-        }
-
-        public String getCity() {
-            return city;
-        }
-
-        public void setCity(String city) {
-            this.city = city;
-        }
-
-        public String getState() {
-            return state;
-        }
-
-        public void setState(String state) {
-            this.state = state;
-        }
-
-        public String getPostalCode() {
-            return postalCode;
-        }
-
-        public void setPostalCode(String postalCode) {
-            this.postalCode = postalCode;
-        }
-
-        public String getCountry() {
-            return country;
-        }
-
-        public void setCountry(String country) {
-            this.country = country;
-        }
-    }
 }

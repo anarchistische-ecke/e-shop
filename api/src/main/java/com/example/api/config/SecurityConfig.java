@@ -10,12 +10,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoders;
-import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.util.StringUtils;
-
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 
 @Configuration
 @EnableWebSecurity
@@ -23,17 +19,12 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder(
-            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuer,
-            @Value("${jwt.secret:}") String secret
+            @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri:}") String issuer
     ) {
-        if (StringUtils.hasText(issuer)) {
-            return JwtDecoders.fromIssuerLocation(issuer);
+        if (!StringUtils.hasText(issuer)) {
+            throw new IllegalStateException("Keycloak issuer-uri is required");
         }
-        if (!StringUtils.hasText(secret)) {
-            throw new IllegalStateException("JWT secret is required when issuer-uri is not configured");
-        }
-        SecretKeySpec key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).build();
+        return JwtDecoders.fromIssuerLocation(issuer);
     }
 
     @Bean
@@ -52,9 +43,6 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 // Health/diagnostics endpoints
                 .requestMatchers("/health/**").permitAll()
-                // Allow login and user registration without authentication
-                .requestMatchers(HttpMethod.POST, "/auth/**", "/customers/register").permitAll()
-                .requestMatchers(HttpMethod.POST, "/customers/verify/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.PUT, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.PUT, "/customers/me/subscription").hasRole("CUSTOMER")
