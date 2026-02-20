@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -44,13 +45,19 @@ public class PaymentController {
 
     @PostMapping("/yookassa/refund")
     public ResponseEntity<Payment> refundYooKassaPayment(@Valid @RequestBody RefundRequest request) {
+        Order beforeUpdate = orderService.findById(request.getOrderId());
         Payment payment = paymentService.refundYooKassaPayment(request.getOrderId());
+        Order updated = orderService.findById(payment.getOrderId());
+        notifyStatusChangeIfNeeded(updated, beforeUpdate.getStatus());
         return ResponseEntity.ok(payment);
     }
 
     @PostMapping("/yookassa/cancel")
     public ResponseEntity<Payment> cancelYooKassaPayment(@Valid @RequestBody CancelRequest request) {
+        Order beforeUpdate = orderService.findById(request.getOrderId());
         Payment payment = paymentService.cancelYooKassaPayment(request.getOrderId());
+        Order updated = orderService.findById(payment.getOrderId());
+        notifyStatusChangeIfNeeded(updated, beforeUpdate.getStatus());
         return ResponseEntity.ok(payment);
     }
 
@@ -109,20 +116,25 @@ public class PaymentController {
                 return ResponseEntity.ok().build();
             }
             if (event.startsWith("refund")) {
-                paymentService.handleYooKassaRefundWebhook(
+                String previousStatus = resolveOrderStatusByProviderPaymentId(notification.object.paymentId);
+                Payment payment = paymentService.handleYooKassaRefundWebhook(
                         notification.object.id,
                         notification.object.paymentId
                 );
+                Order order = orderService.findById(payment.getOrderId());
+                notifyStatusChangeIfNeeded(order, previousStatus);
                 return ResponseEntity.ok().build();
             }
             if (event.startsWith("payment")) {
+                String previousStatus = resolveOrderStatusByProviderPaymentId(notification.object.id);
                 PaymentService.PaymentUpdateResult result =
                         paymentService.refreshYooKassaPaymentWithResult(notification.object.id);
+                Payment payment = result.payment();
+                Order order = orderService.findById(payment.getOrderId());
+                notifyStatusChangeIfNeeded(order, previousStatus);
                 if (result.completedNow()) {
-                    Payment payment = result.payment();
-                    Order order = orderService.findById(payment.getOrderId());
                     String email = order.getReceiptEmail();
-                    if (email != null && !email.isBlank()) {
+                    if (StringUtils.hasText(email)) {
                         emailService.sendPaymentReceipt(order, payment, email);
                     }
                 }
@@ -132,5 +144,28 @@ public class PaymentController {
             return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.badRequest().build();
+    }
+
+    private String resolveOrderStatusByProviderPaymentId(String providerPaymentId) {
+        Payment payment = paymentService.findByProviderPaymentId(providerPaymentId);
+        if (payment == null) {
+            return null;
+        }
+        Order order = orderService.findById(payment.getOrderId());
+        return order.getStatus();
+    }
+
+    private void notifyStatusChangeIfNeeded(Order order, String previousStatus) {
+        if (order == null || !StringUtils.hasText(order.getReceiptEmail())) {
+            return;
+        }
+        String nextStatus = order.getStatus();
+        if (!StringUtils.hasText(previousStatus) || !StringUtils.hasText(nextStatus)) {
+            return;
+        }
+        if (previousStatus.equalsIgnoreCase(nextStatus)) {
+            return;
+        }
+        emailService.sendOrderStatusUpdatedEmail(order, order.getReceiptEmail(), previousStatus);
     }
 }

@@ -191,7 +191,12 @@ public class OrderController {
     @PutMapping("/{id}/status")
     public ResponseEntity<Void> updateOrderStatus(@PathVariable UUID id,
                                                   @RequestParam String status) {
-        orderService.updateOrderStatus(id, status);
+        Order beforeUpdate = orderService.findById(id);
+        String previousStatus = beforeUpdate.getStatus();
+        Order updated = orderService.updateOrderStatus(id, status);
+        if (hasStatusChanged(previousStatus, updated.getStatus()) && StringUtils.hasText(updated.getReceiptEmail())) {
+            emailService.sendOrderStatusUpdatedEmail(updated, updated.getReceiptEmail(), previousStatus);
+        }
         return ResponseEntity.noContent().build();
     }
 
@@ -425,5 +430,15 @@ public class OrderController {
             return value;
         }
         return value.replace("{token}", token);
+    }
+
+    private boolean hasStatusChanged(String previousStatus, String nextStatus) {
+        if (previousStatus == null && nextStatus == null) {
+            return false;
+        }
+        if (previousStatus == null || nextStatus == null) {
+            return true;
+        }
+        return !previousStatus.equalsIgnoreCase(nextStatus);
     }
 }

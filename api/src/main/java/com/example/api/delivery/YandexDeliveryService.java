@@ -132,8 +132,9 @@ public class YandexDeliveryService {
         List<PickupPoint> points = new ArrayList<>();
         if (response != null && response.points != null) {
             for (YandexDeliveryClient.PickupPoint point : response.points) {
+                String pointId = StringUtils.hasText(point.id) ? point.id : point.operatorStationId;
                 points.add(new PickupPoint(
-                        point.id,
+                        pointId,
                         point.name,
                         point.type,
                         point.address != null ? point.address.fullAddress : null,
