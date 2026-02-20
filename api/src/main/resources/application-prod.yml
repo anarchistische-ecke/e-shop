@@ -46,7 +46,7 @@ management:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yug-postel.ru}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
-  allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,Idempotency-Key}
 
 yandex:
   storage:
