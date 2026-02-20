@@ -14,7 +14,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${cors.allowed-methods:GET,POST,PUT,DELETE,PATCH,OPTIONS}")
     private String allowedMethods;
 
-    @Value("${cors.allowed-headers:Authorization,Content-Type}")
+    @Value("${cors.allowed-headers:Authorization,Content-Type,Idempotency-Key}")
     private String allowedHeaders;
 
     @Override
@@ -31,4 +31,3 @@ public class WebConfig implements WebMvcConfigurer {
                 .toArray(String[]::new);
     }
 }
-

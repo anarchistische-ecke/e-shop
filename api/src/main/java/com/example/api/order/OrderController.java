@@ -22,8 +22,12 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.UUID;
 
 @RestController
@@ -60,7 +64,8 @@ public class OrderController {
 
     @PostMapping("/checkout")
     public ResponseEntity<OrderCheckoutResponse> checkout(@Valid @RequestBody CheckoutRequest request,
-                                                          @AuthenticationPrincipal Jwt jwt) {
+                                                          @AuthenticationPrincipal Jwt jwt,
+                                                          @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         UUID customerId = null;
         boolean savePaymentMethod = Boolean.TRUE.equals(request.savePaymentMethod());
         if (jwt != null) {
@@ -71,77 +76,110 @@ public class OrderController {
             customerId = customer.getId();
             savePaymentMethod = false;
         }
+        if (!StringUtils.hasText(idempotencyKey)) {
+            throw new IllegalArgumentException("Idempotency-Key header is required");
+        }
+
+        String requestHash = buildCheckoutRequestHash(request, customerId);
+        OrderService.CheckoutAttemptState attemptState = orderService.acquireCheckoutAttempt(idempotencyKey, requestHash);
+        if (attemptState.status() == OrderService.CheckoutAttemptStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Checkout request is already being processed");
+        }
+        if (attemptState.status() == OrderService.CheckoutAttemptStatus.COMPLETED) {
+            Order existingOrder = orderService.findOrderByCheckoutAttempt(idempotencyKey, requestHash);
+            String replayReturnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, existingOrder);
+            if (!StringUtils.hasText(replayReturnUrl)) {
+                throw new IllegalArgumentException("Return URL is required");
+            }
+            Payment existingPayment = paymentService.createYooKassaPayment(
+                    existingOrder.getId(),
+                    request.receiptEmail,
+                    replayReturnUrl,
+                    "order-" + existingOrder.getId(),
+                    savePaymentMethod,
+                    customerId != null ? customerId.toString() : null
+            );
+            return ResponseEntity.ok(new OrderCheckoutResponse(existingOrder, existingPayment));
+        }
+
         OrderService.DeliverySpec deliverySpec = null;
         YandexDeliveryService.DeliveryConfirmResult confirmResult = null;
-        if (request.delivery != null) {
-            DeliveryRequest delivery = request.delivery;
-            validateDeliveryRequest(delivery);
-            YandexDeliveryService.DeliveryOffersRequest offersRequest = new YandexDeliveryService.DeliveryOffersRequest();
-            offersRequest.cartId = request.cartId;
-            offersRequest.deliveryType = delivery.deliveryType;
-            offersRequest.address = delivery.address;
-            offersRequest.pickupPointId = delivery.pickupPointId;
-            offersRequest.pickupPointName = delivery.pickupPointName;
-            offersRequest.intervalFrom = delivery.intervalFrom;
-            offersRequest.intervalTo = delivery.intervalTo;
-            offersRequest.firstName = delivery.firstName;
-            offersRequest.lastName = delivery.lastName;
-            offersRequest.phone = delivery.phone;
-            offersRequest.email = StringUtils.hasText(delivery.email) ? delivery.email : request.receiptEmail;
-            offersRequest.comment = delivery.comment;
-            YandexDeliveryService.DeliveryOffer offer = deliveryService.resolveOffer(offersRequest, delivery.offerId);
-            var deliveryAmount = offer.pricingTotal() != null ? offer.pricingTotal() : offer.pricing();
-            if (deliveryAmount == null) {
-                throw new IllegalArgumentException("Delivery price is required");
-            }
-            confirmResult = deliveryService.confirmOffer(offer.offerId());
-            deliverySpec = new OrderService.DeliverySpec(
-                    deliveryAmount,
-                    "YANDEX",
-                    delivery.deliveryType.name(),
-                    delivery.address,
-                    delivery.pickupPointId,
-                    delivery.pickupPointName,
-                    offer.intervalFrom(),
-                    offer.intervalTo(),
-                    offer.offerId(),
-                    confirmResult.requestId(),
-                    "REQUESTED"
-            );
-        }
-        Order order;
+        boolean checkoutAttemptBound = false;
         try {
-            order = orderService.createOrderFromCart(
+            if (request.delivery != null) {
+                DeliveryRequest delivery = request.delivery;
+                validateDeliveryRequest(delivery);
+                YandexDeliveryService.DeliveryOffersRequest offersRequest = new YandexDeliveryService.DeliveryOffersRequest();
+                offersRequest.cartId = request.cartId;
+                offersRequest.deliveryType = delivery.deliveryType;
+                offersRequest.address = delivery.address;
+                offersRequest.pickupPointId = delivery.pickupPointId;
+                offersRequest.pickupPointName = delivery.pickupPointName;
+                offersRequest.intervalFrom = delivery.intervalFrom;
+                offersRequest.intervalTo = delivery.intervalTo;
+                offersRequest.firstName = delivery.firstName;
+                offersRequest.lastName = delivery.lastName;
+                offersRequest.phone = delivery.phone;
+                offersRequest.email = StringUtils.hasText(delivery.email) ? delivery.email : request.receiptEmail;
+                offersRequest.comment = delivery.comment;
+                YandexDeliveryService.DeliveryOffer offer = deliveryService.resolveOffer(offersRequest, delivery.offerId);
+                var deliveryAmount = offer.pricingTotal() != null ? offer.pricingTotal() : offer.pricing();
+                if (deliveryAmount == null) {
+                    throw new IllegalArgumentException("Delivery price is required");
+                }
+                confirmResult = deliveryService.confirmOffer(offer.offerId());
+                deliverySpec = new OrderService.DeliverySpec(
+                        deliveryAmount,
+                        "YANDEX",
+                        delivery.deliveryType.name(),
+                        delivery.address,
+                        delivery.pickupPointId,
+                        delivery.pickupPointName,
+                        offer.intervalFrom(),
+                        offer.intervalTo(),
+                        offer.offerId(),
+                        confirmResult.requestId(),
+                        "REQUESTED"
+                );
+            }
+
+            Order order = orderService.createOrderFromCart(
                     request.cartId,
                     customerId,
                     request.receiptEmail,
                     null,
                     deliverySpec
             );
+            orderService.completeCheckoutAttempt(idempotencyKey, requestHash, order.getId());
+            checkoutAttemptBound = true;
+
+            String returnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, order);
+            if (!StringUtils.hasText(returnUrl)) {
+                throw new IllegalArgumentException("Return URL is required");
+            }
+            Payment payment = paymentService.createYooKassaPayment(
+                    order.getId(),
+                    request.receiptEmail,
+                    returnUrl,
+                    "order-" + order.getId(),
+                    savePaymentMethod,
+                    customerId != null ? customerId.toString() : null
+            );
+            emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(new OrderCheckoutResponse(order, payment));
         } catch (RuntimeException ex) {
-            if (confirmResult != null) {
+            if (confirmResult != null && !checkoutAttemptBound) {
                 try {
                     deliveryService.cancelRequest(confirmResult.requestId());
                 } catch (Exception cancelEx) {
                 }
             }
+            if (!checkoutAttemptBound) {
+                orderService.releaseCheckoutAttemptIfUnbound(idempotencyKey, requestHash);
+            }
             throw ex;
         }
-        String returnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, order);
-        if (returnUrl == null || returnUrl.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-        Payment payment = paymentService.createYooKassaPayment(
-                order.getId(),
-                request.receiptEmail,
-                returnUrl,
-                "order-" + order.getId(),
-                savePaymentMethod,
-                customerId != null ? customerId.toString() : null
-        );
-        emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new OrderCheckoutResponse(order, payment));
     }
 
     @PostMapping("/admin-link")
@@ -402,6 +440,55 @@ public class OrderController {
     public record PaymentResponse(UUID paymentId, String confirmationUrl) {}
 
     public record OrderCheckoutResponse(Order order, Payment payment) {}
+
+    private String buildCheckoutRequestHash(CheckoutRequest request, UUID customerId) {
+        StringJoiner joiner = new StringJoiner("|");
+        joiner.add(customerId != null ? customerId.toString() : "guest");
+        joiner.add(request.cartId != null ? request.cartId.toString() : "");
+        joiner.add(normalizeValue(request.receiptEmail));
+        joiner.add(normalizeValue(request.returnUrl));
+        joiner.add(normalizeValue(request.orderPageUrl));
+        joiner.add(Boolean.TRUE.equals(request.savePaymentMethod) ? "1" : "0");
+
+        DeliveryRequest delivery = request.delivery;
+        if (delivery != null) {
+            joiner.add(delivery.deliveryType != null ? delivery.deliveryType.name() : "");
+            joiner.add(normalizeValue(delivery.offerId));
+            joiner.add(normalizeValue(delivery.address));
+            joiner.add(normalizeValue(delivery.pickupPointId));
+            joiner.add(normalizeValue(delivery.pickupPointName));
+            joiner.add(delivery.intervalFrom != null ? delivery.intervalFrom.toString() : "");
+            joiner.add(delivery.intervalTo != null ? delivery.intervalTo.toString() : "");
+            joiner.add(normalizeValue(delivery.firstName));
+            joiner.add(normalizeValue(delivery.lastName));
+            joiner.add(normalizeValue(delivery.phone));
+            joiner.add(normalizeValue(delivery.email));
+            joiner.add(normalizeValue(delivery.comment));
+        }
+
+        return sha256(joiner.toString());
+    }
+
+    private String normalizeValue(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value.trim();
+    }
+
+    private String sha256(String payload) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(payload.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte value : hash) {
+                builder.append(String.format("%02x", value));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("Failed to hash checkout request");
+        }
+    }
 
     private String buildOrderUrl(String overrideUrl, Order order) {
         if (overrideUrl != null && !overrideUrl.isBlank()) {
