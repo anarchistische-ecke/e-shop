@@ -1,6 +1,7 @@
 package com.example.delivery;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -368,7 +369,8 @@ public class YandexDeliveryClient {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PickupPoint {
-        @JsonProperty("ID")
+        @JsonProperty("id")
+        @JsonAlias("ID")
         public String id;
         @JsonProperty("operator_station_id")
         public String operatorStationId;
