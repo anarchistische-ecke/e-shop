@@ -117,15 +117,20 @@ public class YandexDeliveryService {
 
     public PickupPointsResult getPickupPoints(PickupPointsQuery query) {
         assertEnabled();
-        Integer geoId = query.geoId;
-        if (!StringUtils.hasText(query.location) && geoId == null) {
-            throw new IllegalArgumentException("Location or geoId is required");
+        if (query == null) {
+            throw new IllegalArgumentException("Request is required");
         }
-        if (geoId == null) {
+        Integer geoId = query.geoId;
+        boolean hasViewportBounds = hasViewportBounds(query);
+        if (!StringUtils.hasText(query.location) && geoId == null && !hasViewportBounds) {
+            throw new IllegalArgumentException("Location, geoId, or viewport bounds are required");
+        }
+        if (geoId == null && !hasViewportBounds) {
             geoId = detectGeoId(query.location);
         }
         YandexDeliveryClient.PickupPointsRequest request = new YandexDeliveryClient.PickupPointsRequest();
         request.geoId = geoId;
+        applyViewportBounds(query, request);
         request.type = "pickup_point";
         request.paymentMethod = "already_paid";
         YandexDeliveryClient.PickupPointsResponse response = client.listPickupPoints(request);
@@ -145,6 +150,31 @@ public class YandexDeliveryService {
             }
         }
         return new PickupPointsResult(geoId, points);
+    }
+
+    private boolean hasViewportBounds(PickupPointsQuery query) {
+        return query != null
+                && query.latitudeFrom != null
+                && query.latitudeTo != null
+                && query.longitudeFrom != null
+                && query.longitudeTo != null;
+    }
+
+    private void applyViewportBounds(PickupPointsQuery query, YandexDeliveryClient.PickupPointsRequest request) {
+        if (!hasViewportBounds(query)) {
+            return;
+        }
+
+        YandexDeliveryClient.Range latitude = new YandexDeliveryClient.Range();
+        latitude.from = Math.min(query.latitudeFrom, query.latitudeTo);
+        latitude.to = Math.max(query.latitudeFrom, query.latitudeTo);
+
+        YandexDeliveryClient.Range longitude = new YandexDeliveryClient.Range();
+        longitude.from = Math.min(query.longitudeFrom, query.longitudeTo);
+        longitude.to = Math.max(query.longitudeFrom, query.longitudeTo);
+
+        request.latitude = latitude;
+        request.longitude = longitude;
     }
 
     public Integer detectGeoId(String location) {
@@ -404,6 +434,10 @@ public class YandexDeliveryService {
     public static class PickupPointsQuery {
         public String location;
         public Integer geoId;
+        public Double latitudeFrom;
+        public Double latitudeTo;
+        public Double longitudeFrom;
+        public Double longitudeTo;
     }
 
     public record PickupPointsResult(Integer geoId, List<PickupPoint> points) {}

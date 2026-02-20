@@ -8,6 +8,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -53,6 +55,34 @@ public class GlobalExceptionHandler {
                 : ex.getMessage();
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
                 new ApiError("DATA_STORE_UNAVAILABLE", message, false, List.of())
+        );
+    }
+
+    @ExceptionHandler(RestClientResponseException.class)
+    public ResponseEntity<ApiError> handleUpstreamHttpError(RestClientResponseException ex) {
+        log.error("Upstream HTTP error", ex);
+        String responseBody = ex.getResponseBodyAsString();
+        String message = ex.getStatusText();
+        if (responseBody != null && !responseBody.isBlank()) {
+            message = responseBody.length() > 500
+                    ? responseBody.substring(0, 500) + "..."
+                    : responseBody;
+        } else if (message == null || message.isBlank()) {
+            message = "Upstream service returned an HTTP error";
+        }
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
+                new ApiError("UPSTREAM_SERVICE_ERROR", message, true, List.of())
+        );
+    }
+
+    @ExceptionHandler(RestClientException.class)
+    public ResponseEntity<ApiError> handleUpstreamError(RestClientException ex) {
+        log.error("Upstream service error", ex);
+        String message = ex.getMessage() != null && !ex.getMessage().isBlank()
+                ? ex.getMessage()
+                : "Upstream service is unavailable";
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(
+                new ApiError("UPSTREAM_SERVICE_ERROR", message, true, List.of())
         );
     }
 
