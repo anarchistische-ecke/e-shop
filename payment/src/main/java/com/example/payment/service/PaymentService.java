@@ -68,7 +68,8 @@ public class PaymentService {
                                          String returnUrl,
                                          String idempotencyKey,
                                          Boolean savePaymentMethod,
-                                         String merchantCustomerId) {
+                                         String merchantCustomerId,
+                                         String confirmationMode) {
         if (yooKassaClient == null) {
             throw new IllegalStateException("YooKassa integration is disabled (set yookassa.enabled=true to enable).");
         }
@@ -98,7 +99,7 @@ public class PaymentService {
             throw new IllegalStateException("Order already paid");
         }
         if (latest != null) {
-            if (latest.getStatus() == PaymentStatus.PENDING && latest.getConfirmationUrl() != null) {
+            if (latest.getStatus() == PaymentStatus.PENDING && isPendingPaymentReusable(latest)) {
                 syncOrderWithPayment(order, latest, latest.getStatus());
                 return latest;
             }
@@ -114,7 +115,7 @@ public class PaymentService {
         request.amount = YooKassaClient.Amount.of(formatAmount(order.getTotalAmount()), order.getTotalAmount().getCurrency());
         request.capture = true;
         request.description = "Order " + order.getId();
-        request.confirmation = YooKassaClient.Confirmation.redirect(returnUrl);
+        request.confirmation = createConfirmation(returnUrl, confirmationMode);
         request.metadata = YooKassaClient.Metadata.of(order.getId().toString(), order.getPublicToken());
         request.receipt = buildReceipt(order, resolvedEmail);
         if (Boolean.TRUE.equals(savePaymentMethod)) {
@@ -130,7 +131,7 @@ public class PaymentService {
         }
         Payment payment = new Payment(order.getId(), order.getTotalAmount(), "YOOKASSA", PaymentStatus.PENDING);
         payment.setProviderPaymentId(response.id);
-        payment.setConfirmationUrl(response.confirmation != null ? response.confirmation.confirmationUrl : null);
+        applyConfirmationDetails(payment, response.confirmation, request.confirmation);
         payment.setStatus(mapYooKassaStatus(response.status));
         payment = paymentRepository.save(payment);
 
@@ -179,9 +180,7 @@ public class PaymentService {
             if (previousStatus != nextStatus) {
                 payment.setStatus(nextStatus);
             }
-            if (response.confirmation != null && response.confirmation.confirmationUrl != null) {
-                payment.setConfirmationUrl(response.confirmation.confirmationUrl);
-            }
+            applyConfirmationDetails(payment, response.confirmation, null);
             payment = paymentRepository.save(payment);
             persistSavedPaymentMethod(order, response);
 
@@ -420,6 +419,49 @@ public class PaymentService {
     private String formatAmount(Money money) {
         BigDecimal decimal = money.toBigDecimal();
         return decimal.setScale(2, RoundingMode.HALF_UP).toString();
+    }
+
+    private YooKassaClient.Confirmation createConfirmation(String returnUrl, String confirmationMode) {
+        if ("EMBEDDED".equalsIgnoreCase(confirmationMode)) {
+            return YooKassaClient.Confirmation.embedded();
+        }
+        return YooKassaClient.Confirmation.redirect(returnUrl);
+    }
+
+    private boolean isPendingPaymentReusable(Payment payment) {
+        if (payment == null || payment.getStatus() != PaymentStatus.PENDING) {
+            return false;
+        }
+        return StringUtils.hasText(payment.getConfirmationUrl())
+                || StringUtils.hasText(payment.getConfirmationToken())
+                || StringUtils.hasText(payment.getProviderPaymentId());
+    }
+
+    private void applyConfirmationDetails(Payment payment,
+                                          YooKassaClient.Confirmation responseConfirmation,
+                                          YooKassaClient.Confirmation requestedConfirmation) {
+        if (payment == null) {
+            return;
+        }
+        String confirmationType = null;
+        if (responseConfirmation != null && StringUtils.hasText(responseConfirmation.type)) {
+            confirmationType = responseConfirmation.type.trim().toUpperCase();
+        } else if (requestedConfirmation != null && StringUtils.hasText(requestedConfirmation.type)) {
+            confirmationType = requestedConfirmation.type.trim().toUpperCase();
+        }
+        if (confirmationType != null) {
+            payment.setConfirmationType(confirmationType);
+        }
+        if (responseConfirmation != null) {
+            if (responseConfirmation.confirmationUrl != null) {
+                payment.setConfirmationUrl(StringUtils.hasText(responseConfirmation.confirmationUrl)
+                        ? responseConfirmation.confirmationUrl.trim()
+                        : null);
+            }
+            if (StringUtils.hasText(responseConfirmation.confirmationToken)) {
+                payment.setConfirmationToken(responseConfirmation.confirmationToken.trim());
+            }
+        }
     }
 
     private String resolveIdempotencyKey(UUID orderId, Payment latest, String providedKey) {

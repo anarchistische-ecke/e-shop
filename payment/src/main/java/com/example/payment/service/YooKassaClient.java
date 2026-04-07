@@ -181,11 +181,19 @@ public class YooKassaClient {
         public String returnUrl;
         @JsonProperty("confirmation_url")
         public String confirmationUrl;
+        @JsonProperty("confirmation_token")
+        public String confirmationToken;
 
         public static Confirmation redirect(String returnUrl) {
             Confirmation confirmation = new Confirmation();
             confirmation.type = "redirect";
             confirmation.returnUrl = returnUrl;
+            return confirmation;
+        }
+
+        public static Confirmation embedded() {
+            Confirmation confirmation = new Confirmation();
+            confirmation.type = "embedded";
             return confirmation;
         }
     }

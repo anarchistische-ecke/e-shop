@@ -43,6 +43,9 @@ public class OrderController {
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
 
+    @Value("${payment.public.confirmation-mode:REDIRECT}")
+    private String defaultPaymentConfirmationMode;
+
     @Autowired
     public OrderController(OrderService orderService,
                            CustomerService customerService,
@@ -97,9 +100,10 @@ public class OrderController {
                     replayReturnUrl,
                     "order-" + existingOrder.getId(),
                     savePaymentMethod,
-                    customerId != null ? customerId.toString() : null
+                    customerId != null ? customerId.toString() : null,
+                    resolvePaymentConfirmationMode(request.confirmationMode)
             );
-            return ResponseEntity.ok(new OrderCheckoutResponse(existingOrder, existingPayment));
+            return ResponseEntity.ok(new OrderCheckoutResponse(existingOrder, toPaymentResponse(existingPayment)));
         }
 
         OrderService.DeliverySpec deliverySpec = null;
@@ -163,11 +167,12 @@ public class OrderController {
                     returnUrl,
                     "order-" + order.getId(),
                     savePaymentMethod,
-                    customerId != null ? customerId.toString() : null
+                    customerId != null ? customerId.toString() : null,
+                    resolvePaymentConfirmationMode(request.confirmationMode)
             );
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new OrderCheckoutResponse(order, payment));
+                    .body(new OrderCheckoutResponse(order, toPaymentResponse(payment)));
         } catch (RuntimeException ex) {
             if (confirmResult != null && !checkoutAttemptBound) {
                 try {
@@ -302,10 +307,11 @@ public class OrderController {
                 returnUrl,
                 "order-" + order.getId(),
                 false,
-                null
+                null,
+                resolvePaymentConfirmationMode(request.confirmationMode)
         );
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new PaymentResponse(payment.getId(), payment.getConfirmationUrl()));
+                .body(toPaymentResponse(payment));
     }
 
     @PostMapping("/public/{token}/refresh-payment")
@@ -413,6 +419,7 @@ public class OrderController {
             @Email @NotBlank String receiptEmail,
             String returnUrl,
             String orderPageUrl,
+            String confirmationMode,
             Boolean savePaymentMethod,
             DeliveryRequest delivery
     ) {}
@@ -432,14 +439,20 @@ public class OrderController {
 
     public record PublicPayRequest(
             @Email @NotBlank String receiptEmail,
-            String returnUrl
+            String returnUrl,
+            String confirmationMode
     ) {}
 
     public record OrderLinkResponse(UUID orderId, String publicToken) {}
 
-    public record PaymentResponse(UUID paymentId, String confirmationUrl) {}
+    public record PaymentResponse(
+            UUID paymentId,
+            String confirmationUrl,
+            String confirmationType,
+            String confirmationToken
+    ) {}
 
-    public record OrderCheckoutResponse(Order order, Payment payment) {}
+    public record OrderCheckoutResponse(Order order, PaymentResponse payment) {}
 
     private String buildCheckoutRequestHash(CheckoutRequest request, UUID customerId) {
         StringJoiner joiner = new StringJoiner("|");
@@ -448,6 +461,7 @@ public class OrderController {
         joiner.add(normalizeValue(request.receiptEmail));
         joiner.add(normalizeValue(request.returnUrl));
         joiner.add(normalizeValue(request.orderPageUrl));
+        joiner.add(normalizeValue(resolvePaymentConfirmationMode(request.confirmationMode)));
         joiner.add(Boolean.TRUE.equals(request.savePaymentMethod) ? "1" : "0");
 
         DeliveryRequest delivery = request.delivery;
@@ -506,6 +520,25 @@ public class OrderController {
             return applyTokenTemplate(returnUrl, order);
         }
         return buildOrderUrl(overrideOrderUrl, order);
+    }
+
+    private String resolvePaymentConfirmationMode(String requestedMode) {
+        String candidate = StringUtils.hasText(requestedMode)
+                ? requestedMode.trim()
+                : defaultPaymentConfirmationMode;
+        return "EMBEDDED".equalsIgnoreCase(candidate) ? "EMBEDDED" : "REDIRECT";
+    }
+
+    private PaymentResponse toPaymentResponse(Payment payment) {
+        if (payment == null) {
+            return null;
+        }
+        return new PaymentResponse(
+                payment.getId(),
+                payment.getConfirmationUrl(),
+                payment.getConfirmationType(),
+                payment.getConfirmationToken()
+        );
     }
 
     private String applyTokenTemplate(String value, Order order) {
