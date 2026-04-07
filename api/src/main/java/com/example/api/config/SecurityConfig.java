@@ -70,6 +70,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/deliveries/yandex/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/public/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/orders/public/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/payments/public-config").permitAll()
                 .requestMatchers(HttpMethod.PUT, "/orders/**").access(adminAccess)
                 .requestMatchers(HttpMethod.POST, "/payments/yookassa/webhook").permitAll()
                 .requestMatchers(HttpMethod.POST, "/payments/yookassa/refund").access(adminAccess)
