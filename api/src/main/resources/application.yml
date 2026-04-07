@@ -64,5 +64,7 @@ payment:
     provider-code: ${PAYMENT_PUBLIC_PROVIDER_CODE:YOOKASSA}
     provider-name: ${PAYMENT_PUBLIC_PROVIDER_NAME:YooKassa}
     method-summary: ${PAYMENT_PUBLIC_METHOD_SUMMARY:карта / SberPay}
-    checkout-description: ${PAYMENT_PUBLIC_CHECKOUT_DESCRIPTION:Оплата на защищённой странице YooKassa. Данные карты не хранятся в браузере магазина.}
-    resume-payment-label: ${PAYMENT_PUBLIC_RESUME_PAYMENT_LABEL:Продолжить оплату через YooKassa}
+    checkout-description: ${PAYMENT_PUBLIC_CHECKOUT_DESCRIPTION:}
+    resume-payment-label: ${PAYMENT_PUBLIC_RESUME_PAYMENT_LABEL:}
+    confirmation-mode: ${PAYMENT_PUBLIC_CONFIRMATION_MODE:REDIRECT}
+    widget-script-url: ${PAYMENT_PUBLIC_WIDGET_SCRIPT_URL:https://yookassa.ru/checkout-widget/v1/checkout-widget.js}

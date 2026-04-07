@@ -37,6 +37,12 @@ public class Payment extends BaseEntity {
     @Column(name = "confirmation_url")
     private String confirmationUrl;
 
+    @Column(name = "confirmation_type")
+    private String confirmationType;
+
+    @Column(name = "confirmation_token")
+    private String confirmationToken;
+
     @Column(name = "refund_id")
     private String refundId;
 
@@ -118,6 +124,22 @@ public class Payment extends BaseEntity {
 
     public void setConfirmationUrl(String confirmationUrl) {
         this.confirmationUrl = confirmationUrl;
+    }
+
+    public String getConfirmationType() {
+        return confirmationType;
+    }
+
+    public void setConfirmationType(String confirmationType) {
+        this.confirmationType = confirmationType;
+    }
+
+    public String getConfirmationToken() {
+        return confirmationToken;
+    }
+
+    public void setConfirmationToken(String confirmationToken) {
+        this.confirmationToken = confirmationToken;
     }
 
     public String getRefundId() {

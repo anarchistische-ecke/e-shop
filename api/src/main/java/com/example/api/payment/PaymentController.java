@@ -39,11 +39,17 @@ public class PaymentController {
     @Value("${payment.public.method-summary:карта / SberPay}")
     private String publicMethodSummary;
 
-    @Value("${payment.public.checkout-description:Оплата на защищённой странице YooKassa. Данные карты не хранятся в браузере магазина.}")
+    @Value("${payment.public.checkout-description:}")
     private String publicCheckoutDescription;
 
-    @Value("${payment.public.resume-payment-label:Продолжить оплату через YooKassa}")
+    @Value("${payment.public.resume-payment-label:}")
     private String publicResumePaymentLabel;
+
+    @Value("${payment.public.confirmation-mode:REDIRECT}")
+    private String publicConfirmationMode;
+
+    @Value("${payment.public.widget-script-url:https://yookassa.ru/checkout-widget/v1/checkout-widget.js}")
+    private String publicWidgetScriptUrl;
 
     @Autowired
     public PaymentController(PaymentService paymentService,
@@ -58,16 +64,18 @@ public class PaymentController {
 
     @GetMapping("/public-config")
     public ResponseEntity<PublicPaymentConfig> getPublicConfig() {
+        String confirmationMode = resolveConfirmationMode(publicConfirmationMode);
+        String providerName = safeValue(publicProviderName, "YooKassa");
         return ResponseEntity.ok(new PublicPaymentConfig(
                 yooKassaEnabled,
                 safeValue(publicProviderCode, "YOOKASSA"),
-                safeValue(publicProviderName, "YooKassa"),
+                providerName,
                 safeValue(publicMethodSummary, "карта / SberPay"),
-                safeValue(
-                        publicCheckoutDescription,
-                        "Оплата на защищённой странице YooKassa. Данные карты не хранятся в браузере магазина."
-                ),
-                safeValue(publicResumePaymentLabel, "Продолжить оплату через YooKassa")
+                resolveCheckoutDescription(providerName, confirmationMode),
+                resolveResumePaymentLabel(providerName, confirmationMode),
+                confirmationMode,
+                yooKassaEnabled,
+                safeValue(publicWidgetScriptUrl, "https://yookassa.ru/checkout-widget/v1/checkout-widget.js")
         ));
     }
 
@@ -207,12 +215,39 @@ public class PaymentController {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
+    private String resolveConfirmationMode(String confirmationMode) {
+        return "EMBEDDED".equalsIgnoreCase(confirmationMode) ? "EMBEDDED" : "REDIRECT";
+    }
+
+    private String resolveCheckoutDescription(String providerName, String confirmationMode) {
+        if (StringUtils.hasText(publicCheckoutDescription)) {
+            return publicCheckoutDescription.trim();
+        }
+        if ("EMBEDDED".equalsIgnoreCase(confirmationMode)) {
+            return "Оплата во встроенной защищённой форме " + providerName + ". Данные карты не хранятся в браузере магазина.";
+        }
+        return "Оплата на защищённой странице " + providerName + ". Данные карты не хранятся в браузере магазина.";
+    }
+
+    private String resolveResumePaymentLabel(String providerName, String confirmationMode) {
+        if (StringUtils.hasText(publicResumePaymentLabel)) {
+            return publicResumePaymentLabel.trim();
+        }
+        if ("EMBEDDED".equalsIgnoreCase(confirmationMode)) {
+            return "Открыть форму оплаты через " + providerName;
+        }
+        return "Продолжить оплату через " + providerName;
+    }
+
     public record PublicPaymentConfig(
             boolean enabled,
             String providerCode,
             String providerName,
             String methodSummary,
             String checkoutDescription,
-            String resumePaymentLabel
+            String resumePaymentLabel,
+            String confirmationMode,
+            boolean supportsEmbedded,
+            String widgetScriptUrl
     ) {}
 }
