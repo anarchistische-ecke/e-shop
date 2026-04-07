@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -26,6 +27,24 @@ public class PaymentController {
     private final EmailService emailService;
     private final YooKassaWebhookVerifier webhookVerifier;
 
+    @Value("${yookassa.enabled:false}")
+    private boolean yooKassaEnabled;
+
+    @Value("${payment.public.provider-code:YOOKASSA}")
+    private String publicProviderCode;
+
+    @Value("${payment.public.provider-name:YooKassa}")
+    private String publicProviderName;
+
+    @Value("${payment.public.method-summary:карта / SberPay}")
+    private String publicMethodSummary;
+
+    @Value("${payment.public.checkout-description:Оплата на защищённой странице YooKassa. Данные карты не хранятся в браузере магазина.}")
+    private String publicCheckoutDescription;
+
+    @Value("${payment.public.resume-payment-label:Продолжить оплату через YooKassa}")
+    private String publicResumePaymentLabel;
+
     @Autowired
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
@@ -35,6 +54,21 @@ public class PaymentController {
         this.orderService = orderService;
         this.emailService = emailService;
         this.webhookVerifier = webhookVerifier;
+    }
+
+    @GetMapping("/public-config")
+    public ResponseEntity<PublicPaymentConfig> getPublicConfig() {
+        return ResponseEntity.ok(new PublicPaymentConfig(
+                yooKassaEnabled,
+                safeValue(publicProviderCode, "YOOKASSA"),
+                safeValue(publicProviderName, "YooKassa"),
+                safeValue(publicMethodSummary, "карта / SberPay"),
+                safeValue(
+                        publicCheckoutDescription,
+                        "Оплата на защищённой странице YooKassa. Данные карты не хранятся в браузере магазина."
+                ),
+                safeValue(publicResumePaymentLabel, "Продолжить оплату через YooKassa")
+        ));
     }
 
     @PostMapping("/yookassa/webhook")
@@ -168,4 +202,17 @@ public class PaymentController {
         }
         emailService.sendOrderStatusUpdatedEmail(order, order.getReceiptEmail(), previousStatus);
     }
+
+    private String safeValue(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
+    public record PublicPaymentConfig(
+            boolean enabled,
+            String providerCode,
+            String providerName,
+            String methodSummary,
+            String checkoutDescription,
+            String resumePaymentLabel
+    ) {}
 }
