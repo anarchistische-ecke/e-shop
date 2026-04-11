@@ -127,13 +127,13 @@ public class EmailService {
     private void sendEmail(String toEmail, String subject, String htmlBody, String textBody) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, "UTF-8");
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromAddress);
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(textBody, htmlBody);
             mailSender.send(message);
-        } catch (MailException | MessagingException ex) {
+        } catch (MessagingException | RuntimeException ex) {
             log.warn("Failed to send email '{}' to {}", subject, toEmail, ex);
         }
     }
