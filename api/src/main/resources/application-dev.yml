@@ -31,3 +31,11 @@ cors:
   allowed-origins: "http://localhost:3000"
   allowed-methods: "*"
   allowed-headers: "*"
+
+directus:
+  base-url: ${DIRECTUS_BASE_URL:http://localhost:8055}
+  static-token: ${DIRECTUS_STATIC_TOKEN:}
+  cache-ttl: ${DIRECTUS_CACHE_TTL:PT5M}
+  cache-key-prefix: ${DIRECTUS_CACHE_KEY_PREFIX:cms:content}
+  connect-timeout: ${DIRECTUS_CONNECT_TIMEOUT:PT3S}
+  read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}

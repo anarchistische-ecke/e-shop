@@ -1,5 +1,6 @@
 package com.example.api.config;
 
+import com.example.api.content.ContentNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -30,6 +31,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleIllegalState(IllegalStateException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(
                 new ApiError("STATE_CONFLICT", ex.getMessage(), true, List.of())
+        );
+    }
+
+    @ExceptionHandler(ContentNotFoundException.class)
+    public ResponseEntity<ApiError> handleContentNotFound(ContentNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
+                new ApiError("CONTENT_NOT_FOUND", ex.getMessage(), true, List.of())
         );
     }
 

@@ -48,6 +48,14 @@ cors:
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,Idempotency-Key}
 
+directus:
+  base-url: ${DIRECTUS_BASE_URL:?DIRECTUS_BASE_URL is required}
+  static-token: ${DIRECTUS_STATIC_TOKEN:}
+  cache-ttl: ${DIRECTUS_CACHE_TTL:PT5M}
+  cache-key-prefix: ${DIRECTUS_CACHE_KEY_PREFIX:cms:content}
+  connect-timeout: ${DIRECTUS_CONNECT_TIMEOUT:PT3S}
+  read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}
+
 yandex:
   storage:
     bucket: ${YANDEX_STORAGE_BUCKET:?Bucket is required}

@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -51,6 +52,12 @@ public class SecurityConfig {
                 privilegedAccess("ADMIN");
         AuthorizationManager<RequestAuthorizationContext> managerAccess =
                 privilegedAccess("MANAGER");
+        AuthorizationManager<RequestAuthorizationContext> previewAccess =
+                AuthorizationManagers.anyOf(
+                        privilegedAccess("ADMIN"),
+                        privilegedAccess("MANAGER"),
+                        privilegedAccess("PUBLISHER")
+                );
 
         http.csrf().disable();
         // Allow CORS from configured origins (CORS config is handled separately)
@@ -59,6 +66,8 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 // Health/diagnostics endpoints
                 .requestMatchers("/health/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/content/preview/**").access(previewAccess)
+                .requestMatchers(HttpMethod.GET, "/content/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.PUT, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.PUT, "/customers/me/subscription").hasRole("CUSTOMER")

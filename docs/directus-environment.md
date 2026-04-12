@@ -1,6 +1,6 @@
 # Directus Environment Contract
 
-This backend does not consume Directus yet, but these are the agreed placeholder variables for the upcoming CMS integration.
+The backend now exposes a CMS facade under `/content/*` and consumes published Directus content through the server-side Directus client module.
 
 For local development, the Directus compose stack now lives at `eshop/directus/docker-compose.yml` with its own local-only env file at `eshop/directus/.env`.
 
@@ -9,13 +9,19 @@ The content governance baseline for Directus roles, policies, and public-read ru
 The approved CMS collection design is documented in [directus-content-model.md](./directus-content-model.md).
 The schema versioning workflow is documented in [directus-schema-versioning.md](./directus-schema-versioning.md).
 The initial content import workflow is documented in [directus-content-migration.md](./directus-content-migration.md).
+The storefront/backend integration choice is documented in [directus-integration-pattern-decision.md](./directus-integration-pattern-decision.md).
+The backend CMS cache strategy is documented in [directus-content-cache.md](./directus-content-cache.md).
 
 ## Planned Environment Variables
 
 | Variable | Scope | Example | Notes |
 | --- | --- | --- | --- |
 | `DIRECTUS_BASE_URL` | backend | `http://localhost:8055` | Base URL for the Directus instance the backend should call. |
-| `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token, only if the backend needs authenticated CMS access. Keep it in local/prod env only. Never commit it. |
+| `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Optional for published-only reads when Directus public permissions are enough, but effectively required for preview/draft reads. Keep it in local/prod env only. Never commit it. |
+| `DIRECTUS_CACHE_TTL` | backend | `PT5M` | Optional Redis TTL for CMS facade responses. Defaults to 5 minutes. Set `PT0S` to disable the cache. |
+| `DIRECTUS_CACHE_KEY_PREFIX` | backend | `cms:content` | Redis key prefix for backend CMS cache entries. |
+| `DIRECTUS_CONNECT_TIMEOUT` | backend | `PT3S` | Optional Directus connect timeout. Defaults to 3 seconds. |
+| `DIRECTUS_READ_TIMEOUT` | backend | `PT5S` | Optional Directus read timeout. Defaults to 5 seconds. |
 
 ## Local Directus Compose Variables
 
@@ -156,6 +162,31 @@ The storefront repo uses the matching public names in its `.env.example`:
 - `REACT_APP_DIRECTUS_PUBLIC_TOKEN`
 
 The frontend token must stay public/read-only. Do not reuse `DIRECTUS_STATIC_TOKEN` in the browser.
+
+Current project decision: the preferred production storefront path is the backend facade described in [directus-integration-pattern-decision.md](./directus-integration-pattern-decision.md). That means the frontend should normally consume CMS content through the backend API, not directly from Directus. Keep the frontend Directus variables only for temporary local experiments or an explicitly chosen direct-read use case later.
+
+## Backend CMS Facade
+
+The backend content module currently exposes these public read endpoints:
+
+- `GET /content/site-settings`
+- `GET /content/navigation`
+- `GET /content/navigation?placement=footer`
+- `GET /content/pages/{slug}`
+- `GET /content/preview/site-settings`
+- `GET /content/preview/navigation`
+- `GET /content/preview/pages/{slug}`
+
+Current behavior:
+
+- Reads only published CMS content from Directus
+- Preview endpoints allow non-archived content so editors can see drafts before publication
+- Resolves `page_sections` and `page_section_items` server-side instead of relying on Directus alias fields
+- Returns `404 CONTENT_NOT_FOUND` when a published page slug does not exist
+- Keeps CMS tokens and Redis-backed caching server-side, not in the browser
+- Uses these cache keys by default: `cms:content:site-settings`, `cms:content:navigation:all`, `cms:content:navigation:<placement>`, `cms:content:page:<slug>`
+- Supports admin-only manual invalidation through `POST /admin/content/cache/invalidate`
+- Requires Keycloak-authenticated privileged roles for `GET /content/preview/**`; public routes remain published-only
 
 ## CORS Note
 
