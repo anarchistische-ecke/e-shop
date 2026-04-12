@@ -17,13 +17,22 @@ Revisit many-to-any reusable blocks only if marketing needs a materially larger 
 
 ## Shared Conventions
 
-- All public-facing collections include `status` with values `draft`, `published`, `archived`.
+- All public-facing collections include `status` with values `draft`, `in_review`, `published`, `archived`.
 - All public-facing collections include `published_at`.
 - Routable collections use unique `slug` and, where needed, unique `path`.
 - Ordered collections use a `sort` integer.
 - Directus system fields `date_created`, `date_updated`, `user_created`, and `user_updated` should remain enabled for auditability.
 - Public storefront reads should filter to `status = published`.
 - Do not model commerce data in Directus. Product/category references remain opaque backend IDs or slugs only.
+
+Editorial workflow convention:
+
+- `draft`: editable working state for authors
+- `in_review`: submitted to a publisher for approval
+- `published`: visible to public storefront reads
+- `archived`: removed from public delivery and preview flows
+
+For now, `published_at` is maintained during the publisher approval step instead of by an automated Directus flow.
 
 ## Collection List
 
@@ -355,4 +364,5 @@ When the full Directus schema implementation task starts:
 3. Apply the committed snapshot in target environments with `./scripts/directus-schema-apply.sh`.
 4. Keep public permissions on the approved public collection set with `status = published`.
 5. Configure conditional field visibility on `page_sections` by `section_type`.
-6. Update the bootstrap allowlists only if implemented ids differ.
+6. Keep editor permissions limited to `draft` and `in_review`, and keep publisher approval as the only path to `published`.
+7. Update the bootstrap allowlists only if implemented ids differ.

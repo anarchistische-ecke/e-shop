@@ -342,12 +342,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -401,7 +405,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -632,12 +636,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -691,7 +699,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -1043,12 +1051,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -1102,7 +1114,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -1498,12 +1510,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -1557,7 +1573,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -1884,12 +1900,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -1943,7 +1963,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -2417,12 +2437,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -2476,7 +2500,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -2983,12 +3007,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -3042,7 +3070,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -3633,12 +3661,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -3692,7 +3724,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -4741,12 +4773,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -4800,7 +4836,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,
@@ -5020,12 +5056,16 @@
         "group": null,
         "hidden": false,
         "interface": "select-dropdown",
-        "note": "Storefront access is limited to published items.",
+        "note": "Only published items are public. Move editor-ready content to in_review for publisher approval.",
         "options": {
           "choices": [
             {
               "text": "Draft",
               "value": "draft"
+            },
+            {
+              "text": "In Review",
+              "value": "in_review"
             },
             {
               "text": "Published",
@@ -5079,7 +5119,7 @@
         "group": null,
         "hidden": false,
         "interface": "datetime",
-        "note": "Timestamp for the current published revision.",
+        "note": "Set when content is approved for publication. Manual for now.",
         "options": null,
         "readonly": false,
         "required": false,

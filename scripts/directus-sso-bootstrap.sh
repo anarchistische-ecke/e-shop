@@ -37,8 +37,10 @@ DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_setti
 DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-$DIRECTUS_CMS_CONTENT_COLLECTIONS}"
 DIRECTUS_CMS_STATUS_FIELD="${DIRECTUS_CMS_STATUS_FIELD:-status}"
 
-EDITOR_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_in":["draft"]}}' "$DIRECTUS_CMS_STATUS_FIELD")"
-PUBLISHER_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_in":["draft","published","archived"]}}' "$DIRECTUS_CMS_STATUS_FIELD")"
+EDITOR_CREATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_eq":"draft"}}' "$DIRECTUS_CMS_STATUS_FIELD")"
+EDITOR_UPDATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_in":["draft","in_review"]}}' "$DIRECTUS_CMS_STATUS_FIELD")"
+PUBLISHER_CREATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_eq":"draft"}}' "$DIRECTUS_CMS_STATUS_FIELD")"
+PUBLISHER_UPDATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_in":["draft","in_review","published","archived"]}}' "$DIRECTUS_CMS_STATUS_FIELD")"
 CREATE_STATUS_PRESET_JSON="$(printf '{"%s":"draft"}' "$DIRECTUS_CMS_STATUS_FIELD")"
 PUBLIC_PUBLISHED_FILTER_JSON="$(printf '{"%s":{"_eq":"published"}}' "$DIRECTUS_CMS_STATUS_FIELD")"
 
@@ -237,8 +239,10 @@ while IFS= read -r collection; do
 \set collection '${collection}'
 \set editor_policy '${DIRECTUS_POLICY_CMS_EDITOR_ID}'
 \set publisher_policy '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'
-\set editor_status_validation '${EDITOR_STATUS_VALIDATION_JSON}'
-\set publisher_status_validation '${PUBLISHER_STATUS_VALIDATION_JSON}'
+\set editor_create_status_validation '${EDITOR_CREATE_STATUS_VALIDATION_JSON}'
+\set editor_update_status_validation '${EDITOR_UPDATE_STATUS_VALIDATION_JSON}'
+\set publisher_create_status_validation '${PUBLISHER_CREATE_STATUS_VALIDATION_JSON}'
+\set publisher_update_status_validation '${PUBLISHER_UPDATE_STATUS_VALIDATION_JSON}'
 \set create_status_preset '${CREATE_STATUS_PRESET_JSON}'
 
 DELETE FROM directus_permissions
@@ -248,11 +252,11 @@ WHERE collection = :'collection'
 INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
 VALUES
   (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'editor_policy'),
-  (:'collection', 'create', '{}'::json, :'editor_status_validation'::json, :'create_status_preset'::json, '*', :'editor_policy'),
-  (:'collection', 'update', '{}'::json, :'editor_status_validation'::json, NULL, '*', :'editor_policy'),
+  (:'collection', 'create', '{}'::json, :'editor_create_status_validation'::json, :'create_status_preset'::json, '*', :'editor_policy'),
+  (:'collection', 'update', '{}'::json, :'editor_update_status_validation'::json, NULL, '*', :'editor_policy'),
   (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'publisher_policy'),
-  (:'collection', 'create', '{}'::json, :'publisher_status_validation'::json, :'create_status_preset'::json, '*', :'publisher_policy'),
-  (:'collection', 'update', '{}'::json, :'publisher_status_validation'::json, NULL, '*', :'publisher_policy');
+  (:'collection', 'create', '{}'::json, :'publisher_create_status_validation'::json, :'create_status_preset'::json, '*', :'publisher_policy'),
+  (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'publisher_policy');
 SQL
 done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
 

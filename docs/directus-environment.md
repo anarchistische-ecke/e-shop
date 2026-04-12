@@ -6,6 +6,8 @@ For local development, the Directus compose stack now lives at `eshop/directus/d
 
 The database isolation decision for production is documented in [directus-db-isolation-decision.md](./directus-db-isolation-decision.md).
 The content governance baseline for Directus roles, policies, and public-read rules is documented in [directus-content-governance.md](./directus-content-governance.md).
+The editor onboarding and Keycloak role-mapping process is documented in [directus-editor-onboarding.md](./directus-editor-onboarding.md).
+The editorial workflow and approval process are documented in [directus-editorial-workflow.md](./directus-editorial-workflow.md).
 The approved CMS collection design is documented in [directus-content-model.md](./directus-content-model.md).
 The schema versioning workflow is documented in [directus-schema-versioning.md](./directus-schema-versioning.md).
 The initial content import workflow is documented in [directus-content-migration.md](./directus-content-migration.md).
@@ -81,20 +83,24 @@ The helper script `scripts/dev-infra-up.sh` applies the committed schema snapsho
 
 The helper script `scripts/directus-sso-bootstrap.sh` recreates the local Keycloak `directus` client and seeds the stable Directus roles/policies used by SSO and governance.
 
+The helper script `scripts/keycloak-upsert-cms-user.sh` provides a repeatable local flow for creating or updating a Keycloak-backed CMS editor, publisher, or administrator.
+
 The helper script `scripts/directus-content-model-bootstrap.sh` now acts as a compatibility wrapper around `scripts/directus-schema-apply.sh`.
 
 The phase-1 content schema expects every public CMS collection to include:
 
-- `status` with workflow values `draft`, `published`, `archived`
+- `status` with workflow values `draft`, `in_review`, `published`, `archived`
 - `published_at`
 
 - Keycloak realm role `admin` -> Directus role `CMS Administrator`
 - Keycloak realm role `manager` -> Directus role `CMS Editor`
-- Keycloak realm role `publisher` -> Directus role `CMS Publisher` once that Keycloak role exists
+- Keycloak realm role `publisher` -> Directus role `CMS Publisher`
+
+For predictable onboarding, grant exactly one of those mapped realm roles to a Directus user.
 
 Local Directus SSO uses `keycloak.lvh.me` instead of `localhost` for the issuer URL because the browser and the Directus container both need a hostname that resolves consistently.
 
-The governance baseline assumes every public CMS collection includes a `status` field with `draft`, `published`, and `archived`, plus `published_at`. Public reads are filtered to `status = published`.
+The governance baseline assumes every public CMS collection includes a `status` field with `draft`, `in_review`, `published`, and `archived`, plus `published_at`. Public reads are filtered to `status = published`, editors can only move content between `draft` and `in_review`, and publishers are the approval gate for `published`.
 
 The schema snapshot covers the Directus data model only. Roles, policies, permissions, SSO client wiring, and seeded users remain outside the snapshot and continue to be handled by `scripts/directus-sso-bootstrap.sh`.
 
@@ -180,7 +186,7 @@ The backend content module currently exposes these public read endpoints:
 Current behavior:
 
 - Reads only published CMS content from Directus
-- Preview endpoints allow non-archived content so editors can see drafts before publication
+- Preview endpoints allow non-archived content so editors and publishers can review `draft` and `in_review` content before publication
 - Resolves `page_sections` and `page_section_items` server-side instead of relying on Directus alias fields
 - Returns `404 CONTENT_NOT_FOUND` when a published page slug does not exist
 - Keeps CMS tokens and Redis-backed caching server-side, not in the browser

@@ -23,6 +23,9 @@
         "name": "manager"
       },
       {
+        "name": "publisher"
+      },
+      {
         "name": "customer"
       }
     ]
@@ -165,6 +168,24 @@
       ],
       "realmRoles": [
         "manager"
+      ]
+    },
+    {
+      "username": "publisher@example.com",
+      "email": "publisher@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Publisher",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Publisher123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "publisher"
       ]
     },
     {

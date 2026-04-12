@@ -26,10 +26,19 @@ The current governance bootstrap targets the approved phase-1 collection ids:
 Every CMS collection intended for editorial workflow and public delivery must include a `status` field. The baseline workflow states are:
 
 - `draft`
+- `in_review`
 - `published`
 - `archived`
 
 This is the contract used by the public-read filter and by the editor/publisher validation rules in the bootstrap.
+
+Expected progression:
+
+- Editors create and revise content in `draft`.
+- Editors submit content for approval by moving it to `in_review`.
+- Publishers approve content by moving it from `in_review` to `published`.
+- Publishers can return content from `in_review` to `draft` when revisions are required.
+- Archived content stays out of both public reads and preview reads.
 
 ## Roles And Policies
 
@@ -57,7 +66,9 @@ Not allowed:
 Status rules:
 
 - New items default to `draft`
-- Create/update validation only allows `draft`
+- Create validation only allows `draft`
+- Update validation allows `draft` and `in_review`
+- Editors can submit content for approval, but they cannot publish or archive it
 
 ### CMS Publisher
 
@@ -83,7 +94,9 @@ Not allowed:
 Status rules:
 
 - New items default to `draft`
-- Create/update validation allows `draft`, `published`, and `archived`
+- Create validation only allows `draft`
+- Update validation allows `draft`, `in_review`, `published`, and `archived`
+- Publishers are the approval gate for moving reviewed content to `published`
 
 ### CMS Administrator
 
@@ -122,10 +135,12 @@ The local bootstrap script [directus-sso-bootstrap.sh](/Users/freddycooper/Docum
 
 Because Directus permissions are stored by collection name, these rules can be provisioned before the collections physically exist. If the implemented schema diverges from these approved ids, update the env values and rerun the bootstrap.
 
+The full process and editor/publisher responsibilities are documented in [directus-editorial-workflow.md](./directus-editorial-workflow.md).
+
 ## Review Notes
 
-- The current local Keycloak realm maps `admin` to `CMS Administrator` and `manager` to `CMS Editor`.
-- A future Keycloak `publisher` realm role should map to `CMS Publisher`.
+- The current local Keycloak realm maps `admin` to `CMS Administrator`, `manager` to `CMS Editor`, and `publisher` to `CMS Publisher`.
+- Grant exactly one of the mapped Keycloak realm roles to a Directus user so the assigned Directus role stays deterministic.
 - Keep the break-glass Directus local admin separate from Keycloak identities.
 - Public asset permissions should stay conservative until the media/folder model is defined. This document only grants public item reads for published CMS collections.
-- The workflow scaffold also adds `published_at` to each governed collection, but publication timing is still editorial/manual until a later automation or flow is added.
+- The workflow scaffold also adds `published_at` to each governed collection. For now, publishers set or verify it during the approval step; automatic timestamping can be added later with a Directus flow.
