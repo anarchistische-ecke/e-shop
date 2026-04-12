@@ -13,6 +13,8 @@ The schema versioning workflow is documented in [directus-schema-versioning.md](
 The initial content import workflow is documented in [directus-content-migration.md](./directus-content-migration.md).
 The storefront/backend integration choice is documented in [directus-integration-pattern-decision.md](./directus-integration-pattern-decision.md).
 The backend CMS cache strategy is documented in [directus-content-cache.md](./directus-content-cache.md).
+The staging/production Directus deploy path is documented in [directus-deployment.md](./directus-deployment.md).
+The operational restart/restore/rollback procedures are documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
 
 ## Planned Environment Variables
 
@@ -159,6 +161,18 @@ Use the same Directus auth model in production, but with production hostnames, a
 | `AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST` | deployment-specific | Optional. Add external post-login redirect targets outside the Directus domain if you need them later. |
 
 For production, Directus should keep a separate break-glass local admin email/password from the Keycloak editor/admin identities, just like the local setup does.
+
+## Directus Deployment Variables
+
+The production compose file also reads:
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `DIRECTUS_VERSION` | `11.17.2` | Keep the production Directus image pinned to the tested repo version. |
+| `DIRECTUS_SCHEMA_ADMIN_TOKEN` | unset in repo | Recommended for staging/production schema automation, especially if `AUTH_DISABLE_DEFAULT=true`. |
+| `API_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh` and remote monitoring. Defaults to `http://127.0.0.1:8080/health/redis`. |
+| `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh`. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health` when `DIRECTUS_PUBLIC_URL` is set. |
+| `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional backend CMS facade probe, for example `https://<backend-host>/content/navigation?placement=footer`. |
 
 ## Frontend Pairing
 

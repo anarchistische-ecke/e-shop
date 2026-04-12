@@ -1,0 +1,39 @@
+name: ops-health-check
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to check
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  health-check:
+    if: |
+      secrets.YC_VM_HOST != '' &&
+      secrets.YC_VM_USER != '' &&
+      secrets.YC_VM_SSH_KEY != '' &&
+      secrets.YC_VM_DEPLOY_PATH != ''
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+    concurrency:
+      group: ops-health-check-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+      cancel-in-progress: false
+    steps:
+      - name: Run remote stack health checks
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.YC_VM_HOST }}
+          username: ${{ secrets.YC_VM_USER }}
+          key: ${{ secrets.YC_VM_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd ${{ secrets.YC_VM_DEPLOY_PATH }}
+            bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml

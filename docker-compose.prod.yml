@@ -54,6 +54,71 @@ services:
       timeout: 5s
       retries: 5
 
+  directus:
+    image: directus/directus:${DIRECTUS_VERSION:-11.17.2}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8055:8055"
+    restart: unless-stopped
+    environment:
+      KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in the deployment .env}
+      SECRET: ${DIRECTUS_SECRET:?Set DIRECTUS_SECRET in the deployment .env}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?Set DIRECTUS_ADMIN_EMAIL in the deployment .env}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?Set DIRECTUS_ADMIN_PASSWORD in the deployment .env}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:?Set DIRECTUS_PUBLIC_URL in the deployment .env}
+      DIRECTUS_SCHEMA_ADMIN_TOKEN: ${DIRECTUS_SCHEMA_ADMIN_TOKEN:-}
+      AUTH_PROVIDERS: ${DIRECTUS_AUTH_PROVIDERS:-keycloak}
+      AUTH_DISABLE_DEFAULT: ${DIRECTUS_AUTH_DISABLE_DEFAULT:-true}
+      AUTH_KEYCLOAK_DRIVER: ${DIRECTUS_AUTH_KEYCLOAK_DRIVER:-openid}
+      AUTH_KEYCLOAK_CLIENT_ID: ${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID:?Set DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID in the deployment .env}
+      AUTH_KEYCLOAK_CLIENT_SECRET: ${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET:?Set DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET in the deployment .env}
+      AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL:?Set DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL in the deployment .env}
+      AUTH_KEYCLOAK_IDENTIFIER_KEY: ${DIRECTUS_AUTH_KEYCLOAK_IDENTIFIER_KEY:-email}
+      AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: ${DIRECTUS_AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION:-true}
+      AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL: ${DIRECTUS_AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL:-true}
+      AUTH_KEYCLOAK_SYNC_USER_INFO: ${DIRECTUS_AUTH_KEYCLOAK_SYNC_USER_INFO:-true}
+      AUTH_KEYCLOAK_GROUP_CLAIM_NAME: ${DIRECTUS_AUTH_KEYCLOAK_GROUP_CLAIM_NAME:-groups}
+      AUTH_KEYCLOAK_LABEL: ${DIRECTUS_AUTH_KEYCLOAK_LABEL:-Keycloak}
+      AUTH_KEYCLOAK_ICON: ${DIRECTUS_AUTH_KEYCLOAK_ICON:-vpn_key}
+      AUTH_KEYCLOAK_ROLE_MAPPING: ${DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING:?Set DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING in the deployment .env}
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DIRECTUS_DB_DATABASE:?Set DIRECTUS_DB_DATABASE in the deployment .env}
+      DB_USER: ${DIRECTUS_DB_USER:?Set DIRECTUS_DB_USER in the deployment .env}
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?Set DIRECTUS_DB_PASSWORD in the deployment .env}
+      STORAGE_LOCATIONS: ${DIRECTUS_STORAGE_LOCATIONS:-s3}
+      STORAGE_S3_DRIVER: ${DIRECTUS_STORAGE_S3_DRIVER:-s3}
+      STORAGE_S3_KEY: ${DIRECTUS_STORAGE_S3_KEY:?Set DIRECTUS_STORAGE_S3_KEY in the deployment .env}
+      STORAGE_S3_SECRET: ${DIRECTUS_STORAGE_S3_SECRET:?Set DIRECTUS_STORAGE_S3_SECRET in the deployment .env}
+      STORAGE_S3_BUCKET: ${DIRECTUS_STORAGE_S3_BUCKET:?Set DIRECTUS_STORAGE_S3_BUCKET in the deployment .env}
+      STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-ru-central1}
+      STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-https://storage.yandexcloud.net}
+      STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-false}
+      WEBSOCKETS_ENABLED: "true"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8055/server/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - directus-extensions:/directus/extensions
+      - directus-templates:/directus/templates
+      - ./directus/schema:/opt/directus-deploy/directus/schema:ro
+      - ./scripts:/opt/directus-deploy/scripts:ro
+
 volumes:
   redisdata:
   pgdata:
+  directus-extensions:
+  directus-templates:

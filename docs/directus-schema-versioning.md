@@ -80,3 +80,9 @@ Those remain managed separately through `scripts/directus-sso-bootstrap.sh` and 
 `./scripts/dev-infra-up.sh` now applies the committed schema snapshot automatically after the Directus container becomes healthy, then runs the governance bootstrap.
 
 This keeps new local environments reproducible and prevents Studio-only schema drift from becoming the hidden source of truth.
+
+## Deployment Integration
+
+Staging and production now reuse the same snapshot in the automated deploy path documented in [directus-deployment.md](./directus-deployment.md).
+
+The deploy script applies the committed snapshot from inside the running Directus container, so the target VM does not need a separate host Node installation.

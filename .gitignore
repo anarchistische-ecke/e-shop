@@ -4,6 +4,7 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 .env
+backups/
 directus/.env
 keycloak/.env
 .DS_Store

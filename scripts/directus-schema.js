@@ -123,10 +123,12 @@ function printHelp() {
 function loadConfig(options) {
   const fileEnv = loadEnvFile(options.envFile);
   const env = { ...fileEnv, ...process.env };
-  const baseUrl = normalizeBaseUrl(env.DIRECTUS_BASE_URL || env.DIRECTUS_PUBLIC_URL || 'http://localhost:8055');
-  const schemaAdminToken = env.DIRECTUS_SCHEMA_ADMIN_TOKEN || env.DIRECTUS_ADMIN_TOKEN || '';
-  const adminEmail = env.DIRECTUS_ADMIN_EMAIL || '';
-  const adminPassword = env.DIRECTUS_ADMIN_PASSWORD || '';
+  const baseUrl = normalizeBaseUrl(
+    env.DIRECTUS_BASE_URL || env.DIRECTUS_PUBLIC_URL || env.PUBLIC_URL || 'http://localhost:8055'
+  );
+  const schemaAdminToken = env.DIRECTUS_SCHEMA_ADMIN_TOKEN || env.DIRECTUS_ADMIN_TOKEN || env.ADMIN_TOKEN || '';
+  const adminEmail = env.DIRECTUS_ADMIN_EMAIL || env.ADMIN_EMAIL || '';
+  const adminPassword = env.DIRECTUS_ADMIN_PASSWORD || env.ADMIN_PASSWORD || '';
 
   return {
     baseUrl,
