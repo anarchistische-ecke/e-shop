@@ -5,6 +5,10 @@ This backend does not consume Directus yet, but these are the agreed placeholder
 For local development, the Directus compose stack now lives at `eshop/directus/docker-compose.yml` with its own local-only env file at `eshop/directus/.env`.
 
 The database isolation decision for production is documented in [directus-db-isolation-decision.md](./directus-db-isolation-decision.md).
+The content governance baseline for Directus roles, policies, and public-read rules is documented in [directus-content-governance.md](./directus-content-governance.md).
+The approved CMS collection design is documented in [directus-content-model.md](./directus-content-model.md).
+The schema versioning workflow is documented in [directus-schema-versioning.md](./directus-schema-versioning.md).
+The initial content import workflow is documented in [directus-content-migration.md](./directus-content-migration.md).
 
 ## Planned Environment Variables
 
@@ -22,9 +26,31 @@ These are used only by the local Directus stack:
 | `DIRECTUS_VERSION` | `11.17.2` | Pinned current Directus image tag for local development. |
 | `DIRECTUS_KEY` | `local-directus-key-please-change-if-needed` | Required by Directus. Safe as a local default, but keep production values out of git. |
 | `DIRECTUS_SECRET` | `local-directus-secret-please-change-if-needed` | Required by Directus. Safe as a local default, but keep production values out of git. |
-| `DIRECTUS_ADMIN_EMAIL` | `admin@example.com` | Admin user created on first boot. |
+| `DIRECTUS_ADMIN_EMAIL` | `directus-admin@example.com` | Break-glass Directus local admin created on first boot. Keep it distinct from Keycloak editor/admin users. |
 | `DIRECTUS_ADMIN_PASSWORD` | `Admin123!` | Used on first boot. Rotate locally by rebuilding volumes if needed. |
 | `DIRECTUS_PUBLIC_URL` | `http://localhost:8055` | Local Studio/API URL. |
+| `DIRECTUS_SCHEMA_ADMIN_TOKEN` | unset in repo | Optional static token used by schema snapshot/apply/check scripts. When set, it is preferred over admin email/password login. |
+| `DIRECTUS_AUTH_DISABLE_DEFAULT` | `false` | Set to `true` when you want to hide Directus email/password login and require SSO. |
+| `DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID` | `directus` | Local Keycloak OIDC client ID for Directus Studio login. |
+| `DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET` | `directus-local-secret` | Local Keycloak client secret for the Directus OIDC client. |
+| `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL` | `http://keycloak.lvh.me:8081/realms/cozyhome/.well-known/openid-configuration` | Shared browser/container issuer URL used by local Directus SSO. |
+| `DIRECTUS_AUTH_KEYCLOAK_IDENTIFIER_KEY` | `email` | Directus external identifier source for matching or creating users. |
+| `DIRECTUS_AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION` | `true` | Allows Directus to auto-create SSO users on first login. |
+| `DIRECTUS_AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL` | `true` | Rejects SSO users whose Keycloak email is not verified. |
+| `DIRECTUS_AUTH_KEYCLOAK_SYNC_USER_INFO` | `true` | Syncs first name, last name, and email from Keycloak on each login. |
+| `DIRECTUS_AUTH_KEYCLOAK_GROUP_CLAIM_NAME` | `groups` | Claim used for Directus role mapping. |
+| `DIRECTUS_ROLE_CMS_ADMIN_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001` | Stable local Directus role id for CMS Administrator. |
+| `DIRECTUS_ROLE_CMS_EDITOR_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002` | Stable local Directus role id for CMS Editor. |
+| `DIRECTUS_ROLE_CMS_PUBLISHER_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003` | Stable local Directus role id for CMS Publisher/Reviewer. |
+| `DIRECTUS_POLICY_CMS_ADMIN_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f20001` | Stable local Directus policy id for CMS Administrator. |
+| `DIRECTUS_POLICY_CMS_EDITOR_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f20002` | Stable local Directus policy id for CMS Editor. |
+| `DIRECTUS_POLICY_CMS_PUBLISHER_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f20003` | Stable local Directus policy id for CMS Publisher/Reviewer. |
+| `DIRECTUS_ACCESS_CMS_ADMIN_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f30001` | Stable local Directus access junction id for CMS Administrator. |
+| `DIRECTUS_ACCESS_CMS_EDITOR_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f30002` | Stable local Directus access junction id for CMS Editor. |
+| `DIRECTUS_ACCESS_CMS_PUBLISHER_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f30003` | Stable local Directus access junction id for CMS Publisher/Reviewer. |
+| `DIRECTUS_CMS_CONTENT_COLLECTIONS` | `site_settings,navigation,navigation_items,...` | Allowlist of CMS-managed collections that receive editor/publisher permissions. |
+| `DIRECTUS_CMS_PUBLIC_COLLECTIONS` | `site_settings,navigation,navigation_items,...` | Subset of content collections that the Directus public policy may read. |
+| `DIRECTUS_CMS_STATUS_FIELD` | `status` | Required publish-state field used by governance rules. |
 | `DIRECTUS_DB_DATABASE` | `directus` | Internal Postgres database name for the Directus stack. |
 | `DIRECTUS_DB_USER` | `directus` | Internal Postgres user for the Directus stack. |
 | `DIRECTUS_DB_PASSWORD` | `directus` | Internal Postgres password for the Directus stack. |
@@ -37,6 +63,41 @@ These are used only by the local Directus stack:
 | `DIRECTUS_STORAGE_PUBLIC_BASE_URL` | `http://localhost:9000/directus` | Optional raw object URL base for local bucket access. |
 
 The helper script `scripts/dev-infra-up.sh` auto-creates `keycloak/.env` and `directus/.env` from their matching `.env.example` files when they are missing.
+
+The committed Directus schema snapshot lives at `directus/schema/schema.snapshot.json`. The helper scripts are:
+
+- `scripts/directus-schema-snapshot.sh` to export the current Directus schema into the committed snapshot file
+- `scripts/directus-schema-check.sh` to detect drift between a running instance and the committed snapshot
+- `scripts/directus-schema-apply.sh` to apply the committed snapshot to a running Directus instance
+- `scripts/directus-content-import.sh` to upsert the initial editorial dataset from the committed seed files
+
+The helper script `scripts/dev-infra-up.sh` applies the committed schema snapshot automatically on local startup.
+
+The helper script `scripts/directus-sso-bootstrap.sh` recreates the local Keycloak `directus` client and seeds the stable Directus roles/policies used by SSO and governance.
+
+The helper script `scripts/directus-content-model-bootstrap.sh` now acts as a compatibility wrapper around `scripts/directus-schema-apply.sh`.
+
+The phase-1 content schema expects every public CMS collection to include:
+
+- `status` with workflow values `draft`, `published`, `archived`
+- `published_at`
+
+- Keycloak realm role `admin` -> Directus role `CMS Administrator`
+- Keycloak realm role `manager` -> Directus role `CMS Editor`
+- Keycloak realm role `publisher` -> Directus role `CMS Publisher` once that Keycloak role exists
+
+Local Directus SSO uses `keycloak.lvh.me` instead of `localhost` for the issuer URL because the browser and the Directus container both need a hostname that resolves consistently.
+
+The governance baseline assumes every public CMS collection includes a `status` field with `draft`, `published`, and `archived`, plus `published_at`. Public reads are filtered to `status = published`.
+
+The schema snapshot covers the Directus data model only. Roles, policies, permissions, SSO client wiring, and seeded users remain outside the snapshot and continue to be handled by `scripts/directus-sso-bootstrap.sh`.
+
+Initial content is also handled separately from the schema snapshot. The committed seed files live in:
+
+- `directus/seed/initial-content.js`
+- `directus/seed/legal/*.html`
+
+The content importer authenticates with the same admin token or admin email/password used by the schema scripts.
 
 ## Directus File Storage
 
@@ -64,6 +125,28 @@ Recommended production values:
 | `STORAGE_S3_FORCE_PATH_STYLE` | deployment-specific | Keep `true` for local MinIO. Validate the required setting for Yandex Object Storage during production deployment. |
 
 If you want raw bucket URLs in production, Yandex Object Storage documents both the base endpoint `https://storage.yandexcloud.net` and DNS-style bucket hostnames such as `https://<bucket>.storage.yandexcloud.net/<key>`. Choose the exact access style during deployment based on your bucket naming and access policy.
+
+## Directus SSO Production Variables
+
+Use the same Directus auth model in production, but with production hostnames, a production Keycloak client, and production role IDs:
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `AUTH_PROVIDERS` | `keycloak` | Directus SSO provider list. |
+| `AUTH_DISABLE_DEFAULT` | `true` | Optional. Set to `true` once the break-glass login is no longer intended for daily use. |
+| `AUTH_KEYCLOAK_DRIVER` | `openid` | Directus Keycloak SSO driver. |
+| `AUTH_KEYCLOAK_CLIENT_ID` | `directus` | Production Keycloak client ID. |
+| `AUTH_KEYCLOAK_CLIENT_SECRET` | unset in repo | Production Keycloak client secret. |
+| `AUTH_KEYCLOAK_ISSUER_URL` | `https://<keycloak-host>/realms/cozyhome/.well-known/openid-configuration` | Must match the production Keycloak realm issuer. |
+| `AUTH_KEYCLOAK_IDENTIFIER_KEY` | `email` | Human-readable external identifier for Directus users. |
+| `AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION` | `true` | Lets Directus auto-create editor/admin users on first SSO login. |
+| `AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL` | `true` | Keeps unverified Keycloak users out of Directus. |
+| `AUTH_KEYCLOAK_SYNC_USER_INFO` | `true` | Keeps Directus user names and email aligned with Keycloak. |
+| `AUTH_KEYCLOAK_GROUP_CLAIM_NAME` | `groups` | Claim used for realm-role-to-Directus-role mapping. |
+| `AUTH_KEYCLOAK_ROLE_MAPPING` | `json:{"admin":"<cms-admin-role-id>","manager":"<cms-editor-role-id>","publisher":"<cms-publisher-role-id>"}` | Directus role mapping order matters because Directus assigns only one role per user. |
+| `AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST` | deployment-specific | Optional. Add external post-login redirect targets outside the Directus domain if you need them later. |
+
+For production, Directus should keep a separate break-glass local admin email/password from the Keycloak editor/admin identities, just like the local setup does.
 
 ## Frontend Pairing
 

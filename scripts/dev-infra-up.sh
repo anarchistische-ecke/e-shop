@@ -34,6 +34,12 @@ docker compose --env-file "$KEYCLOAK_ENV_FILE" -f "$ROOT_DIR/keycloak/docker-com
 echo "Starting Directus..."
 docker compose --env-file "$DIRECTUS_ENV_FILE" -f "$ROOT_DIR/directus/docker-compose.yml" up -d
 
+echo "Applying version-controlled Directus schema..."
+"$ROOT_DIR/scripts/directus-content-model-bootstrap.sh"
+
+echo "Bootstrapping Directus SSO and governance..."
+"$ROOT_DIR/scripts/directus-sso-bootstrap.sh"
+
 echo
 echo "Infrastructure started."
 echo "Backend infra:   docker compose -f $ROOT_DIR/docker-compose.yml ps"

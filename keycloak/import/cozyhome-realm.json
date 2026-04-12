@@ -29,6 +29,56 @@
   },
   "clients": [
     {
+      "clientId": "directus",
+      "name": "Directus Admin",
+      "description": "Local Directus Studio SSO client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "directus-local-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://localhost:8055/auth/login/keycloak/callback",
+        "http://localhost:8055/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8055"
+      ],
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm-roles-as-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
       "clientId": "cozyhome-web",
       "name": "Cozyhome Web",
       "description": "Local storefront client",
