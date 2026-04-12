@@ -17,7 +17,7 @@ The backend CMS cache strategy is documented in [directus-content-cache.md](./di
 | Variable | Scope | Example | Notes |
 | --- | --- | --- | --- |
 | `DIRECTUS_BASE_URL` | backend | `http://localhost:8055` | Base URL for the Directus instance the backend should call. |
-| `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Optional for published-only reads when Directus public permissions are enough, but effectively required for preview/draft reads. Keep it in local/prod env only. Never commit it. |
+| `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Effectively required for preview/draft reads and for published media metadata enrichment (`/files` width/height/type lookup) unless you intentionally expose Directus file metadata publicly. Keep it in local/prod env only. Never commit it. |
 | `DIRECTUS_CACHE_TTL` | backend | `PT5M` | Optional Redis TTL for CMS facade responses. Defaults to 5 minutes. Set `PT0S` to disable the cache. |
 | `DIRECTUS_CACHE_KEY_PREFIX` | backend | `cms:content` | Redis key prefix for backend CMS cache entries. |
 | `DIRECTUS_CONNECT_TIMEOUT` | backend | `PT3S` | Optional Directus connect timeout. Defaults to 3 seconds. |

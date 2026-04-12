@@ -16,8 +16,10 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Component
 public class DirectusContentClient {
@@ -35,6 +37,9 @@ public class DirectusContentClient {
             new ParameterizedTypeReference<>() {
             };
     private static final ParameterizedTypeReference<DirectusItemsResponse<DirectusPageSectionItem>> PAGE_SECTION_ITEMS_RESPONSE =
+            new ParameterizedTypeReference<>() {
+            };
+    private static final ParameterizedTypeReference<DirectusItemsResponse<Map<String, Object>>> FILES_RESPONSE =
             new ParameterizedTypeReference<>() {
             };
 
@@ -68,6 +73,7 @@ public class DirectusContentClient {
                         "copyright_start_year",
                         "default_seo_title_suffix",
                         "default_seo_description",
+                        "default_og_image",
                         "status",
                         "published_at"
                 ))
@@ -118,7 +124,7 @@ public class DirectusContentClient {
 
         MultiValueMap<String, String> query = new LinkedMultiValueMap<>();
         applyStatusFilter(query, accessMode);
-        query.add("filter[navigation][_in]", joinIds(navigationIds));
+        query.add("filter[navigation][_in]", joinIntegerIds(navigationIds));
         query.add("sort", "sort,id");
         query.add("limit", "-1");
         query.add("fields", "id,navigation,label,url,item_type,open_in_new_tab,visibility,sort");
@@ -139,7 +145,7 @@ public class DirectusContentClient {
         query.add("filter[slug][_eq]", slug);
         applyStatusFilter(query, accessMode);
         query.add("limit", "1");
-        query.add("fields", "id,slug,path,title,template,nav_label,summary,seo_title,seo_description,published_at");
+        query.add("fields", "id,slug,path,title,template,nav_label,summary,seo_title,seo_description,seo_image,published_at");
 
         DirectusItemsResponse<DirectusPage> response = request(itemsUri("page", query))
                 .retrieve()
@@ -173,6 +179,10 @@ public class DirectusContentClient {
                 "title",
                 "accent",
                 "body",
+                "image",
+                "image_alt",
+                "mobile_image",
+                "mobile_image_alt",
                 "primary_cta_label",
                 "primary_cta_url",
                 "secondary_cta_label",
@@ -199,17 +209,78 @@ public class DirectusContentClient {
         }
 
         MultiValueMap<String, String> query = new LinkedMultiValueMap<>();
-        query.add("filter[page_section][_in]", joinIds(sectionIds));
+        query.add("filter[page_section][_in]", joinIntegerIds(sectionIds));
         applyStatusFilter(query, accessMode);
         query.add("sort", "sort,id");
         query.add("limit", "-1");
-        query.add("fields", "id,page_section,title,description,label,url,reference_kind,reference_key,sort,published_at");
+        query.add("fields", "id,page_section,title,description,label,url,image,image_alt,reference_kind,reference_key,sort,published_at");
 
         DirectusItemsResponse<DirectusPageSectionItem> response = request(itemsUri("page_section_items", query))
                 .retrieve()
                 .body(PAGE_SECTION_ITEMS_RESPONSE);
 
         return response != null && response.data() != null ? response.data() : List.of();
+    }
+
+    public List<DirectusFileAsset> fetchFiles(Collection<String> fileIds) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> normalizedIds = fileIds.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        if (normalizedIds.isEmpty()) {
+            return List.of();
+        }
+
+        MultiValueMap<String, String> query = new LinkedMultiValueMap<>();
+        query.add("filter[id][_in]", joinValues(normalizedIds));
+        query.add("limit", "-1");
+        query.add("fields", "id,title,description,width,height,filename_download,type");
+
+        URI uri = UriComponentsBuilder.fromHttpUrl(baseUrl())
+                .path("/files")
+                .queryParams(query)
+                .build()
+                .encode()
+                .toUri();
+
+        DirectusItemsResponse<Map<String, Object>> response = request(uri)
+                .retrieve()
+                .body(FILES_RESPONSE);
+
+        if (response == null || response.data() == null) {
+            return List.of();
+        }
+
+        return response.data().stream()
+                .map(file -> new DirectusFileAsset(
+                        asText(file.get("id")),
+                        asText(file.get("title")),
+                        asText(file.get("description")),
+                        asInteger(file.get("width")),
+                        asInteger(file.get("height")),
+                        asText(file.get("filename_download")),
+                        asText(file.get("type"))
+                ))
+                .filter(file -> StringUtils.hasText(file.id()))
+                .toList();
+    }
+
+    public String assetUrl(String fileId) {
+        if (!StringUtils.hasText(fileId)) {
+            return "";
+        }
+
+        return UriComponentsBuilder.fromHttpUrl(baseUrl())
+                .path("/assets/{id}")
+                .buildAndExpand(fileId.trim())
+                .encode()
+                .toUriString();
     }
 
     private void applyStatusFilter(MultiValueMap<String, String> query, ContentAccessMode accessMode) {
@@ -272,11 +343,39 @@ public class DirectusContentClient {
         return factory;
     }
 
-    private static String joinIds(List<Integer> ids) {
+    private static String joinIntegerIds(List<Integer> ids) {
         return ids.stream()
                 .map(String::valueOf)
                 .reduce((left, right) -> left + "," + right)
                 .orElse("");
+    }
+
+    private static String joinValues(Collection<String> values) {
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .reduce((left, right) -> left + "," + right)
+                .orElse("");
+    }
+
+    private static String asText(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static Integer asInteger(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number numericValue) {
+            return numericValue.intValue();
+        }
+
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException error) {
+            return null;
+        }
     }
 
     private record DirectusSingletonResponse<T>(T data) {
@@ -299,6 +398,7 @@ public class DirectusContentClient {
             @JsonProperty("copyright_start_year") Integer copyrightStartYear,
             @JsonProperty("default_seo_title_suffix") String defaultSeoTitleSuffix,
             @JsonProperty("default_seo_description") String defaultSeoDescription,
+            @JsonProperty("default_og_image") String defaultOgImage,
             String status,
             @JsonProperty("published_at") OffsetDateTime publishedAt
     ) {
@@ -339,6 +439,7 @@ public class DirectusContentClient {
             String summary,
             @JsonProperty("seo_title") String seoTitle,
             @JsonProperty("seo_description") String seoDescription,
+            @JsonProperty("seo_image") String seoImage,
             @JsonProperty("published_at") OffsetDateTime publishedAt
     ) {
     }
@@ -355,6 +456,10 @@ public class DirectusContentClient {
             String title,
             String accent,
             String body,
+            String image,
+            @JsonProperty("image_alt") String imageAlt,
+            @JsonProperty("mobile_image") String mobileImage,
+            @JsonProperty("mobile_image_alt") String mobileImageAlt,
             @JsonProperty("primary_cta_label") String primaryCtaLabel,
             @JsonProperty("primary_cta_url") String primaryCtaUrl,
             @JsonProperty("secondary_cta_label") String secondaryCtaLabel,
@@ -373,10 +478,24 @@ public class DirectusContentClient {
             String description,
             String label,
             String url,
+            String image,
+            @JsonProperty("image_alt") String imageAlt,
             @JsonProperty("reference_kind") String referenceKind,
             @JsonProperty("reference_key") String referenceKey,
             Integer sort,
             @JsonProperty("published_at") OffsetDateTime publishedAt
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DirectusFileAsset(
+            String id,
+            String title,
+            String description,
+            Integer width,
+            Integer height,
+            @JsonProperty("filename_download") String filenameDownload,
+            String type
     ) {
     }
 }

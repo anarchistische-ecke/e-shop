@@ -21,6 +21,7 @@ public final class ContentModels {
             Integer copyrightStartYear,
             String defaultSeoTitleSuffix,
             String defaultSeoDescription,
+            MediaAsset defaultOgImage,
             OffsetDateTime publishedAt
     ) {
     }
@@ -54,6 +55,7 @@ public final class ContentModels {
             String summary,
             String seoTitle,
             String seoDescription,
+            MediaAsset seoImage,
             OffsetDateTime publishedAt,
             List<PageSection> sections
     ) {
@@ -68,6 +70,8 @@ public final class ContentModels {
             String title,
             String accent,
             String body,
+            MediaAsset image,
+            MediaAsset mobileImage,
             String primaryCtaLabel,
             String primaryCtaUrl,
             String secondaryCtaLabel,
@@ -84,10 +88,21 @@ public final class ContentModels {
             String description,
             String label,
             String url,
+            MediaAsset image,
             String referenceKind,
             String referenceKey,
             Integer sort,
             OffsetDateTime publishedAt
+    ) {
+    }
+
+    public record MediaAsset(
+            String id,
+            String url,
+            Integer width,
+            Integer height,
+            String alt,
+            String type
     ) {
     }
 }

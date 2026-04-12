@@ -21,6 +21,19 @@ const siteSettings = {
 
 const navigation = [
   {
+    key: 'header_main',
+    title: 'Полезное',
+    placement: 'header',
+    description: 'Основные сервисные ссылки в шапке сайта.',
+    sort: 1,
+    items: [
+      { migration_key: 'initial:header_main:about', label: 'О бренде', url: '/about', sort: 1 },
+      { migration_key: 'initial:header_main:delivery', label: 'Доставка', url: '/info/delivery', sort: 2 },
+      { migration_key: 'initial:header_main:payment', label: 'Оплата', url: '/info/payment', sort: 3 },
+      { migration_key: 'initial:header_main:legal', label: 'Документы', url: '/info/legal', sort: 4 },
+    ],
+  },
+  {
     key: 'footer_catalog',
     title: 'Каталог',
     placement: 'footer',

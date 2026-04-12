@@ -1,16 +1,24 @@
 package com.example.api.content;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class DirectusContentService implements ContentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DirectusContentService.class);
 
     private static final TypeReference<ContentModels.SiteSettings> SITE_SETTINGS_TYPE = new TypeReference<>() {
     };
@@ -82,6 +90,10 @@ public class DirectusContentService implements ContentService {
 
     private ContentModels.SiteSettings loadSiteSettings(ContentAccessMode accessMode) {
         var item = directusContentClient.fetchSiteSettings(accessMode);
+        Set<String> fileIds = new LinkedHashSet<>();
+        addFileId(fileIds, item.defaultOgImage());
+        Map<String, DirectusContentClient.DirectusFileAsset> fileAssetsById = loadFileAssets(fileIds);
+
         return new ContentModels.SiteSettings(
                 item.siteName(),
                 item.brandDescription(),
@@ -95,6 +107,7 @@ public class DirectusContentService implements ContentService {
                 item.copyrightStartYear(),
                 item.defaultSeoTitleSuffix(),
                 item.defaultSeoDescription(),
+                toMediaAsset(item.defaultOgImage(), null, fileAssetsById),
                 item.publishedAt()
         );
     }
@@ -143,13 +156,25 @@ public class DirectusContentService implements ContentService {
     private ContentModels.Page loadPage(String slug, ContentAccessMode accessMode) {
         var page = directusContentClient.fetchPageBySlug(slug, accessMode);
         var sections = directusContentClient.fetchPageSections(page.id(), accessMode);
-        var itemsBySectionId = directusContentClient.fetchPageSectionItems(
+        var sectionItems = directusContentClient.fetchPageSectionItems(
                         sections.stream()
                                 .map(DirectusContentClient.DirectusPageSection::id)
                                 .filter(id -> id != null && id > 0)
                                 .toList(),
                         accessMode
-                ).stream()
+                );
+
+        Set<String> fileIds = new LinkedHashSet<>();
+        addFileId(fileIds, page.seoImage());
+        sections.forEach(section -> {
+            addFileId(fileIds, section.image());
+            addFileId(fileIds, section.mobileImage());
+        });
+        sectionItems.forEach(item -> addFileId(fileIds, item.image()));
+
+        Map<String, DirectusContentClient.DirectusFileAsset> fileAssetsById = loadFileAssets(fileIds);
+
+        var itemsBySectionId = sectionItems.stream()
                 .collect(Collectors.groupingBy(
                         DirectusContentClient.DirectusPageSectionItem::pageSection,
                         Collectors.mapping(
@@ -158,6 +183,7 @@ public class DirectusContentService implements ContentService {
                                         item.description(),
                                         item.label(),
                                         item.url(),
+                                        toMediaAsset(item.image(), item.imageAlt(), fileAssetsById),
                                         item.referenceKind(),
                                         item.referenceKey(),
                                         item.sort(),
@@ -182,6 +208,8 @@ public class DirectusContentService implements ContentService {
                         section.title(),
                         section.accent(),
                         section.body(),
+                        toMediaAsset(section.image(), section.imageAlt(), fileAssetsById),
+                        toMediaAsset(section.mobileImage(), section.mobileImageAlt(), fileAssetsById),
                         section.primaryCtaLabel(),
                         section.primaryCtaUrl(),
                         section.secondaryCtaLabel(),
@@ -202,9 +230,84 @@ public class DirectusContentService implements ContentService {
                 page.summary(),
                 page.seoTitle(),
                 page.seoDescription(),
+                toMediaAsset(page.seoImage(), null, fileAssetsById),
                 page.publishedAt(),
                 sectionModels
         );
+    }
+
+    private Map<String, DirectusContentClient.DirectusFileAsset> loadFileAssets(Iterable<String> fileIds) {
+        if (fileIds == null) {
+            return Map.of();
+        }
+
+        Set<String> normalizedIds = new LinkedHashSet<>();
+        fileIds.forEach(fileId -> addFileId(normalizedIds, fileId));
+
+        if (normalizedIds.isEmpty()) {
+            return Map.of();
+        }
+
+        try {
+            return directusContentClient.fetchFiles(normalizedIds).stream()
+                    .filter(asset -> StringUtils.hasText(asset.id()))
+                    .collect(Collectors.toMap(
+                            DirectusContentClient.DirectusFileAsset::id,
+                            Function.identity(),
+                            (left, right) -> left
+                    ));
+        } catch (RuntimeException error) {
+            log.warn("Failed to fetch Directus file metadata for {} asset(s). Returning URL-only media payloads.", normalizedIds.size(), error);
+            return Map.of();
+        }
+    }
+
+    private ContentModels.MediaAsset toMediaAsset(
+            String fileId,
+            String altOverride,
+            Map<String, DirectusContentClient.DirectusFileAsset> fileAssetsById
+    ) {
+        if (!StringUtils.hasText(fileId)) {
+            return null;
+        }
+
+        String normalizedFileId = fileId.trim();
+        DirectusContentClient.DirectusFileAsset fileAsset = fileAssetsById.get(normalizedFileId);
+
+        return new ContentModels.MediaAsset(
+                normalizedFileId,
+                directusContentClient.assetUrl(normalizedFileId),
+                fileAsset != null ? fileAsset.width() : null,
+                fileAsset != null ? fileAsset.height() : null,
+                firstText(
+                        altOverride,
+                        fileAsset != null ? fileAsset.description() : null,
+                        fileAsset != null ? fileAsset.title() : null
+                ),
+                fileAsset != null ? fileAsset.type() : null
+        );
+    }
+
+    private static void addFileId(Set<String> fileIds, String fileId) {
+        if (!StringUtils.hasText(fileId)) {
+            return;
+        }
+
+        fileIds.add(fileId.trim());
+    }
+
+    private static String firstText(String... values) {
+        if (values == null) {
+            return "";
+        }
+
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+
+        return "";
     }
 
     private String normalizePlacement(String placement) {

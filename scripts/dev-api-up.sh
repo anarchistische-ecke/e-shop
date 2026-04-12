@@ -3,8 +3,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SPRING_PROFILE="${SPRING_PROFILE:-dev}"
+DIRECTUS_ENV_FILE="$ROOT_DIR/directus/.env"
 
 cd "$ROOT_DIR"
+
+if [[ -f "$DIRECTUS_ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$DIRECTUS_ENV_FILE"
+  set +a
+fi
 
 echo "Repairing legacy local database schema if needed..."
 "$ROOT_DIR/scripts/dev-db-repair.sh"

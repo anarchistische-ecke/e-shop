@@ -178,7 +178,9 @@ Recommended fields:
 | `accent` | string | no | Accent word or phrase, used by hero sections. |
 | `body` | rich text | no | General body copy. |
 | `image` | file | no | Section image. |
+| `image_alt` | string | no | Alt text override for the section image. Falls back to file metadata if empty. |
 | `mobile_image` | file | no | Optional mobile-specific image. |
+| `mobile_image_alt` | string | no | Alt text override for the mobile image. Falls back to file metadata if empty. |
 | `primary_cta_label` | string | no | |
 | `primary_cta_url` | string | no | |
 | `secondary_cta_label` | string | no | |
@@ -213,6 +215,7 @@ Recommended fields:
 | `url` | string | no | Link target for highlight cards. |
 | `icon_name` | string | no | Optional icon token. |
 | `image` | file | no | Optional card image. |
+| `image_alt` | string | no | Alt text override for the item image. Falls back to file metadata if empty. |
 | `reference_kind` | string enum | no | `none`, `product_slug`, `category_slug`, `external_url`. |
 | `reference_key` | string | no | Backend slug/id when the item points to commerce data. |
 | `sort` | integer | yes | Item order within the section. |
