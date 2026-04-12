@@ -1,0 +1,91 @@
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DIRECTUS_DB_DATABASE:-directus}
+      POSTGRES_USER: ${DIRECTUS_DB_USER:-directus}
+      POSTGRES_PASSWORD: ${DIRECTUS_DB_PASSWORD:-directus}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DIRECTUS_DB_USER:-directus} -d ${DIRECTUS_DB_DATABASE:-directus}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - directus-db-data:/var/lib/postgresql/data
+
+  storage:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${DIRECTUS_STORAGE_S3_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - directus-object-storage:/data
+
+  storage-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: "no"
+    depends_on:
+      - storage
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until /usr/bin/mc alias set directus http://storage:9000
+        "${DIRECTUS_STORAGE_S3_KEY:-minioadmin}"
+        "${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}";
+        do sleep 2; done &&
+        /usr/bin/mc mb --ignore-existing directus/${DIRECTUS_STORAGE_S3_BUCKET:-directus} &&
+        /usr/bin/mc anonymous set download directus/${DIRECTUS_STORAGE_S3_BUCKET:-directus}
+
+  directus:
+    image: directus/directus:${DIRECTUS_VERSION:-11.17.2}
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      storage:
+        condition: service_started
+      storage-init:
+        condition: service_completed_successfully
+    ports:
+      - "8055:8055"
+    environment:
+      KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in directus/.env}
+      SECRET: ${DIRECTUS_SECRET:?Set DIRECTUS_SECRET in directus/.env}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?Set DIRECTUS_ADMIN_PASSWORD in directus/.env}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      DB_CLIENT: pg
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_DATABASE: ${DIRECTUS_DB_DATABASE:-directus}
+      DB_USER: ${DIRECTUS_DB_USER:-directus}
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:-directus}
+      STORAGE_LOCATIONS: s3
+      STORAGE_S3_DRIVER: s3
+      STORAGE_S3_KEY: ${DIRECTUS_STORAGE_S3_KEY:-minioadmin}
+      STORAGE_S3_SECRET: ${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}
+      STORAGE_S3_BUCKET: ${DIRECTUS_STORAGE_S3_BUCKET:-directus}
+      STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-http://storage:9000}
+      STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-true}
+      WEBSOCKETS_ENABLED: "true"
+    volumes:
+      - directus-extensions:/directus/extensions
+      - directus-templates:/directus/templates
+
+volumes:
+  directus-db-data:
+  directus-object-storage:
+  directus-extensions:
+  directus-templates:
