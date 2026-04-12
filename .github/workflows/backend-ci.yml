@@ -2,7 +2,7 @@ name: backend-ci
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, add-cms ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
