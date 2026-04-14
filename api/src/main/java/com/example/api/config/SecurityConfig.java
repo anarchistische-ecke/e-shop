@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.authorization.AuthorityAuthorizationManager;
@@ -26,6 +27,9 @@ public class SecurityConfig {
 
     @Value("${app.security.require-strong-auth-for-privileged:true}")
     private boolean requireStrongAuthForPrivileged;
+
+    @Value("${app.observability.prometheus-token:}")
+    private String prometheusToken;
 
     @Bean
     public JwtDecoder jwtDecoder(
@@ -58,6 +62,8 @@ public class SecurityConfig {
                         privilegedAccess("MANAGER"),
                         privilegedAccess("PUBLISHER")
                 );
+        AuthorizationManager<RequestAuthorizationContext> prometheusAccess =
+                (authentication, context) -> new AuthorizationDecision(hasPrometheusAccess(context));
 
         http.csrf().disable();
         // Allow CORS from configured origins (CORS config is handled separately)
@@ -66,6 +72,8 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 // Health/diagnostics endpoints
                 .requestMatchers("/health/**").permitAll()
+                .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                .requestMatchers("/actuator/prometheus").access(prometheusAccess)
                 .requestMatchers(HttpMethod.GET, "/content/preview/**").access(previewAccess)
                 .requestMatchers(HttpMethod.GET, "/content/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")
@@ -115,5 +123,14 @@ public class SecurityConfig {
             return AuthorityAuthorizationManager.hasRole(role);
         }
         return PrivilegedAccessAuthorization.roleWithStrongAuth(role);
+    }
+
+    private boolean hasPrometheusAccess(RequestAuthorizationContext context) {
+        if (!StringUtils.hasText(prometheusToken)) {
+            return true;
+        }
+
+        String providedToken = context.getRequest().getHeader("X-Prometheus-Token");
+        return prometheusToken.equals(providedToken);
     }
 }

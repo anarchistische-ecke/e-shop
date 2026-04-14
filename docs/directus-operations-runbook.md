@@ -5,6 +5,7 @@ This runbook is the operational reference for staging and production CMS inciden
 Use it together with [directus-deployment.md](./directus-deployment.md).
 For rollback scope selection and frontend flag strategy, use [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 For planned go-live sequencing, use [directus-production-cutover.md](./directus-production-cutover.md).
+For metrics, alerts, and structured log search, use [directus-observability.md](./directus-observability.md).
 
 ## Health Checks
 

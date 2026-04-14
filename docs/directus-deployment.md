@@ -5,6 +5,7 @@ This repo now treats Directus as part of the deployed application stack instead 
 Operational incident handling is documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
 Rollback decision-making is documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 Go-live sequencing is documented in [directus-production-cutover.md](./directus-production-cutover.md).
+Metrics, alerts, dashboards, and structured-log search are documented in [directus-observability.md](./directus-observability.md).
 
 ## Deployment Shape
 

@@ -1,0 +1,87 @@
+groups:
+  - name: cms-observability
+    rules:
+      - alert: CmsFacade5xxErrorRateHigh
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{application="eshop-api",uri=~"/content.*",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count{application="eshop-api",uri=~"/content.*"}[5m])), 0.001)
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: warning
+          service: cms
+          component: facade
+        annotations:
+          summary: CMS facade 5xx error rate is high
+          description: The backend /content/* facade has exceeded a 2% 5xx error rate for 10 minutes.
+
+      - alert: CmsFacadeP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(http_server_requests_seconds_bucket{application="eshop-api",uri=~"/content.*"}[5m])
+            )
+          ) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          service: cms
+          component: facade
+        annotations:
+          summary: CMS facade p95 latency is high
+          description: The backend /content/* facade p95 latency has been above 1.5s for 10 minutes.
+
+      - alert: CmsDirectusUpstreamErrorRateHigh
+        expr: |
+          (
+            sum(rate(cms_directus_request_errors_total{application="eshop-api",error_type!="not_found"}[5m]))
+            /
+            clamp_min(sum(rate(cms_directus_request_seconds_count{application="eshop-api"}[5m])), 0.001)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+          service: cms
+          component: directus_upstream
+        annotations:
+          summary: Directus upstream error rate is high
+          description: Upstream Directus requests from the backend have exceeded a 5% non-not-found error rate for 10 minutes.
+
+      - alert: CmsDirectusUpstreamP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(cms_directus_request_seconds_bucket{application="eshop-api",outcome="success"}[5m])
+            )
+          ) > 1.2
+        for: 10m
+        labels:
+          severity: warning
+          service: cms
+          component: directus_upstream
+        annotations:
+          summary: Directus upstream p95 latency is high
+          description: Backend requests to Directus have had a p95 latency above 1.2s for 10 minutes.
+
+      - alert: CmsCacheHitRateLow
+        expr: |
+          (
+            sum(rate(cms_cache_lookup_total{application="eshop-api",result="hit"}[5m]))
+            /
+            clamp_min(
+              sum(rate(cms_cache_lookup_total{application="eshop-api",result=~"hit|miss"}[5m])),
+              0.001
+            )
+          ) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: cms
+          component: cache
+        annotations:
+          summary: CMS cache hit rate is low
+          description: CMS cache hit rate has been below 50% for 15 minutes.

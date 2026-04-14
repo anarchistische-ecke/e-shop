@@ -17,6 +17,7 @@ The staging/production Directus deploy path is documented in [directus-deploymen
 The operational restart/restore/rollback procedures are documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
 The rollback scope and frontend flag contract are documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 The production go-live sequence is documented in [directus-production-cutover.md](./directus-production-cutover.md).
+The metrics, alerts, dashboards, and log-search contract are documented in [directus-observability.md](./directus-observability.md).
 
 ## Planned Environment Variables
 
@@ -175,6 +176,8 @@ The production compose file also reads:
 | `API_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh` and remote monitoring. Defaults to `http://127.0.0.1:8080/health/redis`. |
 | `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh`. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health` when `DIRECTUS_PUBLIC_URL` is set. |
 | `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional backend CMS facade probe, for example `https://<backend-host>/content/navigation?placement=footer`. |
+| `APP_OBSERVABILITY_PROMETHEUS_TOKEN` | unset in repo | Optional shared token required for `GET /actuator/prometheus` via the `X-Prometheus-Token` header. |
+| `DIRECTUS_SLOW_REQUEST_THRESHOLD` | `PT2S` | Duration after which a backend Directus upstream call emits `event=cms_directus_request_slow`. |
 
 ## Frontend Pairing
 

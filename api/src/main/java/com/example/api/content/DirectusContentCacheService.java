@@ -27,35 +27,43 @@ public class DirectusContentCacheService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
     private final DirectusContentProperties properties;
+    private final CmsObservabilityService observabilityService;
 
     public DirectusContentCacheService(
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper,
-            DirectusContentProperties properties
+            DirectusContentProperties properties,
+            CmsObservabilityService observabilityService
     ) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.properties = properties;
+        this.observabilityService = observabilityService;
     }
 
     public <T> T getOrLoad(String cacheKey, TypeReference<T> typeReference, Supplier<T> loader) {
         if (!isCacheEnabled()) {
+            observabilityService.recordCacheLookup(cacheKey, "bypass");
             return loader.get();
         }
 
         String redisKey = namespaced(cacheKey);
-        String cachedPayload = read(redisKey);
+        String cachedPayload = read(cacheKey, redisKey);
         if (StringUtils.hasText(cachedPayload)) {
             try {
-                return objectMapper.readValue(cachedPayload, typeReference);
+                T value = objectMapper.readValue(cachedPayload, typeReference);
+                observabilityService.recordCacheLookup(cacheKey, "hit");
+                return value;
             } catch (IOException ex) {
+                observabilityService.recordCacheLookup(cacheKey, "deserialize_error");
                 log.warn("Failed to deserialize CMS cache entry {}, evicting stale payload", redisKey, ex);
                 safeDelete(List.of(redisKey));
             }
         }
 
+        observabilityService.recordCacheLookup(cacheKey, "miss");
         T loaded = loader.get();
-        write(redisKey, loaded);
+        write(cacheKey, redisKey, loaded);
         return loaded;
     }
 
@@ -90,19 +98,22 @@ public class DirectusContentCacheService {
     ) {
     }
 
-    private String read(String redisKey) {
+    private String read(String cacheKey, String redisKey) {
         try {
             return redisTemplate.opsForValue().get(redisKey);
         } catch (DataAccessException ex) {
+            observabilityService.recordCacheLookup(cacheKey, "read_error");
             log.warn("Skipping CMS cache read for {} because Redis is unavailable", redisKey, ex);
             return null;
         }
     }
 
-    private void write(String redisKey, Object value) {
+    private void write(String cacheKey, String redisKey, Object value) {
         try {
             redisTemplate.opsForValue().set(redisKey, objectMapper.writeValueAsString(value), properties.getCacheTtl());
+            observabilityService.recordCacheWrite(cacheKey, "success");
         } catch (DataAccessException | IOException ex) {
+            observabilityService.recordCacheWrite(cacheKey, "error");
             log.warn("Skipping CMS cache write for {}", redisKey, ex);
         }
     }
@@ -114,7 +125,9 @@ public class DirectusContentCacheService {
                 .toList();
 
         Long deleted = redisTemplate.delete(selectors);
-        return new CacheInvalidationResult(scope, keyPrefix(), selectors, deleted != null ? deleted : 0);
+        long deletedKeys = deleted != null ? deleted : 0;
+        observabilityService.recordCacheInvalidation(scope, deletedKeys);
+        return new CacheInvalidationResult(scope, keyPrefix(), selectors, deletedKeys);
     }
 
     private CacheInvalidationResult invalidateByPatterns(String scope, List<String> rawPatterns) {
@@ -124,7 +137,9 @@ public class DirectusContentCacheService {
         }
 
         Long deleted = keysToDelete.isEmpty() ? 0L : redisTemplate.delete(keysToDelete.stream().toList());
-        return new CacheInvalidationResult(scope, keyPrefix(), rawPatterns, deleted != null ? deleted : 0);
+        long deletedKeys = deleted != null ? deleted : 0;
+        observabilityService.recordCacheInvalidation(scope, deletedKeys);
+        return new CacheInvalidationResult(scope, keyPrefix(), rawPatterns, deletedKeys);
     }
 
     private Set<String> scanKeys(String rawPattern) {

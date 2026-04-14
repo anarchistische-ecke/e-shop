@@ -2,6 +2,12 @@
 
 This document defines the supported process for adding a new CMS editor, publisher, or administrator through Keycloak and letting Directus provision the user through SSO.
 
+Training and editor-facing usage references:
+
+- [directus-editor-training.md](./directus-editor-training.md)
+- [directus-editor-guide.md](./directus-editor-guide.md)
+- [directus-editor-support-process.md](./directus-editor-support-process.md)
+
 The current SSO bootstrap and governance rules that this process depends on live in:
 
 - [directus-content-governance.md](./directus-content-governance.md)

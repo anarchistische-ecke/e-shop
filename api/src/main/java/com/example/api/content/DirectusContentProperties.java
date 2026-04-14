@@ -15,6 +15,7 @@ public class DirectusContentProperties {
     private String cacheKeyPrefix = "cms:content";
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration readTimeout = Duration.ofSeconds(5);
+    private Duration slowRequestThreshold = Duration.ofSeconds(2);
 
     public String getBaseUrl() {
         return baseUrl;
@@ -62,5 +63,13 @@ public class DirectusContentProperties {
 
     public void setReadTimeout(Duration readTimeout) {
         this.readTimeout = readTimeout;
+    }
+
+    public Duration getSlowRequestThreshold() {
+        return slowRequestThreshold;
+    }
+
+    public void setSlowRequestThreshold(Duration slowRequestThreshold) {
+        this.slowRequestThreshold = slowRequestThreshold;
     }
 }

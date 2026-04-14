@@ -1,5 +1,6 @@
 package com.example.api.content;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -32,7 +33,11 @@ class DirectusContentClientHttpTest {
         properties.setConnectTimeout(Duration.ofSeconds(2));
         properties.setReadTimeout(Duration.ofSeconds(2));
 
-        client = new DirectusContentClient(RestClient.builder(), properties);
+        client = new DirectusContentClient(
+                RestClient.builder(),
+                properties,
+                new CmsObservabilityService(new SimpleMeterRegistry(), properties)
+        );
     }
 
     @AfterEach

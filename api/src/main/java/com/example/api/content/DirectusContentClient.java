@@ -44,10 +44,16 @@ public class DirectusContentClient {
             };
 
     private final DirectusContentProperties properties;
+    private final CmsObservabilityService observabilityService;
     private final RestClient restClient;
 
-    public DirectusContentClient(RestClient.Builder restClientBuilder, DirectusContentProperties properties) {
+    public DirectusContentClient(
+            RestClient.Builder restClientBuilder,
+            DirectusContentProperties properties,
+            CmsObservabilityService observabilityService
+    ) {
         this.properties = properties;
+        this.observabilityService = observabilityService;
         this.restClient = restClientBuilder
                 .requestFactory(requestFactory(properties))
                 .build();
@@ -80,16 +86,18 @@ public class DirectusContentClient {
                 .build(true)
                 .toUri();
 
-        DirectusSingletonResponse<DirectusSiteSettings> response = request(uri)
-                .retrieve()
-                .body(new ParameterizedTypeReference<>() {
-                });
+        return observe("site_settings", accessMode, uri, () -> {
+            DirectusSingletonResponse<DirectusSiteSettings> response = request(uri)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {
+                    });
 
-        if (response == null || response.data() == null || !statusMatches(response.data().status(), accessMode)) {
-            throw new ContentNotFoundException(contentNotFoundMessage("site settings", accessMode));
-        }
+            if (response == null || response.data() == null || !statusMatches(response.data().status(), accessMode)) {
+                throw new ContentNotFoundException(contentNotFoundMessage("site settings", accessMode));
+            }
 
-        return response.data();
+            return response.data();
+        });
     }
 
     public List<DirectusNavigationGroup> fetchNavigationGroups(String placement) {
@@ -106,11 +114,14 @@ public class DirectusContentClient {
         query.add("limit", "-1");
         query.add("fields", "id,key,title,placement,description,sort");
 
-        DirectusItemsResponse<DirectusNavigationGroup> response = request(itemsUri("navigation", query))
-                .retrieve()
-                .body(NAVIGATION_GROUPS_RESPONSE);
+        URI uri = itemsUri("navigation", query);
+        return observe("navigation_groups", accessMode, uri, () -> {
+            DirectusItemsResponse<DirectusNavigationGroup> response = request(uri)
+                    .retrieve()
+                    .body(NAVIGATION_GROUPS_RESPONSE);
 
-        return response != null && response.data() != null ? response.data() : List.of();
+            return response != null && response.data() != null ? response.data() : List.of();
+        });
     }
 
     public List<DirectusNavigationItem> fetchNavigationItems(List<Integer> navigationIds) {
@@ -129,11 +140,14 @@ public class DirectusContentClient {
         query.add("limit", "-1");
         query.add("fields", "id,navigation,label,url,item_type,open_in_new_tab,visibility,sort");
 
-        DirectusItemsResponse<DirectusNavigationItem> response = request(itemsUri("navigation_items", query))
-                .retrieve()
-                .body(NAVIGATION_ITEMS_RESPONSE);
+        URI uri = itemsUri("navigation_items", query);
+        return observe("navigation_items", accessMode, uri, () -> {
+            DirectusItemsResponse<DirectusNavigationItem> response = request(uri)
+                    .retrieve()
+                    .body(NAVIGATION_ITEMS_RESPONSE);
 
-        return response != null && response.data() != null ? response.data() : List.of();
+            return response != null && response.data() != null ? response.data() : List.of();
+        });
     }
 
     public DirectusPage fetchPageBySlug(String slug) {
@@ -147,15 +161,18 @@ public class DirectusContentClient {
         query.add("limit", "1");
         query.add("fields", "id,slug,path,title,template,nav_label,summary,seo_title,seo_description,seo_image,published_at");
 
-        DirectusItemsResponse<DirectusPage> response = request(itemsUri("page", query))
-                .retrieve()
-                .body(PAGES_RESPONSE);
+        URI uri = itemsUri("page", query);
+        return observe("page", accessMode, uri, () -> {
+            DirectusItemsResponse<DirectusPage> response = request(uri)
+                    .retrieve()
+                    .body(PAGES_RESPONSE);
 
-        if (response == null || response.data() == null || response.data().isEmpty()) {
-            throw new ContentNotFoundException(contentNotFoundMessage("page", accessMode) + " for slug: " + slug);
-        }
+            if (response == null || response.data() == null || response.data().isEmpty()) {
+                throw new ContentNotFoundException(contentNotFoundMessage("page", accessMode) + " for slug: " + slug);
+            }
 
-        return response.data().getFirst();
+            return response.data().getFirst();
+        });
     }
 
     public List<DirectusPageSection> fetchPageSections(int pageId) {
@@ -192,11 +209,14 @@ public class DirectusContentClient {
                 "published_at"
         ));
 
-        DirectusItemsResponse<DirectusPageSection> response = request(itemsUri("page_sections", query))
-                .retrieve()
-                .body(PAGE_SECTIONS_RESPONSE);
+        URI uri = itemsUri("page_sections", query);
+        return observe("page_sections", accessMode, uri, () -> {
+            DirectusItemsResponse<DirectusPageSection> response = request(uri)
+                    .retrieve()
+                    .body(PAGE_SECTIONS_RESPONSE);
 
-        return response != null && response.data() != null ? response.data() : List.of();
+            return response != null && response.data() != null ? response.data() : List.of();
+        });
     }
 
     public List<DirectusPageSectionItem> fetchPageSectionItems(List<Integer> sectionIds) {
@@ -215,11 +235,14 @@ public class DirectusContentClient {
         query.add("limit", "-1");
         query.add("fields", "id,page_section,title,description,label,url,image,image_alt,reference_kind,reference_key,sort,published_at");
 
-        DirectusItemsResponse<DirectusPageSectionItem> response = request(itemsUri("page_section_items", query))
-                .retrieve()
-                .body(PAGE_SECTION_ITEMS_RESPONSE);
+        URI uri = itemsUri("page_section_items", query);
+        return observe("page_section_items", accessMode, uri, () -> {
+            DirectusItemsResponse<DirectusPageSectionItem> response = request(uri)
+                    .retrieve()
+                    .body(PAGE_SECTION_ITEMS_RESPONSE);
 
-        return response != null && response.data() != null ? response.data() : List.of();
+            return response != null && response.data() != null ? response.data() : List.of();
+        });
     }
 
     public List<DirectusFileAsset> fetchFiles(Collection<String> fileIds) {
@@ -249,26 +272,28 @@ public class DirectusContentClient {
                 .encode()
                 .toUri();
 
-        DirectusItemsResponse<Map<String, Object>> response = request(uri)
-                .retrieve()
-                .body(FILES_RESPONSE);
+        return observe("files", null, uri, () -> {
+            DirectusItemsResponse<Map<String, Object>> response = request(uri)
+                    .retrieve()
+                    .body(FILES_RESPONSE);
 
-        if (response == null || response.data() == null) {
-            return List.of();
-        }
+            if (response == null || response.data() == null) {
+                return List.of();
+            }
 
-        return response.data().stream()
-                .map(file -> new DirectusFileAsset(
-                        asText(file.get("id")),
-                        asText(file.get("title")),
-                        asText(file.get("description")),
-                        asInteger(file.get("width")),
-                        asInteger(file.get("height")),
-                        asText(file.get("filename_download")),
-                        asText(file.get("type"))
-                ))
-                .filter(file -> StringUtils.hasText(file.id()))
-                .toList();
+            return response.data().stream()
+                    .map(file -> new DirectusFileAsset(
+                            asText(file.get("id")),
+                            asText(file.get("title")),
+                            asText(file.get("description")),
+                            asInteger(file.get("width")),
+                            asInteger(file.get("height")),
+                            asText(file.get("filename_download")),
+                            asText(file.get("type"))
+                    ))
+                    .filter(file -> StringUtils.hasText(file.id()))
+                    .toList();
+        });
     }
 
     public String assetUrl(String fileId) {
@@ -317,6 +342,10 @@ public class DirectusContentClient {
         }
 
         return request;
+    }
+
+    private <T> T observe(String operation, ContentAccessMode accessMode, URI uri, java.util.function.Supplier<T> supplier) {
+        return observabilityService.recordDirectusRequest(operation, accessMode, uri, supplier);
     }
 
     private URI itemsUri(String collection, MultiValueMap<String, String> query) {

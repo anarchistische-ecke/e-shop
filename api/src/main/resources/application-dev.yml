@@ -39,3 +39,10 @@ directus:
   cache-key-prefix: ${DIRECTUS_CACHE_KEY_PREFIX:cms:content}
   connect-timeout: ${DIRECTUS_CONNECT_TIMEOUT:PT3S}
   read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}
+  slow-request-threshold: ${DIRECTUS_SLOW_REQUEST_THRESHOLD:PT2S}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
