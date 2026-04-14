@@ -76,6 +76,15 @@ cd /Users/freddycooper/Documents/eshop
 ./scripts/directus-content-import.sh --env-file /path/to/directus.env
 ```
 
+If the target VM does not have a host Node runtime, run the importer inside the deployed Directus container instead:
+
+```bash
+cd <deploy-path>
+docker compose --env-file .env -f docker-compose.prod.yml exec -T \
+  -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 \
+  directus node /opt/directus-deploy/scripts/directus-content-import.js
+```
+
 Optional prune mode removes previously seeded records whose `migration_key` starts with `initial:` but no longer exists in the current seed set:
 
 ```bash

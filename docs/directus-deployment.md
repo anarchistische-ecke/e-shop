@@ -3,6 +3,8 @@
 This repo now treats Directus as part of the deployed application stack instead of a separate manual service.
 
 Operational incident handling is documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
+Rollback decision-making is documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
+Go-live sequencing is documented in [directus-production-cutover.md](./directus-production-cutover.md).
 
 ## Deployment Shape
 
@@ -71,6 +73,8 @@ Two different migration layers matter here:
   The deploy script applies the committed snapshot with `scripts/directus-schema.js apply` inside the running Directus container.
 
 This means the runtime VM does not need a host Node install. It only needs Docker Compose, Git, and shell access.
+
+The production compose file mounts the committed `directus/` and `scripts/` directories read-only into the Directus container so schema apply and seed-content import/rollback can run inside the container when needed.
 
 ## Backups
 
@@ -144,3 +148,4 @@ After the first container deploy:
 Do not restore the Directus database without also validating the corresponding object storage state for uploaded assets.
 
 For the operator-facing incident steps, use [directus-operations-runbook.md](./directus-operations-runbook.md).
+For rollback scope selection, use [directus-rollback-strategy.md](./directus-rollback-strategy.md).

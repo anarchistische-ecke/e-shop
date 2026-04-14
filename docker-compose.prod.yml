@@ -114,7 +114,7 @@ services:
     volumes:
       - directus-extensions:/directus/extensions
       - directus-templates:/directus/templates
-      - ./directus/schema:/opt/directus-deploy/directus/schema:ro
+      - ./directus:/opt/directus-deploy/directus:ro
       - ./scripts:/opt/directus-deploy/scripts:ro
 
 volumes:

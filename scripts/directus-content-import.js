@@ -107,14 +107,16 @@ function requireValue(value, flag) {
 function loadConfig(options) {
   const fileEnv = loadEnvFile(options.envFile);
   const env = { ...fileEnv, ...process.env };
-  const baseUrl = normalizeBaseUrl(env.DIRECTUS_BASE_URL || env.DIRECTUS_PUBLIC_URL || 'http://localhost:8055');
+  const baseUrl = normalizeBaseUrl(
+    env.DIRECTUS_BASE_URL || env.DIRECTUS_PUBLIC_URL || env.PUBLIC_URL || 'http://localhost:8055'
+  );
 
   return {
     baseUrl,
     legalDir: options.legalDir,
-    schemaAdminToken: env.DIRECTUS_SCHEMA_ADMIN_TOKEN || env.DIRECTUS_ADMIN_TOKEN || '',
-    adminEmail: env.DIRECTUS_ADMIN_EMAIL || '',
-    adminPassword: env.DIRECTUS_ADMIN_PASSWORD || '',
+    schemaAdminToken: env.DIRECTUS_SCHEMA_ADMIN_TOKEN || env.DIRECTUS_ADMIN_TOKEN || env.ADMIN_TOKEN || '',
+    adminEmail: env.DIRECTUS_ADMIN_EMAIL || env.ADMIN_EMAIL || '',
+    adminPassword: env.DIRECTUS_ADMIN_PASSWORD || env.ADMIN_PASSWORD || '',
   };
 }
 

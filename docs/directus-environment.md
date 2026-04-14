@@ -15,6 +15,8 @@ The storefront/backend integration choice is documented in [directus-integration
 The backend CMS cache strategy is documented in [directus-content-cache.md](./directus-content-cache.md).
 The staging/production Directus deploy path is documented in [directus-deployment.md](./directus-deployment.md).
 The operational restart/restore/rollback procedures are documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
+The rollback scope and frontend flag contract are documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
+The production go-live sequence is documented in [directus-production-cutover.md](./directus-production-cutover.md).
 
 ## Planned Environment Variables
 
@@ -184,6 +186,15 @@ The storefront repo uses the matching public names in its `.env.example`:
 The frontend token must stay public/read-only. Do not reuse `DIRECTUS_STATIC_TOKEN` in the browser.
 
 Current project decision: the preferred production storefront path is the backend facade described in [directus-integration-pattern-decision.md](./directus-integration-pattern-decision.md). That means the frontend should normally consume CMS content through the backend API, not directly from Directus. Keep the frontend Directus variables only for temporary local experiments or an explicitly chosen direct-read use case later.
+
+Required frontend rollback contract for production cutover:
+
+- `REACT_APP_CMS_MODE=legacy|mixed|cms`
+- `REACT_APP_CMS_NAVIGATION_MODE=legacy|cms`
+- `REACT_APP_CMS_PAGE_MODE=legacy|cms`
+- `REACT_APP_CMS_SITE_SETTINGS_MODE=legacy|cms`
+
+Those flags are defined as rollback controls in [directus-rollback-strategy.md](./directus-rollback-strategy.md). They should live in the frontend deployment environment or runtime config layer, not inside backend secrets.
 
 ## Backend CMS Facade
 
