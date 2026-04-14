@@ -6,6 +6,45 @@ const path = require('node:path');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DEFAULT_ENV_FILE = path.join(ROOT_DIR, 'directus', '.env');
 const DEFAULT_SNAPSHOT_PATH = path.join(ROOT_DIR, 'directus', 'schema', 'schema.snapshot.json');
+const DEFAULT_CMS_COLLECTIONS = [
+  'site_settings',
+  'navigation',
+  'navigation_items',
+  'page',
+  'page_sections',
+  'page_section_items',
+  'faq',
+  'legal_documents',
+  'banner',
+  'post',
+];
+const FORBIDDEN_COMMERCE_COLLECTIONS = [
+  'brand',
+  'cart',
+  'cart_item',
+  'category',
+  'checkout',
+  'consent',
+  'customer',
+  'customer_order',
+  'inventory',
+  'order',
+  'order_checkout_attempt',
+  'order_item',
+  'payment',
+  'payment_refund',
+  'price',
+  'product',
+  'product_category',
+  'product_image',
+  'product_variant',
+  'refund',
+  'saved_payment_method',
+  'shipment',
+  'stock',
+  'stock_adjustment',
+  'variant',
+];
 
 async function main() {
   const { command, options } = parseArgs(process.argv.slice(2));
@@ -15,16 +54,25 @@ async function main() {
     process.exit(command ? 0 : 1);
   }
 
-  if (!['snapshot', 'diff', 'apply', 'check'].includes(command)) {
+  if (!['snapshot', 'diff', 'apply', 'check', 'validate'].includes(command)) {
     throw new Error(`Unsupported command "${command}".`);
   }
 
   const config = loadConfig(options);
+
+  if (command === 'validate') {
+    const snapshot = readSnapshot(config.snapshotPath);
+    validateSnapshotBoundary(snapshot, config);
+    console.log(`Validated Directus CMS boundary for ${config.snapshotPath}`);
+    return;
+  }
+
   await waitForDirectus(config.baseUrl);
   const authHeader = await getAuthHeader(config);
 
   if (command === 'snapshot') {
     const snapshot = await requestJson(config.baseUrl, authHeader, 'GET', '/schema/snapshot');
+    validateSnapshotBoundary(snapshot, config);
     ensureParentDir(config.snapshotPath);
     fs.writeFileSync(config.snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');
     console.log(`Wrote Directus schema snapshot to ${config.snapshotPath}`);
@@ -32,6 +80,7 @@ async function main() {
   }
 
   const snapshot = readSnapshot(config.snapshotPath);
+  validateSnapshotBoundary(snapshot, config);
   const diffResponse = await requestJson(
     config.baseUrl,
     authHeader,
@@ -117,7 +166,8 @@ function printHelp() {
   node scripts/directus-schema.js snapshot [--env-file <path>] [--snapshot <path>]
   node scripts/directus-schema.js diff [--env-file <path>] [--snapshot <path>] [--force]
   node scripts/directus-schema.js check [--env-file <path>] [--snapshot <path>] [--force]
-  node scripts/directus-schema.js apply [--env-file <path>] [--snapshot <path>] [--force]`);
+  node scripts/directus-schema.js apply [--env-file <path>] [--snapshot <path>] [--force]
+  node scripts/directus-schema.js validate [--env-file <path>] [--snapshot <path>]`);
 }
 
 function loadConfig(options) {
@@ -132,6 +182,7 @@ function loadConfig(options) {
 
   return {
     baseUrl,
+    cmsContentCollections: parseCsv(env.DIRECTUS_CMS_CONTENT_COLLECTIONS || DEFAULT_CMS_COLLECTIONS.join(',')),
     snapshotPath: options.snapshotPath,
     schemaAdminToken,
     adminEmail,
@@ -232,6 +283,70 @@ function readSnapshot(snapshotPath) {
   }
 
   return JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+}
+
+function parseCsv(value) {
+  return [...new Set(String(value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean))]
+    .sort();
+}
+
+function validateSnapshotBoundary(snapshot, config) {
+  if (!snapshot || !Array.isArray(snapshot.collections)) {
+    throw new Error(`Invalid Directus schema snapshot: missing collections array in ${config.snapshotPath}`);
+  }
+
+  const snapshotCollections = snapshot.collections
+    .map((entry) => normalizeCollectionName(entry))
+    .filter(Boolean)
+    .sort();
+  const allowedCollections = [...config.cmsContentCollections].sort();
+  const unexpectedCollections = snapshotCollections.filter((name) => !allowedCollections.includes(name));
+  const missingCollections = allowedCollections.filter((name) => !snapshotCollections.includes(name));
+  const forbiddenCollections = snapshotCollections.filter(isForbiddenCommerceCollection);
+
+  if (unexpectedCollections.length === 0 && missingCollections.length === 0 && forbiddenCollections.length === 0) {
+    return;
+  }
+
+  const problems = [];
+  if (unexpectedCollections.length > 0) {
+    problems.push(`unexpected collections: ${unexpectedCollections.join(', ')}`);
+  }
+  if (missingCollections.length > 0) {
+    problems.push(`missing allowlisted collections: ${missingCollections.join(', ')}`);
+  }
+  if (forbiddenCollections.length > 0) {
+    problems.push(`forbidden commerce collections: ${forbiddenCollections.join(', ')}`);
+  }
+
+  throw new Error(
+    `Directus CMS boundary validation failed for ${config.snapshotPath}: ${problems.join('; ')}. ` +
+    `Allowed CMS collections: ${allowedCollections.join(', ')}`
+  );
+}
+
+function normalizeCollectionName(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return '';
+  }
+
+  const collectionName = typeof entry.collection === 'string' ? entry.collection : '';
+  const schemaName = typeof entry.schema?.name === 'string' ? entry.schema.name : '';
+
+  return (collectionName || schemaName).trim();
+}
+
+function isForbiddenCommerceCollection(collectionName) {
+  const normalized = String(collectionName || '').trim().toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return FORBIDDEN_COMMERCE_COLLECTIONS.includes(normalized);
 }
 
 function ensureParentDir(filePath) {

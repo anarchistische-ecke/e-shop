@@ -16,6 +16,7 @@ Do not start production cutover until all of these are true:
 - staging has already been deployed from the same git ref
 - staging Directus login, schema apply, and content import are verified
 - staging storefront smoke tests pass
+- a pilot CMS access cohort has been identified: one CMS administrator, one publisher, and one or two editors
 - production server `.env` contains the required Directus, Keycloak, S3, and health-check variables
 - production Directus bucket and credentials already exist
 - production Keycloak client and redirect URL already exist
@@ -72,11 +73,15 @@ Recommended frontend flag progression:
    - backend `/health/redis`
    - backend `/content/navigation?placement=header`
    - backend `/content/pages/delivery`
-4. Verify Directus SSO login in production.
+4. Verify Directus SSO login in production for the pilot CMS access cohort only:
+   - one CMS administrator
+   - one CMS publisher
+   - one CMS editor
+5. Confirm the pilot editor cannot publish or access admin settings, and confirm the publisher can approve content.
 
 Go/no-go rule:
 
-- do not continue if Directus deploy, schema apply, or health checks fail
+- do not continue if Directus deploy, schema apply, SSO login, or role checks fail
 
 ### Phase 2: Import baseline content
 
@@ -150,6 +155,11 @@ Rollback trigger:
 Recommended observation window:
 
 - 30 to 60 minutes after full enable
+
+Recommended editor-access expansion:
+
+- keep production access limited to the pilot cohort during the initial observation window
+- onboard the remaining editors only after the pilot users complete at least one normal draft-review-publish cycle without role or login issues
 
 ## Validation Checklist
 

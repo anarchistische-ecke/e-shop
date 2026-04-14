@@ -92,6 +92,25 @@ The helper script `scripts/keycloak-upsert-cms-user.sh` provides a repeatable lo
 
 The helper script `scripts/directus-content-model-bootstrap.sh` now acts as a compatibility wrapper around `scripts/directus-schema-apply.sh`.
 
+The Directus schema tooling validates the committed snapshot against `DIRECTUS_CMS_CONTENT_COLLECTIONS` before it is written, checked, or applied. If someone adds commerce collections such as catalog, order, payment, stock, or shipment tables to the snapshot, the command fails fast.
+
+## Database Isolation Bootstrap
+
+The production shared-PostgreSQL hardening script `scripts/directus-db-init.sh` derives the commerce runtime connection from `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD` by default.
+
+Recommended production split:
+
+- PostgreSQL bootstrap/admin role: `POSTGRES_USER=postgres_admin`
+- Backend runtime role: `SPRING_DATASOURCE_USERNAME=eshop_app`
+
+If you need explicit overrides for that script, set:
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `ESHOP_DB_DATABASE` | `eshop` | Optional explicit commerce database name used by `scripts/directus-db-init.sh`. Falls back to `SPRING_DATASOURCE_URL` parsing, then `POSTGRES_DB`. |
+| `ESHOP_DB_USER` | `eshop_app` | Optional explicit commerce runtime database user used by `scripts/directus-db-init.sh`. Falls back to `SPRING_DATASOURCE_USERNAME`. |
+| `ESHOP_DB_PASSWORD` | unset in repo | Optional explicit commerce runtime database password used by `scripts/directus-db-init.sh` when the commerce app role must be created or updated. Falls back to `SPRING_DATASOURCE_PASSWORD`. |
+
 The phase-1 content schema expects every public CMS collection to include:
 
 - `status` with workflow values `draft`, `in_review`, `published`, `archived`

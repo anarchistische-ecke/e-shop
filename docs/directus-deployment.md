@@ -64,6 +64,8 @@ That script performs these steps:
 
 This keeps Directus core upgrades, schema drift control, and app deployment on one path.
 
+`scripts/directus-db-init.sh` also enforces the CMS/commerce boundary during provisioning. It creates or updates the dedicated Directus runtime role, revokes `PUBLIC` access on both databases, revokes Directus access to the commerce database/schema, and grants the commerce runtime role the expected commerce-side schema access. When the commerce runtime role differs from the PostgreSQL bootstrap/admin role, the script also provisions it as a non-superuser login role.
+
 ## Migrations
 
 Two different migration layers matter here:
@@ -120,6 +122,25 @@ The compose file now expects these Directus deployment variables in the target s
 - `DIRECTUS_STORAGE_S3_BUCKET`
 - `DIRECTUS_STORAGE_S3_REGION`
 - `DIRECTUS_STORAGE_S3_ENDPOINT`
+
+The database-hardening step derives the commerce runtime connection from:
+
+- `SPRING_DATASOURCE_URL`
+- `SPRING_DATASOURCE_USERNAME`
+- `SPRING_DATASOURCE_PASSWORD`
+
+Recommended production split:
+
+- `POSTGRES_USER=postgres_admin`
+- `SPRING_DATASOURCE_USERNAME=eshop_app`
+
+For an existing deployment that still uses one shared role for both values, change the env first and rerun `scripts/directus-db-init.sh` before redeploying the API so the `eshop_app` role and grants exist before Spring reconnects.
+
+If you need explicit overrides for `scripts/directus-db-init.sh`, also set:
+
+- `ESHOP_DB_DATABASE`
+- `ESHOP_DB_USER`
+- `ESHOP_DB_PASSWORD`
 
 The full environment contract remains in [directus-environment.md](./directus-environment.md).
 

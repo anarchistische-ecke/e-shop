@@ -12,7 +12,7 @@ spring:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/eshop}
-    username: ${SPRING_DATASOURCE_USERNAME:eshopUser}
+    username: ${SPRING_DATASOURCE_USERNAME:eshop_app}
     password: ${SPRING_DATASOURCE_PASSWORD:change-me}
     driver-class-name: org.postgresql.Driver
   jpa:

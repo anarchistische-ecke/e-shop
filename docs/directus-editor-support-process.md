@@ -52,6 +52,7 @@ Recommended response targets:
 2. Confirm the user has exactly one mapped realm role: `manager`, `publisher`, or `admin`.
 3. Confirm the Directus SSO mapping still matches [directus-editor-onboarding.md](./directus-editor-onboarding.md).
 4. If needed, rerun the Directus SSO/bootstrap process.
+5. Use the break-glass Directus local admin only for diagnosis or repair. Do not treat it as a normal editor workaround.
 
 ### Content Not Visible On The Storefront
 

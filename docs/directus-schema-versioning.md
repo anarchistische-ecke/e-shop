@@ -18,6 +18,7 @@ This is a deliberate team choice for this repo. Directus supports promoting sche
 - Export script: `scripts/directus-schema-snapshot.sh`
 - Drift check script: `scripts/directus-schema-check.sh`
 - Apply script: `scripts/directus-schema-apply.sh`
+- Boundary validation command: `node scripts/directus-schema.js validate`
 
 The compatibility script `scripts/directus-content-model-bootstrap.sh` now just applies the committed snapshot, so older local instructions still work.
 
@@ -31,6 +32,7 @@ The compatibility script `scripts/directus-content-model-bootstrap.sh` now just 
    ```
 
 3. Review the git diff for `directus/schema/schema.snapshot.json`.
+   The schema tooling now also validates that the snapshot stays inside the approved CMS collection allowlist and does not introduce commerce collections.
 4. Commit the snapshot in the same PR as any code or docs that depend on the schema change.
 5. Before using a target environment, apply the committed snapshot:
 
@@ -42,6 +44,12 @@ The compatibility script `scripts/directus-content-model-bootstrap.sh` now just 
 
    ```bash
    ./scripts/directus-schema-check.sh --env-file /path/to/directus.env
+   ```
+
+7. Optionally run the local-only CMS boundary check without contacting Directus:
+
+   ```bash
+   node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
    ```
 
 If `directus-schema-check.sh` reports changes, the running Directus instance does not match the committed schema snapshot and should not be treated as in-sync.

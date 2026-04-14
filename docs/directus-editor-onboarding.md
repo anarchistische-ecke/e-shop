@@ -31,6 +31,22 @@ Important:
 - Directus assigns only one Directus role per user from this mapping.
 - Do not give the same person multiple mapped roles such as `manager` and `admin`.
 
+## Pilot Rollout Recommendation
+
+To reduce SSO lockout and over-privilege risk, do not onboard the full editor population at once.
+
+Recommended rollout order:
+
+1. In staging, verify one `CMS Administrator`, one `CMS Publisher`, and one `CMS Editor`.
+2. In production, start with a small pilot group only:
+   - one `CMS Administrator`
+   - one `CMS Publisher`
+   - one or two `CMS Editor` users
+3. Confirm the verification checklist below for that pilot group.
+4. Expand onboarding only after the pilot users can sign in, receive the expected Directus roles, and complete a normal draft-review-publish flow without permission issues.
+
+Keep the break-glass Directus local admin separate from Keycloak users and use it only for recovery or diagnostics, not for day-to-day editing.
+
 ## What Editors Can Do
 
 The bootstrap script grants `CMS Editor` access only to the CMS collection allowlist from `DIRECTUS_CMS_CONTENT_COLLECTIONS` plus file/folder management:
@@ -157,11 +173,13 @@ For permission verification, the current bootstrap source of truth is [directus-
 
 Production onboarding should follow the same identity model:
 
-1. Create the user in the production Keycloak realm.
-2. Mark the email verified if your policy requires it.
-3. Grant exactly one mapped realm role: `manager`, `publisher`, or `admin`.
-4. Ensure production Directus has the matching `AUTH_KEYCLOAK_ROLE_MAPPING` and seeded Directus roles/policies.
-5. Have the user sign in through the production Directus Keycloak login.
+1. Start with the pilot rollout above, not the full editor roster.
+2. Create the user in the production Keycloak realm.
+3. Mark the email verified if your policy requires it.
+4. Grant exactly one mapped realm role: `manager`, `publisher`, or `admin`.
+5. Ensure production Directus has the matching `AUTH_KEYCLOAK_ROLE_MAPPING` and seeded Directus roles/policies.
+6. Have the user sign in through the production Directus Keycloak login.
+7. Verify the user receives the expected Directus role and can perform only the expected actions before onboarding the next user group.
 
 Adding a user does not require a new deployment if:
 
@@ -176,6 +194,7 @@ If the user can log in to Keycloak but lands in Directus without the expected ri
 - check that the user has only one mapped realm role
 - check `AUTH_KEYCLOAK_ROLE_MAPPING` in the Directus runtime env
 - rerun [directus-sso-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-sso-bootstrap.sh) if roles or permissions drifted
+- use the break-glass Directus local admin only to inspect or repair access, not to bypass the intended editor/publisher role model
 
 If the user cannot log in to Directus at all:
 
