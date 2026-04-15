@@ -26,6 +26,7 @@ The metrics, alerts, dashboards, and log-search contract are documented in [dire
 | `DIRECTUS_BASE_URL` | backend | `http://localhost:8055` | Base URL for the Directus instance the backend should call. |
 | `DIRECTUS_PUBLIC_URL` | backend + Directus | `https://cms.example.com` | Browser-reachable Directus origin used when backend CMS payloads emit `/assets/{id}` media URLs. If `DIRECTUS_BASE_URL` is private/internal, this must still be public. |
 | `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Effectively required for preview/draft reads and for published media metadata enrichment (`/files` width/height/type lookup) unless you intentionally expose Directus file metadata publicly. Keep it in local/prod env only. Never commit it. |
+| `DIRECTUS_BRIDGE_TOKEN` | backend + Directus | unset in repo | Shared secret used by the Directus operator extensions when they call `/internal/directus/catalogue/**`. Keep it in env/secret storage only. |
 | `DIRECTUS_CACHE_TTL` | backend | `PT5M` | Optional Redis TTL for CMS facade responses. Defaults to 5 minutes. Set `PT0S` to disable the cache. |
 | `DIRECTUS_CACHE_STALE_TTL` | backend | `PT1H` | Optional stale published-content fallback TTL. If the active cache entry expires and Directus is unavailable, the backend can still serve the last good payload until this window expires. Set `PT0S` to disable the stale tier. |
 | `DIRECTUS_CACHE_KEY_PREFIX` | backend | `cms:content` | Redis key prefix for backend CMS cache entries. |
@@ -85,6 +86,9 @@ These are used only by the local Directus stack:
 | `DIRECTUS_STORAGE_S3_ENDPOINT` | `http://storage:9000` | Internal endpoint used by the Directus container to reach MinIO. |
 | `DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE` | `true` | Required for the local MinIO endpoint. |
 | `DIRECTUS_STORAGE_PUBLIC_BASE_URL` | `http://localhost:9000/directus` | Optional raw object URL base for local bucket access. |
+| `DIRECTUS_STOREFRONT_OPS_BACKEND_URL` | `http://host.docker.internal:8080` | Backend base URL used by the local Directus operator endpoint extension. |
+| `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS` | `<cms-admin-role-id>,<catalogue-operator-role-id>` | Directus role ids allowed to use catalogue-management bridge routes in the operator module. |
+| `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS` | `<cms-admin-role-id>,<inventory-operator-role-id>` | Directus role ids allowed to use variant/inventory bridge routes in the operator module. |
 
 The helper script `scripts/dev-infra-up.sh` auto-creates `keycloak/.env` and `directus/.env` from their matching `.env.example` files when they are missing.
 
@@ -97,7 +101,7 @@ The committed Directus schema snapshot lives at `directus/schema/schema.snapshot
 - `scripts/directus-storage-smoke-test.sh` to verify upload and asset delivery through the configured Directus storage path
 - `scripts/directus-content-audit.js` to fail on missing media alt fallbacks, broken asset references, and incomplete required CMS URL pairs
 
-The helper script `scripts/dev-infra-up.sh` applies the committed schema snapshot automatically on local startup.
+The helper script `scripts/dev-infra-up.sh` applies the committed schema snapshot automatically on local startup. It also rebuilds the committed Directus operator runtime extensions before the Directus container starts.
 
 The helper script `scripts/directus-published-at-bootstrap.sh` creates the DB trigger that stamps `published_at` when governed content enters `published` and clears it when content leaves `published`.
 
@@ -108,6 +112,8 @@ The helper script `scripts/keycloak-upsert-cms-user.sh` provides a repeatable lo
 The helper script `scripts/directus-content-model-bootstrap.sh` now acts as a compatibility wrapper around `scripts/directus-schema-apply.sh`.
 
 The Directus schema tooling validates the committed snapshot against `DIRECTUS_CMS_CONTENT_COLLECTIONS` before it is written, checked, or applied. If someone adds commerce collections such as catalog, order, payment, stock, or shipment tables to the snapshot, the command fails fast.
+
+The Directus operator extensions live in `directus/extensions/` as source packages and build into the committed runtime folder `directus/runtime-extensions/`, which is what the local and production Compose files mount at `/directus/extensions`.
 
 ## Database Isolation Bootstrap
 
@@ -134,6 +140,8 @@ The phase-1 content schema expects every public CMS collection to include:
 - Keycloak realm role `admin` -> Directus role `CMS Administrator`
 - Keycloak realm role `manager` -> Directus role `CMS Editor`
 - Keycloak realm role `publisher` -> Directus role `CMS Publisher`
+- Keycloak realm role `catalogue_operator` -> Directus role `Catalogue Operator`
+- Keycloak realm role `inventory_operator` -> Directus role `Inventory Operator`
 
 For predictable onboarding, grant exactly one of those mapped realm roles to a Directus user.
 
@@ -205,7 +213,7 @@ Use the same Directus auth model in production, but with production hostnames, a
 | `AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL` | `true` | Keeps unverified Keycloak users out of Directus. |
 | `AUTH_KEYCLOAK_SYNC_USER_INFO` | `true` | Keeps Directus user names and email aligned with Keycloak. |
 | `AUTH_KEYCLOAK_GROUP_CLAIM_NAME` | `groups` | Claim used for realm-role-to-Directus-role mapping. |
-| `AUTH_KEYCLOAK_ROLE_MAPPING` | `json:{"admin":"<cms-admin-role-id>","manager":"<cms-editor-role-id>","publisher":"<cms-publisher-role-id>"}` | Directus role mapping order matters because Directus assigns only one role per user. |
+| `AUTH_KEYCLOAK_ROLE_MAPPING` | `json:{"admin":"<cms-admin-role-id>","manager":"<cms-editor-role-id>","publisher":"<cms-publisher-role-id>","catalogue_operator":"<catalogue-operator-role-id>","inventory_operator":"<inventory-operator-role-id>"}` | Include operator-role mappings when the Directus storefront bridge module is enabled. |
 | `AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST` | deployment-specific | Optional. Add external post-login redirect targets outside the Directus domain if you need them later. |
 
 For production, Directus should keep a separate break-glass local admin email/password from the Keycloak editor/admin identities, just like the local setup does.
@@ -224,6 +232,9 @@ The production compose file also reads:
 | `DIRECTUS_DATA_CACHE_STORE` | `redis` | Use Redis rather than Directus in-memory cache for production stability. |
 | `DIRECTUS_DATA_CACHE_STATUS_HEADER` | `X-Directus-Cache` | Optional debugging header to confirm Directus cache hits/misses in staging or production. |
 | `DIRECTUS_REDIS_URL` | `redis://redis:6379` | Directus Redis cache connection string for the production compose stack. |
+| `DIRECTUS_STOREFRONT_OPS_BACKEND_URL` | `http://api:8080` | Internal backend base URL used by the Directus operator endpoint extension in staging/production. |
+| `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS` | `<cms-admin-role-id>,<catalogue-operator-role-id>` | Directus role ids allowed to use catalogue bridge routes. |
+| `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS` | `<cms-admin-role-id>,<inventory-operator-role-id>` | Directus role ids allowed to use variant/inventory bridge routes. |
 | `API_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh` and remote monitoring. Defaults to `http://127.0.0.1:8080/health/redis`. |
 | `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh`. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health` when `DIRECTUS_PUBLIC_URL` is set. |
 | `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional backend CMS facade probe, for example `https://<backend-host>/content/navigation?placement=footer`. |
@@ -258,9 +269,13 @@ The backend content module currently exposes these public read endpoints:
 - `GET /content/navigation`
 - `GET /content/navigation?placement=footer`
 - `GET /content/pages/{slug}`
+- `GET /content/collections/{key}`
 - `GET /content/preview/site-settings`
 - `GET /content/preview/navigation`
 - `GET /content/preview/pages/{slug}`
+- `GET /content/preview/collections/{key}`
+- `GET /content/preview/catalogue/products/{productKey}`
+- `GET /content/preview/catalogue/categories/{categoryKey}`
 
 Current behavior:
 
@@ -272,9 +287,10 @@ Current behavior:
 - Maintains a stale published-content fallback tier in Redis so expired CMS entries can survive short Directus outages
 - Emits media asset URLs from `DIRECTUS_PUBLIC_URL/assets/{id}` so browser-facing content does not depend on the backend’s internal Directus origin
 - Emits `Cache-Control` on public `/content/*` responses using `DIRECTUS_RESPONSE_CACHE_*` and marks preview routes `private, no-store`
-- Uses these cache keys by default: `cms:content:site-settings`, `cms:content:navigation:all`, `cms:content:navigation:<placement>`, `cms:content:page:<slug>`
+- Uses these cache keys by default: `cms:content:site-settings`, `cms:content:navigation:all`, `cms:content:navigation:<placement>`, `cms:content:page:<slug>`, `cms:content:collection:<key>`
 - Supports admin-only manual invalidation through `POST /admin/content/cache/invalidate`
 - Requires Keycloak-authenticated privileged roles for `GET /content/preview/**`; public routes remain published-only
+- Extends public product/category responses with a nested `presentation` object sourced from `product_overlay` and `category_overlay` without moving commerce ownership into Directus
 
 ## CORS Note
 

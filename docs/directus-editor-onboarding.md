@@ -1,6 +1,6 @@
 # Directus Editor Onboarding
 
-This document defines the supported process for adding a new CMS editor, publisher, or administrator through Keycloak and letting Directus provision the user through SSO.
+This document defines the supported process for adding a new CMS editor, publisher, administrator, or storefront-operations operator through Keycloak and letting Directus provision the user through SSO.
 
 Training and editor-facing usage references:
 
@@ -24,6 +24,8 @@ Keycloak realm roles map to Directus roles through `AUTH_KEYCLOAK_ROLE_MAPPING`.
 | `manager` | `CMS Editor` | Draft author / content editor |
 | `publisher` | `CMS Publisher` | Reviewer / approver |
 | `admin` | `CMS Administrator` | Platform owner / CMS admin |
+| `catalogue_operator` | `Catalogue Operator` | Backend-owned product/category/brand operator |
+| `inventory_operator` | `Inventory Operator` | Variant/price/stock operator |
 
 Important:
 
@@ -42,6 +44,8 @@ Recommended rollout order:
    - one `CMS Administrator`
    - one `CMS Publisher`
    - one or two `CMS Editor` users
+   - one `Catalogue Operator` if the operator module is enabled
+   - one `Inventory Operator` if the operator module is enabled
 3. Confirm the verification checklist below for that pilot group.
 4. Expand onboarding only after the pilot users can sign in, receive the expected Directus roles, and complete a normal draft-review-publish flow without permission issues.
 
@@ -97,6 +101,8 @@ Use this when you want to add a user manually in Keycloak Admin Console.
    - `manager` for a normal editor
    - `publisher` for a reviewer/publisher
    - `admin` for a Directus administrator
+   - `catalogue_operator` for backend catalogue operations in the Directus operator module
+   - `inventory_operator` for variant and stock operations in the Directus operator module
 7. Remove any other mapped realm roles from that user if they were assigned previously.
 8. Have the user open [http://localhost:8055](http://localhost:8055) and click the `Keycloak` login button.
 9. On first login, Directus provisions the user automatically and assigns the mapped Directus role.
@@ -153,18 +159,20 @@ The helper script:
 
 After onboarding a user, verify:
 
-1. Keycloak user exists in realm `cozyhome` with exactly one mapped realm role among `manager`, `publisher`, `admin`.
+1. Keycloak user exists in realm `cozyhome` with exactly one mapped realm role among `manager`, `publisher`, `admin`, `catalogue_operator`, `inventory_operator`.
 2. The user can sign in to Directus through the `Keycloak` button.
 3. The Directus user record is created with provider `keycloak`.
 4. The user receives the expected Directus role:
    - `manager` -> `CMS Editor`
    - `publisher` -> `CMS Publisher`
    - `admin` -> `CMS Administrator`
+   - `catalogue_operator` -> `Catalogue Operator`
+   - `inventory_operator` -> `Inventory Operator`
 5. A `CMS Editor` can edit CMS collections in the allowlist but cannot publish, archive, manage schema, or change security settings.
 
 For permission verification, the current bootstrap source of truth is [directus-sso-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-sso-bootstrap.sh). It seeds:
 
-- role-policy junctions for `CMS Editor`, `CMS Publisher`, and `CMS Administrator`
+- role-policy junctions for `CMS Editor`, `CMS Publisher`, `CMS Administrator`, `Catalogue Operator`, and `Inventory Operator`
 - file/folder permissions
 - collection permissions only for `DIRECTUS_CMS_CONTENT_COLLECTIONS`
 - public read filters only for `DIRECTUS_CMS_PUBLIC_COLLECTIONS`
@@ -176,7 +184,7 @@ Production onboarding should follow the same identity model:
 1. Start with the pilot rollout above, not the full editor roster.
 2. Create the user in the production Keycloak realm.
 3. Mark the email verified if your policy requires it.
-4. Grant exactly one mapped realm role: `manager`, `publisher`, or `admin`.
+4. Grant exactly one mapped realm role: `manager`, `publisher`, `admin`, `catalogue_operator`, or `inventory_operator`.
 5. Ensure production Directus has the matching `AUTH_KEYCLOAK_ROLE_MAPPING` and seeded Directus roles/policies.
 6. Have the user sign in through the production Directus Keycloak login.
 7. Verify the user receives the expected Directus role and can perform only the expected actions before onboarding the next user group.

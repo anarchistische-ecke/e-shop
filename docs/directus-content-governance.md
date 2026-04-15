@@ -18,6 +18,12 @@ The current governance bootstrap targets the approved phase-1 collection ids:
 - `legal_documents`
 - `banner`
 - `post`
+- `product_overlay`
+- `category_overlay`
+- `catalogue_overlay_block`
+- `catalogue_overlay_block_item`
+- `storefront_collection`
+- `storefront_collection_item`
 
 `post` is optional for phase 1, but the permission baseline allows for it so it can be added without redefining roles.
 
@@ -113,6 +119,45 @@ Allowed actions:
 - Full Directus administration
 - Access control, schema, flows, settings, and integrations
 
+### Catalogue Operator
+
+- Directus role: `Catalogue Operator`
+- Directus policy: `Catalogue Operator Policy`
+- Intended users: operators managing backend-owned products, categories, brands, and merchandising bridge reads through the Directus operator module
+- Studio access: yes
+- Admin/settings access: no
+
+Allowed actions:
+
+- use the `Storefront Ops` Directus module
+- read backend-owned catalogue entities through the bridge
+- create, update, and delete backend-owned products, categories, and brands through the bridge
+
+Not allowed:
+
+- manage Directus schema or security
+- publish CMS content unless separately mapped to a publisher/admin role
+
+### Inventory Operator
+
+- Directus role: `Inventory Operator`
+- Directus policy: `Inventory Operator Policy`
+- Intended users: operators responsible for variants, pricing, stock changes, and idempotent inventory adjustments
+- Studio access: yes
+- Admin/settings access: no
+
+Allowed actions:
+
+- use the `Storefront Ops` Directus module
+- read backend-owned catalogue entities needed for variant/inventory work
+- create and update product variants through the bridge
+- apply inventory adjustments through the bridge
+
+Not allowed:
+
+- manage Directus schema or security
+- change CMS publication state unless separately mapped to a publisher/admin role
+
 ### Public Access
 
 Directus has a built-in public policy. It must remain deny-by-default except for explicitly public CMS collections.
@@ -130,7 +175,7 @@ This keeps drafts and review-stage content out of anonymous API access.
 The local governance bootstrap scripts [directus-published-at-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-published-at-bootstrap.sh) and [directus-sso-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-sso-bootstrap.sh) enforce this baseline by:
 
 - creating the `published_at` database trigger across the governed public collection set
-- seeding `CMS Editor`, `CMS Publisher`, and `CMS Administrator`
+- seeding `CMS Editor`, `CMS Publisher`, `CMS Administrator`, `Catalogue Operator`, and `Inventory Operator`
 - seeding matching Directus policies and role-policy junctions
 - granting least-privilege system-collection access for files and folders
 - granting editor and publisher permissions across the configured CMS collection allowlist
@@ -142,7 +187,7 @@ The full process and editor/publisher responsibilities are documented in [direct
 
 ## Review Notes
 
-- The current local Keycloak realm maps `admin` to `CMS Administrator`, `manager` to `CMS Editor`, and `publisher` to `CMS Publisher`.
+- The current local Keycloak realm maps `admin` to `CMS Administrator`, `manager` to `CMS Editor`, `publisher` to `CMS Publisher`, `catalogue_operator` to `Catalogue Operator`, and `inventory_operator` to `Inventory Operator`.
 - Grant exactly one of the mapped Keycloak realm roles to a Directus user so the assigned Directus role stays deterministic.
 - Keep the break-glass Directus local admin separate from Keycloak identities.
 - Treat `legal_documents`, site-wide seller/contact details in `site_settings`, and any pricing or offer disclaimer copy as sensitive content. Those changes should always go through `in_review`, publisher approval, and a preview or staging check before publication.

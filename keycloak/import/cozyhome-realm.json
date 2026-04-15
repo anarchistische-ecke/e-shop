@@ -26,6 +26,12 @@
         "name": "publisher"
       },
       {
+        "name": "catalogue_operator"
+      },
+      {
+        "name": "inventory_operator"
+      },
+      {
         "name": "customer"
       }
     ]
@@ -204,6 +210,42 @@
       ],
       "realmRoles": [
         "customer"
+      ]
+    },
+    {
+      "username": "catalogue@example.com",
+      "email": "catalogue@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Catalogue",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Catalogue123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "catalogue_operator"
+      ]
+    },
+    {
+      "username": "inventory@example.com",
+      "email": "inventory@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Inventory",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Inventory123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "inventory_operator"
       ]
     }
   ]

@@ -1,11 +1,13 @@
 package com.example.api.config;
 
+import com.example.api.catalog.DirectusBridgeUnauthorizedException;
 import com.example.api.content.ContentNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -38,6 +40,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleContentNotFound(ContentNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
                 new ApiError("CONTENT_NOT_FOUND", ex.getMessage(), true, List.of())
+        );
+    }
+
+    @ExceptionHandler(DirectusBridgeUnauthorizedException.class)
+    public ResponseEntity<ApiError> handleBridgeUnauthorized(DirectusBridgeUnauthorizedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                new ApiError("DIRECTUS_BRIDGE_UNAUTHORIZED", ex.getMessage(), true, List.of())
+        );
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                new ApiError("ACCESS_DENIED", ex.getMessage(), true, List.of())
         );
     }
 

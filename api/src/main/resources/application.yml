@@ -16,5 +16,7 @@ management:
         cms.directus.request: true
 
 app:
+  security:
+    directus-bridge-token: ${DIRECTUS_BRIDGE_TOKEN:}
   observability:
     prometheus-token: ${APP_OBSERVABILITY_PROMETHEUS_TOKEN:}

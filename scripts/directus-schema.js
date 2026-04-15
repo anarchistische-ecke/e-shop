@@ -17,6 +17,12 @@ const DEFAULT_CMS_COLLECTIONS = [
   'legal_documents',
   'banner',
   'post',
+  'product_overlay',
+  'category_overlay',
+  'catalogue_overlay_block',
+  'catalogue_overlay_block_item',
+  'storefront_collection',
+  'storefront_collection_item',
 ];
 const FORBIDDEN_COMMERCE_COLLECTIONS = [
   'brand',

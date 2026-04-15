@@ -1,6 +1,6 @@
 # Directus Content Model Specification
 
-This document defines the approved phase-1 Directus schema for the Cozyhome CMS surface.
+This document defines the approved phase-1 Directus schema for the Cozyhome CMS surface, including storefront merchandising overlays for the backend-owned catalogue.
 
 ## Modeling Decision
 
@@ -46,11 +46,17 @@ Primary collections:
 - `legal_documents`
 - `banner`
 - `post` (optional)
+- `product_overlay`
+- `category_overlay`
+- `storefront_collection`
 
 Support collections:
 
 - `navigation_items`
 - `page_section_items`
+- `catalogue_overlay_block`
+- `catalogue_overlay_block_item`
+- `storefront_collection_item`
 
 ## Relationship Summary
 
@@ -63,6 +69,60 @@ Support collections:
 - `page_sections.faqs` -> M2M `faq`
 - `page_sections.legal_documents` -> M2M `legal_documents`
 - `page_sections.posts` -> M2M `post`
+- `product_overlay.blocks` -> O2M `catalogue_overlay_block`
+- `category_overlay.blocks` -> O2M `catalogue_overlay_block`
+- `catalogue_overlay_block.items` -> O2M `catalogue_overlay_block_item`
+- `storefront_collection.rules` -> O2M `storefront_collection_item`
+
+## Catalogue Overlay Layer
+
+These collections let Directus run storefront merchandising without becoming the source of truth for commerce entities.
+
+Source-of-truth rule:
+
+- products, categories, brands, variants, prices, stock, commerce images, tree structure, slugs, and active flags stay backend-owned
+- Directus stores only presentation overlays and curated collection definitions keyed by backend slugs
+
+### `product_overlay`
+
+- unique `product_key`
+- `status` and `published_at`
+- SEO fields, badge/ribbon text, marketing title/subtitle, intro body
+- optional hero media and linked storefront collection keys
+
+### `category_overlay`
+
+- unique `category_key`
+- the same presentation fields as `product_overlay`
+- optional editorial hero image that does not replace backend category image ownership
+
+### `catalogue_overlay_block`
+
+- `owner_kind` enum: `product`, `category`
+- `owner_key`: backend slug for that owner
+- `section_type` enum: `hero`, `rich_text`, `feature_list`, `banner_group`, `collection_teaser`, `product_reference_list`, `category_reference_list`
+- the same typed content fields used by `page_sections`
+
+### `catalogue_overlay_block_item`
+
+- relation to `catalogue_overlay_block`
+- the same basic title/body/link/image pattern used in `page_section_items`
+
+### `storefront_collection`
+
+- unique `key`
+- `mode` enum: `manual`, `backend_rule`, `hybrid`
+- `rule_type` enum: `new`, `bestsellers`, `category`, `brand`, `sale`
+- optional `category_key`, `brand_key`, `limit`, and `sort_mode`
+- editorial title/description/hero/SEO/CTA fields
+
+### `storefront_collection_item`
+
+- relation to `storefront_collection`
+- `entity_kind` enum: `product`, `category`
+- `entity_key`: backend slug
+- `behavior` enum: `pin`, `exclude`
+- `sort` for deterministic pin order
 
 ## Collection Specs
 

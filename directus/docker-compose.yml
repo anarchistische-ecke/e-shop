@@ -68,6 +68,7 @@ services:
       - "8055:8055"
     extra_hosts:
       - "keycloak.lvh.me:host-gateway"
+      - "host.docker.internal:host-gateway"
     environment:
       KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in directus/.env}
       SECRET: ${DIRECTUS_SECRET:?Set DIRECTUS_SECRET in directus/.env}
@@ -87,7 +88,7 @@ services:
       AUTH_KEYCLOAK_GROUP_CLAIM_NAME: ${DIRECTUS_AUTH_KEYCLOAK_GROUP_CLAIM_NAME:-groups}
       AUTH_KEYCLOAK_LABEL: ${DIRECTUS_AUTH_KEYCLOAK_LABEL:-Keycloak}
       AUTH_KEYCLOAK_ICON: ${DIRECTUS_AUTH_KEYCLOAK_ICON:-vpn_key}
-      AUTH_KEYCLOAK_ROLE_MAPPING: 'json:{"admin":"${DIRECTUS_ROLE_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}","manager":"${DIRECTUS_ROLE_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002}","publisher":"${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}"}'
+      AUTH_KEYCLOAK_ROLE_MAPPING: 'json:{"admin":"${DIRECTUS_ROLE_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}","manager":"${DIRECTUS_ROLE_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002}","publisher":"${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}","catalogue_operator":"${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}","inventory_operator":"${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}"}'
       DB_CLIENT: pg
       DB_HOST: database
       DB_PORT: 5432
@@ -108,13 +109,16 @@ services:
       STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-us-east-1}
       STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-http://storage:9000}
       STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-true}
+      STOREFRONT_OPS_BACKEND_URL: ${DIRECTUS_STOREFRONT_OPS_BACKEND_URL:-http://host.docker.internal:8080}
+      STOREFRONT_OPS_BACKEND_TOKEN: ${DIRECTUS_BRIDGE_TOKEN:-local-directus-bridge-token}
+      STOREFRONT_OPS_CATALOGUE_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}
+      STOREFRONT_OPS_INVENTORY_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}
       WEBSOCKETS_ENABLED: "true"
     volumes:
-      - directus-extensions:/directus/extensions
+      - ./runtime-extensions:/directus/extensions:ro
       - directus-templates:/directus/templates
 
 volumes:
   directus-db-data:
   directus-object-storage:
-  directus-extensions:
   directus-templates:

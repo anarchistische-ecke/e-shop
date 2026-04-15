@@ -1,5 +1,6 @@
 package com.example.api.catalog;
 
+import com.example.api.content.CatalogueContentModels;
 import com.example.catalog.domain.Category;
 import com.example.catalog.service.CatalogService;
 import jakarta.validation.Valid;
@@ -21,17 +22,33 @@ public class CategoryController {
 
     private final CatalogService catalogService;
     private final CategoryImageStorageService categoryImageStorageService;
+    private final CatalogueResponseFactory responseFactory;
+    private final CataloguePresentationService presentationService;
 
     @Autowired
-    public CategoryController(CatalogService catalogService, CategoryImageStorageService categoryImageStorageService) {
+    public CategoryController(
+            CatalogService catalogService,
+            CategoryImageStorageService categoryImageStorageService,
+            CatalogueResponseFactory responseFactory,
+            CataloguePresentationService presentationService
+    ) {
         this.catalogService = catalogService;
         this.categoryImageStorageService = categoryImageStorageService;
+        this.responseFactory = responseFactory;
+        this.presentationService = presentationService;
     }
 
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> listCategories() {
+        var presentations = presentationService.buildPublishedCategoryPresentationResults(catalogService.listAllInCategory());
         List<CategoryResponse> categories = catalogService.listAllInCategory().stream()
-                .map(CategoryController::toResponse)
+                .map(category -> responseFactory.toCategoryResponse(
+                        category,
+                        presentations.getOrDefault(
+                                category.getSlug() != null ? category.getSlug().trim().toLowerCase() : null,
+                                presentationService.buildPublishedCategoryPresentation(category)
+                        ).presentation()
+                ))
                 .toList();
         return ResponseEntity.ok(categories);
     }
@@ -40,14 +57,18 @@ public class CategoryController {
     public ResponseEntity<CategoryResponse> getCategoryBySlug(@PathVariable String slug) {
         Category category = catalogService.getBySlug(slug)
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + slug));
-        return ResponseEntity.ok(toResponse(category));
+        return ResponseEntity.ok(
+                responseFactory.toCategoryResponse(category, presentationService.buildPublishedCategoryPresentation(category).presentation())
+        );
     }
 
     @GetMapping("/id/{id}")
     public ResponseEntity<CategoryResponse> getCategoryById(@PathVariable UUID id) {
         Category category = catalogService.getByCategoryId(id)
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
-        return ResponseEntity.ok(toResponse(category));
+        return ResponseEntity.ok(
+                responseFactory.toCategoryResponse(category, presentationService.buildPublishedCategoryPresentation(category).presentation())
+        );
     }
 
     @PostMapping
@@ -68,7 +89,9 @@ public class CategoryController {
             category.setImageUrl(request.getImageUrl());
         }
         Category created = catalogService.create(category);
-        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(created));
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                responseFactory.toCategoryResponse(created, presentationService.buildPublishedCategoryPresentation(created).presentation())
+        );
     }
 
     @PutMapping("/{id}")
@@ -91,7 +114,9 @@ public class CategoryController {
             updates.setImageUrl(request.getImageUrl());
         }
         Category updated = catalogService.update(id, updates);
-        return ResponseEntity.ok(toResponse(updated));
+        return ResponseEntity.ok(
+                responseFactory.toCategoryResponse(updated, presentationService.buildPublishedCategoryPresentation(updated).presentation())
+        );
     }
 
     @PostMapping(value = "/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -104,28 +129,15 @@ public class CategoryController {
                 .orElseThrow(() -> new IllegalArgumentException("Category not found: " + id));
         var stored = categoryImageStorageService.upload(id, file);
         Category updated = catalogService.updateCategoryImage(id, stored.url());
-        return ResponseEntity.ok(toResponse(updated));
+        return ResponseEntity.ok(
+                responseFactory.toCategoryResponse(updated, presentationService.buildPublishedCategoryPresentation(updated).presentation())
+        );
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCategory(@PathVariable UUID id) {
         catalogService.deleteCategory(id);
         return ResponseEntity.noContent().build();
-    }
-
-    private static CategoryResponse toResponse(Category category) {
-        UUID parentId = category.getParent() != null ? category.getParent().getId() : null;
-        return new CategoryResponse(
-                category.getId(),
-                category.getName(),
-                category.getSlug(),
-                category.getDescription(),
-                category.getImageUrl(),
-                parentId,
-                category.getPosition(),
-                category.isIsActive(),
-                category.getFullPath()
-        );
     }
 
     public static class CategoryResponse {
@@ -138,6 +150,7 @@ public class CategoryController {
         private final int position;
         private final boolean isActive;
         private final String fullPath;
+        private final CatalogueContentModels.CataloguePresentation presentation;
 
         public CategoryResponse(
                 UUID id,
@@ -148,7 +161,8 @@ public class CategoryController {
                 UUID parentId,
                 int position,
                 boolean isActive,
-                String fullPath
+                String fullPath,
+                CatalogueContentModels.CataloguePresentation presentation
         ) {
             this.id = id;
             this.name = name;
@@ -159,6 +173,7 @@ public class CategoryController {
             this.position = position;
             this.isActive = isActive;
             this.fullPath = fullPath;
+            this.presentation = presentation;
         }
 
         public UUID getId() {
@@ -195,6 +210,10 @@ public class CategoryController {
 
         public String getFullPath() {
             return fullPath;
+        }
+
+        public CatalogueContentModels.CataloguePresentation getPresentation() {
+            return presentation;
         }
     }
 

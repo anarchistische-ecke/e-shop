@@ -25,6 +25,18 @@ public final class ContentCacheKeys {
         return "page:" + normalizeToken(slug);
     }
 
+    public static String collection(String key) {
+        return "collection:" + normalizeToken(key);
+    }
+
+    public static String productOverlay(String productKey) {
+        return "catalogue:product:" + normalizeToken(productKey);
+    }
+
+    public static String categoryOverlay(String categoryKey) {
+        return "catalogue:category:" + normalizeToken(categoryKey);
+    }
+
     private static String normalizeToken(String value) {
         if (!StringUtils.hasText(value)) {
             throw new IllegalArgumentException("Cache key token is required");

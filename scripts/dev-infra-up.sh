@@ -25,6 +25,9 @@ ensure_env_file() {
 ensure_env_file "$KEYCLOAK_ENV_FILE" "$ROOT_DIR/keycloak/.env.example"
 ensure_env_file "$DIRECTUS_ENV_FILE" "$ROOT_DIR/directus/.env.example"
 
+echo "Building Directus extensions..."
+"$ROOT_DIR/scripts/directus-extensions-build.sh"
+
 echo "Starting postgres + redis..."
 docker compose -f "$ROOT_DIR/docker-compose.yml" up -d postgres redis
 

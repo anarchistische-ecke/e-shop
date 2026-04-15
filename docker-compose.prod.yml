@@ -107,6 +107,10 @@ services:
       STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-ru-central1}
       STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-https://storage.yandexcloud.net}
       STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-false}
+      STOREFRONT_OPS_BACKEND_URL: ${DIRECTUS_STOREFRONT_OPS_BACKEND_URL:-http://api:8080}
+      STOREFRONT_OPS_BACKEND_TOKEN: ${DIRECTUS_BRIDGE_TOKEN:?Set DIRECTUS_BRIDGE_TOKEN in the deployment .env}
+      STOREFRONT_OPS_CATALOGUE_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS:?Set DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS in the deployment .env}
+      STOREFRONT_OPS_INVENTORY_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS:?Set DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS in the deployment .env}
       WEBSOCKETS_ENABLED: "true"
     healthcheck:
       test:
@@ -120,7 +124,7 @@ services:
       timeout: 5s
       retries: 10
     volumes:
-      - directus-extensions:/directus/extensions
+      - ./directus/runtime-extensions:/directus/extensions:ro
       - directus-templates:/directus/templates
       - ./directus:/opt/directus-deploy/directus:ro
       - ./scripts:/opt/directus-deploy/scripts:ro
@@ -128,5 +132,4 @@ services:
 volumes:
   redisdata:
   pgdata:
-  directus-extensions:
   directus-templates:

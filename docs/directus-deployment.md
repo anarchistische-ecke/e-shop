@@ -63,6 +63,7 @@ That script performs these steps:
 6. Apply the committed Directus schema snapshot from `directus/schema/schema.snapshot.json`
 7. Run `scripts/directus-published-at-bootstrap.sh`
 8. Run `scripts/check-stack-health.sh`
+9. Load the committed Directus operator runtime extensions from `directus/runtime-extensions/`
 
 This keeps Directus core upgrades, schema drift control, publish-timestamp automation, and app deployment on one path.
 
@@ -120,6 +121,10 @@ The compose file now expects these Directus deployment variables in the target s
 - `DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET`
 - `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL`
 - `DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING`
+- `DIRECTUS_BRIDGE_TOKEN`
+- `DIRECTUS_STOREFRONT_OPS_BACKEND_URL`
+- `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS`
+- `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS`
 - `DIRECTUS_STORAGE_S3_KEY`
 - `DIRECTUS_STORAGE_S3_SECRET`
 - `DIRECTUS_STORAGE_S3_BUCKET`
@@ -167,9 +172,10 @@ Before the first staging or production Directus deploy:
 1. Add the Directus variables to the target server `.env`
 2. Create the dedicated Directus S3 bucket and credentials
 3. Create the Directus Keycloak client and callback URL
-4. Ensure the GitHub Environment secrets point at the correct VM and deploy path
-5. Confirm the target VM can expose Directus on port `8055` or place it behind nginx
-6. Run one successful restore drill with `scripts/directus-db-restore-drill.sh` against a recent Directus backup and record the result
+4. Add the Directus operator bridge token and role-id env values if the `Storefront Ops` module will be enabled
+5. Ensure the GitHub Environment secrets point at the correct VM and deploy path
+6. Confirm the target VM can expose Directus on port `8055` or place it behind nginx
+7. Run one successful restore drill with `scripts/directus-db-restore-drill.sh` against a recent Directus backup and record the result
 
 After the first container deploy:
 

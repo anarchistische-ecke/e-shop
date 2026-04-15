@@ -36,6 +36,12 @@ jobs:
       - name: Validate committed Directus schema snapshot
         run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
 
+      - name: Build Directus extensions
+        run: bash ./scripts/directus-extensions-build.sh
+
+      - name: Verify committed Directus runtime extensions are up to date
+        run: git diff --exit-code -- directus/runtime-extensions
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:

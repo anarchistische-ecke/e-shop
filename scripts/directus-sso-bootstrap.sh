@@ -27,13 +27,19 @@ LEGACY_DIRECTUS_ADMIN_EMAIL="${LEGACY_DIRECTUS_ADMIN_EMAIL:-admin@example.com}"
 DIRECTUS_ROLE_CMS_ADMIN_ID="${DIRECTUS_ROLE_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}"
 DIRECTUS_ROLE_CMS_EDITOR_ID="${DIRECTUS_ROLE_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002}"
 DIRECTUS_ROLE_CMS_PUBLISHER_ID="${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}"
+DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID="${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}"
+DIRECTUS_ROLE_INVENTORY_OPERATOR_ID="${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}"
 DIRECTUS_POLICY_CMS_ADMIN_ID="${DIRECTUS_POLICY_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20001}"
 DIRECTUS_POLICY_CMS_EDITOR_ID="${DIRECTUS_POLICY_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20002}"
 DIRECTUS_POLICY_CMS_PUBLISHER_ID="${DIRECTUS_POLICY_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20003}"
+DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID="${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20004}"
+DIRECTUS_POLICY_INVENTORY_OPERATOR_ID="${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20005}"
 DIRECTUS_ACCESS_CMS_ADMIN_ID="${DIRECTUS_ACCESS_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30001}"
 DIRECTUS_ACCESS_CMS_EDITOR_ID="${DIRECTUS_ACCESS_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30002}"
 DIRECTUS_ACCESS_CMS_PUBLISHER_ID="${DIRECTUS_ACCESS_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30003}"
-DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_settings,navigation,navigation_items,page,page_sections,page_section_items,faq,legal_documents,banner,post}"
+DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID="${DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30004}"
+DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID="${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30005}"
+DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_settings,navigation,navigation_items,page,page_sections,page_section_items,faq,legal_documents,banner,post,product_overlay,category_overlay,catalogue_overlay_block,catalogue_overlay_block_item,storefront_collection,storefront_collection_item}"
 DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-$DIRECTUS_CMS_CONTENT_COLLECTIONS}"
 DIRECTUS_CMS_STATUS_FIELD="${DIRECTUS_CMS_STATUS_FIELD:-status}"
 
@@ -180,7 +186,9 @@ INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_t
 VALUES
   ('${DIRECTUS_POLICY_CMS_ADMIN_ID}', 'CMS Administrator Policy', 'verified', 'Full Directus administration for Keycloak admins.', NULL, false, true, true),
   ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', 'CMS Editor Policy', 'edit', 'Draft authoring and asset management without publish privileges.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', 'CMS Publisher Policy', 'fact_check', 'Review and publication rights for CMS content.', NULL, false, false, true)
+  ('${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', 'CMS Publisher Policy', 'fact_check', 'Review and publication rights for CMS content.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', 'Catalogue Operator Policy', 'inventory_2', 'Backend catalogue operations via the Directus storefront bridge.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Inventory Operator Policy', 'inventory', 'Variant, pricing, and stock operations via the Directus storefront bridge.', NULL, false, false, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -194,7 +202,9 @@ INSERT INTO directus_roles (id, name, icon, description, parent)
 VALUES
   ('${DIRECTUS_ROLE_CMS_ADMIN_ID}', 'CMS Administrator', 'verified_user', 'Role mapped from Keycloak admin users.', NULL),
   ('${DIRECTUS_ROLE_CMS_EDITOR_ID}', 'CMS Editor', 'edit_note', 'Draft authoring role for content editors.', NULL),
-  ('${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', 'CMS Publisher', 'fact_check', 'Reviewer/publisher role for approving and publishing content.', NULL)
+  ('${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', 'CMS Publisher', 'fact_check', 'Reviewer/publisher role for approving and publishing content.', NULL),
+  ('${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID}', 'Catalogue Operator', 'inventory_2', 'Operator role for backend-owned products, categories, brands, and merchandising bridge reads.', NULL),
+  ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Inventory Operator', 'inventory', 'Operator role for variant, price, and stock changes through the backend bridge.', NULL)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -205,7 +215,9 @@ INSERT INTO directus_access (id, role, "user", policy, sort)
 VALUES
   ('${DIRECTUS_ACCESS_CMS_ADMIN_ID}', '${DIRECTUS_ROLE_CMS_ADMIN_ID}', NULL, '${DIRECTUS_POLICY_CMS_ADMIN_ID}', NULL),
   ('${DIRECTUS_ACCESS_CMS_EDITOR_ID}', '${DIRECTUS_ROLE_CMS_EDITOR_ID}', NULL, '${DIRECTUS_POLICY_CMS_EDITOR_ID}', NULL),
-  ('${DIRECTUS_ACCESS_CMS_PUBLISHER_ID}', '${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', NULL, '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', NULL)
+  ('${DIRECTUS_ACCESS_CMS_PUBLISHER_ID}', '${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', NULL, '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', NULL),
+  ('${DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID}', '${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID}', NULL, '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', NULL),
+  ('${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID}', '${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', NULL, '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', NULL)
 ON CONFLICT (id) DO UPDATE SET
   role = EXCLUDED.role,
   "user" = EXCLUDED."user",
