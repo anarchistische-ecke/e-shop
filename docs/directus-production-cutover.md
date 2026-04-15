@@ -22,6 +22,7 @@ Do not start production cutover until all of these are true:
 - production Keycloak client and redirect URL already exist
 - production frontend deployment supports the rollback flags from [directus-rollback-strategy.md](./directus-rollback-strategy.md)
 - a named operator owns the cutover and rollback decision during the window
+- at least one recent Directus backup has passed the non-destructive restore drill in [directus-restore-drill.md](./directus-restore-drill.md)
 
 ## Cutover Modes
 

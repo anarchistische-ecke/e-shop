@@ -6,6 +6,7 @@ Use it together with [directus-deployment.md](./directus-deployment.md).
 For rollback scope selection and frontend flag strategy, use [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 For planned go-live sequencing, use [directus-production-cutover.md](./directus-production-cutover.md).
 For metrics, alerts, and structured log search, use [directus-observability.md](./directus-observability.md).
+For the non-destructive backup-restore rehearsal, use [directus-restore-drill.md](./directus-restore-drill.md).
 
 ## Health Checks
 
@@ -116,6 +117,26 @@ Use this only when the Directus database is the problem and you have a known-goo
    ```
 
 Do not restore the Directus database without validating the corresponding bucket state for uploaded files.
+
+## Restore Drill
+
+Run the restore drill:
+
+- before the first production cutover
+- after material backup/restore script changes
+- after major Directus runtime/schema changes
+- at least quarterly while Directus is production-critical
+
+Preferred non-destructive rehearsal:
+
+```bash
+cd <deploy-path>
+bash ./scripts/directus-db-restore-drill.sh \
+  --env-file .env \
+  --backup-file backups/directus/directus-<timestamp>.sql.gz
+```
+
+This restores the chosen backup into a disposable Postgres container, validates core Directus tables plus the governed CMS tables, and then destroys the container. Record the backup file, date, operator, and result in the incident/change log.
 
 ## Rollback Procedure
 

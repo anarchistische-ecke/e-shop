@@ -6,6 +6,7 @@ Operational incident handling is documented in [directus-operations-runbook.md](
 Rollback decision-making is documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 Go-live sequencing is documented in [directus-production-cutover.md](./directus-production-cutover.md).
 Metrics, alerts, dashboards, and structured-log search are documented in [directus-observability.md](./directus-observability.md).
+Backup restore rehearsal is documented in [directus-restore-drill.md](./directus-restore-drill.md).
 
 ## Deployment Shape
 
@@ -168,6 +169,7 @@ Before the first staging or production Directus deploy:
 3. Create the Directus Keycloak client and callback URL
 4. Ensure the GitHub Environment secrets point at the correct VM and deploy path
 5. Confirm the target VM can expose Directus on port `8055` or place it behind nginx
+6. Run one successful restore drill with `scripts/directus-db-restore-drill.sh` against a recent Directus backup and record the result
 
 After the first container deploy:
 
