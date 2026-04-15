@@ -113,6 +113,7 @@ The compose file now expects these Directus deployment variables in the target s
 - `DIRECTUS_DB_DATABASE`
 - `DIRECTUS_DB_USER`
 - `DIRECTUS_DB_PASSWORD`
+- `DIRECTUS_REDIS_URL` recommended when Directus output cache is enabled
 - `DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID`
 - `DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET`
 - `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL`
@@ -122,6 +123,19 @@ The compose file now expects these Directus deployment variables in the target s
 - `DIRECTUS_STORAGE_S3_BUCKET`
 - `DIRECTUS_STORAGE_S3_REGION`
 - `DIRECTUS_STORAGE_S3_ENDPOINT`
+
+Recommended cache-related variables in the same `.env`:
+
+- `DIRECTUS_CACHE_TTL`
+- `DIRECTUS_CACHE_STALE_TTL`
+- `DIRECTUS_RESPONSE_CACHE_MAX_AGE`
+- `DIRECTUS_RESPONSE_CACHE_STALE_WHILE_REVALIDATE`
+- `DIRECTUS_RESPONSE_CACHE_STALE_IF_ERROR`
+- `DIRECTUS_DATA_CACHE_ENABLED`
+- `DIRECTUS_DATA_CACHE_TTL`
+- `DIRECTUS_DATA_CACHE_AUTO_PURGE`
+- `DIRECTUS_DATA_CACHE_STORE`
+- `DIRECTUS_DATA_CACHE_STATUS_HEADER`
 
 The database-hardening step derives the commerce runtime connection from:
 
@@ -158,8 +172,19 @@ After the first container deploy:
 
 1. Verify `https://<directus-host>/server/health`
 2. Verify Keycloak SSO login
-3. Run the initial content import if the environment is empty
-4. Verify the backend `/content/*` facade against the deployed Directus instance
+3. Run `bash ./scripts/directus-storage-smoke-test.sh --env-file .env`
+4. Run `node ./scripts/directus-content-audit.js --env-file .env`
+5. Run the initial content import if the environment is empty
+6. Verify the backend `/content/*` facade against the deployed Directus instance
+7. Confirm published `/content/*` responses return the expected `Cache-Control` header and preview routes return `private, no-store`
+
+## Residual Infra Dependency
+
+This repo now defines backend Redis TTLs, stale fallback behavior, browser/intermediary `Cache-Control` headers, and optional Directus Redis output caching. One material residual still remains outside the repo-owned stack:
+
+- production should place a CDN or reverse proxy in front of `DIRECTUS_PUBLIC_URL/assets/*` and let it respect Directus asset caching headers
+
+That rule is not implemented in this repo because the production nginx/CDN configuration is managed externally. Until that infra change exists, editorial pages still work, but asset delivery will not get the full latency and cache-hit benefit planned for storefront media.
 
 ## Rollback Notes
 

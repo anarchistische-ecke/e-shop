@@ -18,7 +18,7 @@ Main metrics:
 - `cms_directus_request_errors_total`
   Upstream Directus failures by operation, access mode, and error type
 - `cms_cache_lookup_total`
-  CMS cache hit, miss, bypass, deserialize error, and Redis read error counts
+  CMS cache hit, miss, stale-hit, stale-miss, bypass, deserialize error, and Redis read error counts
 - `cms_cache_write_total`
   CMS cache write success/error counts
 - `cms_cache_invalidation_deleted_keys_*`

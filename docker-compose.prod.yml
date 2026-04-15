@@ -61,6 +61,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8055:8055"
     restart: unless-stopped
@@ -91,6 +93,12 @@ services:
       DB_DATABASE: ${DIRECTUS_DB_DATABASE:?Set DIRECTUS_DB_DATABASE in the deployment .env}
       DB_USER: ${DIRECTUS_DB_USER:?Set DIRECTUS_DB_USER in the deployment .env}
       DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?Set DIRECTUS_DB_PASSWORD in the deployment .env}
+      CACHE_ENABLED: ${DIRECTUS_DATA_CACHE_ENABLED:-true}
+      CACHE_TTL: ${DIRECTUS_DATA_CACHE_TTL:-5m}
+      CACHE_AUTO_PURGE: ${DIRECTUS_DATA_CACHE_AUTO_PURGE:-true}
+      CACHE_STORE: ${DIRECTUS_DATA_CACHE_STORE:-redis}
+      CACHE_STATUS_HEADER: ${DIRECTUS_DATA_CACHE_STATUS_HEADER:-X-Directus-Cache}
+      REDIS: ${DIRECTUS_REDIS_URL:-redis://redis:6379}
       STORAGE_LOCATIONS: ${DIRECTUS_STORAGE_LOCATIONS:-s3}
       STORAGE_S3_DRIVER: ${DIRECTUS_STORAGE_S3_DRIVER:-s3}
       STORAGE_S3_KEY: ${DIRECTUS_STORAGE_S3_KEY:?Set DIRECTUS_STORAGE_S3_KEY in the deployment .env}

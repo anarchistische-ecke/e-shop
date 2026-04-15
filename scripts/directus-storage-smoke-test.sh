@@ -5,14 +5,49 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIRECTUS_DIR="$ROOT_DIR/directus"
 ENV_FILE="$DIRECTUS_DIR/.env"
 
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/directus-storage-smoke-test.sh [--env-file <path>]
+EOF
+}
+
+resolve_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s\n' "$PWD/$1" ;;
+  esac
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      ENV_FILE="$(resolve_path "$2")"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unsupported argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE. Create it from $DIRECTUS_DIR/.env.example first." >&2
+  echo "Missing env file: $ENV_FILE" >&2
   exit 1
 fi
 
 set -a
 . "$ENV_FILE"
 set +a
+
+DIRECTUS_ORIGIN="${DIRECTUS_PUBLIC_URL:-${DIRECTUS_BASE_URL:-}}"
+: "${DIRECTUS_ORIGIN:?Set DIRECTUS_PUBLIC_URL or DIRECTUS_BASE_URL in $ENV_FILE}"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -23,13 +58,18 @@ base64 -d > "$IMAGE_PATH" <<'EOF'
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF6kAAAAASUVORK5CYII=
 EOF
 
-LOGIN_RESPONSE="$(curl -fsS -X POST "${DIRECTUS_PUBLIC_URL}/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${DIRECTUS_ADMIN_EMAIL}\",\"password\":\"${DIRECTUS_ADMIN_PASSWORD}\"}")"
+ACCESS_TOKEN="${DIRECTUS_SCHEMA_ADMIN_TOKEN:-${DIRECTUS_STATIC_TOKEN:-}}"
 
-ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); console.log(data.data.access_token);' "$LOGIN_RESPONSE")"
+if [[ -z "$ACCESS_TOKEN" ]]; then
+  : "${DIRECTUS_ADMIN_EMAIL:?Set DIRECTUS_ADMIN_EMAIL in $ENV_FILE or provide DIRECTUS_SCHEMA_ADMIN_TOKEN}"
+  : "${DIRECTUS_ADMIN_PASSWORD:?Set DIRECTUS_ADMIN_PASSWORD in $ENV_FILE or provide DIRECTUS_SCHEMA_ADMIN_TOKEN}"
+  LOGIN_RESPONSE="$(curl -fsS -X POST "${DIRECTUS_ORIGIN}/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"${DIRECTUS_ADMIN_EMAIL}\",\"password\":\"${DIRECTUS_ADMIN_PASSWORD}\"}")"
+  ACCESS_TOKEN="$(node -e 'const data = JSON.parse(process.argv[1]); console.log(data.data.access_token);' "$LOGIN_RESPONSE")"
+fi
 
-UPLOAD_RESPONSE="$(curl -fsS -X POST "${DIRECTUS_PUBLIC_URL}/files" \
+UPLOAD_RESPONSE="$(curl -fsS -X POST "${DIRECTUS_ORIGIN}/files" \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
   -F "file=@${IMAGE_PATH};type=image/png")"
 
@@ -44,22 +84,30 @@ fi
 
 ASSET_STATUS="$(curl -s -o /dev/null -w '%{http_code}' \
   -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-  "${DIRECTUS_PUBLIC_URL}/assets/${FILE_ID}")"
+  "${DIRECTUS_ORIGIN}/assets/${FILE_ID}")"
 
 if [[ "$ASSET_STATUS" != "200" ]]; then
   echo "Directus asset route returned HTTP ${ASSET_STATUS}." >&2
   exit 1
 fi
 
-RAW_URL="${DIRECTUS_STORAGE_PUBLIC_BASE_URL}/${FILE_DISK_NAME}"
-RAW_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$RAW_URL")"
+RAW_URL=""
+if [[ -n "${DIRECTUS_STORAGE_PUBLIC_BASE_URL:-}" ]]; then
+  RAW_URL="${DIRECTUS_STORAGE_PUBLIC_BASE_URL%/}/${FILE_DISK_NAME}"
+  RAW_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$RAW_URL")"
 
-if [[ "$RAW_STATUS" != "200" ]]; then
-  echo "Raw storage URL returned HTTP ${RAW_STATUS}: ${RAW_URL}" >&2
-  exit 1
+  if [[ "$RAW_STATUS" != "200" ]]; then
+    echo "Raw storage URL returned HTTP ${RAW_STATUS}: ${RAW_URL}" >&2
+    exit 1
+  fi
 fi
 
 echo "Directus storage smoke test passed."
+echo "Canonical asset URL: ${DIRECTUS_ORIGIN%/}/assets/${FILE_ID}"
 echo "File ID: ${FILE_ID}"
 echo "Storage adapter: ${FILE_STORAGE}"
-echo "Raw URL: ${RAW_URL}"
+if [[ -n "$RAW_URL" ]]; then
+  echo "Raw URL: ${RAW_URL}"
+else
+  echo "Raw URL check skipped because DIRECTUS_STORAGE_PUBLIC_BASE_URL is not configured."
+fi

@@ -24,9 +24,14 @@ The metrics, alerts, dashboards, and log-search contract are documented in [dire
 | Variable | Scope | Example | Notes |
 | --- | --- | --- | --- |
 | `DIRECTUS_BASE_URL` | backend | `http://localhost:8055` | Base URL for the Directus instance the backend should call. |
+| `DIRECTUS_PUBLIC_URL` | backend + Directus | `https://cms.example.com` | Browser-reachable Directus origin used when backend CMS payloads emit `/assets/{id}` media URLs. If `DIRECTUS_BASE_URL` is private/internal, this must still be public. |
 | `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Effectively required for preview/draft reads and for published media metadata enrichment (`/files` width/height/type lookup) unless you intentionally expose Directus file metadata publicly. Keep it in local/prod env only. Never commit it. |
 | `DIRECTUS_CACHE_TTL` | backend | `PT5M` | Optional Redis TTL for CMS facade responses. Defaults to 5 minutes. Set `PT0S` to disable the cache. |
+| `DIRECTUS_CACHE_STALE_TTL` | backend | `PT1H` | Optional stale published-content fallback TTL. If the active cache entry expires and Directus is unavailable, the backend can still serve the last good payload until this window expires. Set `PT0S` to disable the stale tier. |
 | `DIRECTUS_CACHE_KEY_PREFIX` | backend | `cms:content` | Redis key prefix for backend CMS cache entries. |
+| `DIRECTUS_RESPONSE_CACHE_MAX_AGE` | backend | `PT1M` | Public `Cache-Control: max-age` for published `/content/*` responses. This is for browser/intermediary caching, separate from the Redis TTL. |
+| `DIRECTUS_RESPONSE_CACHE_STALE_WHILE_REVALIDATE` | backend | `PT5M` | Public `Cache-Control: stale-while-revalidate` for published `/content/*` responses. |
+| `DIRECTUS_RESPONSE_CACHE_STALE_IF_ERROR` | backend | `PT1H` | Public `Cache-Control: stale-if-error` for published `/content/*` responses. |
 | `DIRECTUS_CONNECT_TIMEOUT` | backend | `PT3S` | Optional Directus connect timeout. Defaults to 3 seconds. |
 | `DIRECTUS_READ_TIMEOUT` | backend | `PT5S` | Optional Directus read timeout. Defaults to 5 seconds. |
 
@@ -67,6 +72,12 @@ These are used only by the local Directus stack:
 | `DIRECTUS_DB_DATABASE` | `directus` | Internal Postgres database name for the Directus stack. |
 | `DIRECTUS_DB_USER` | `directus` | Internal Postgres user for the Directus stack. |
 | `DIRECTUS_DB_PASSWORD` | `directus` | Internal Postgres password for the Directus stack. |
+| `DIRECTUS_DATA_CACHE_ENABLED` | `false` | Optional Directus API output cache switch for local testing. Keep disabled locally unless you want to test the extra cache layer. |
+| `DIRECTUS_DATA_CACHE_TTL` | `5m` | Directus output-cache TTL when the local data cache is enabled. |
+| `DIRECTUS_DATA_CACHE_AUTO_PURGE` | `true` | Automatically purges the Directus output cache after content changes. |
+| `DIRECTUS_DATA_CACHE_STORE` | `redis` | Cache driver used by Directus when output caching is enabled. |
+| `DIRECTUS_DATA_CACHE_STATUS_HEADER` | `X-Directus-Cache` | Optional response header name exposing Directus cache `HIT`/`MISS` status. |
+| `DIRECTUS_REDIS_URL` | `redis://cache:6379` | Redis connection string used by Directus when its output cache is enabled. |
 | `DIRECTUS_STORAGE_S3_KEY` | `minioadmin` | Access key used by the local S3-compatible storage service. |
 | `DIRECTUS_STORAGE_S3_SECRET` | `minioadmin123` | Secret key used by the local S3-compatible storage service. |
 | `DIRECTUS_STORAGE_S3_BUCKET` | `directus` | Bucket created automatically for local Directus uploads. |
@@ -83,6 +94,8 @@ The committed Directus schema snapshot lives at `directus/schema/schema.snapshot
 - `scripts/directus-schema-check.sh` to detect drift between a running instance and the committed snapshot
 - `scripts/directus-schema-apply.sh` to apply the committed snapshot to a running Directus instance
 - `scripts/directus-content-import.sh` to upsert the initial editorial dataset from the committed seed files
+- `scripts/directus-storage-smoke-test.sh` to verify upload and asset delivery through the configured Directus storage path
+- `scripts/directus-content-audit.js` to fail on missing media alt fallbacks, broken asset references, and incomplete required CMS URL pairs
 
 The helper script `scripts/dev-infra-up.sh` applies the committed schema snapshot automatically on local startup.
 
@@ -162,6 +175,17 @@ Recommended production values:
 
 If you want raw bucket URLs in production, Yandex Object Storage documents both the base endpoint `https://storage.yandexcloud.net` and DNS-style bucket hostnames such as `https://<bucket>.storage.yandexcloud.net/<key>`. Choose the exact access style during deployment based on your bucket naming and access policy.
 
+## Public Asset URL Strategy
+
+Use one canonical browser-facing asset strategy for CMS content:
+
+- backend CMS payloads should emit `DIRECTUS_PUBLIC_URL/assets/{id}` URLs
+- `DIRECTUS_BASE_URL` is the backend-to-Directus upstream origin and may be private or internal
+- `DIRECTUS_STORAGE_PUBLIC_BASE_URL` is optional for storage smoke checks or low-level debugging and should not be treated as the normal storefront media URL source
+- place a CDN or reverse proxy in front of `DIRECTUS_PUBLIC_URL/assets/*` in production and let it respect the `Cache-Control`/`Last-Modified` headers Directus returns for `/assets`
+
+This keeps the storefront media contract stable even when the backend reaches Directus over a different network path than the browser does.
+
 ## Directus SSO Production Variables
 
 Use the same Directus auth model in production, but with production hostnames, a production Keycloak client, and production role IDs:
@@ -192,6 +216,12 @@ The production compose file also reads:
 | --- | --- | --- |
 | `DIRECTUS_VERSION` | `11.17.2` | Keep the production Directus image pinned to the tested repo version. |
 | `DIRECTUS_SCHEMA_ADMIN_TOKEN` | unset in repo | Recommended for staging/production schema automation, especially if `AUTH_DISABLE_DEFAULT=true`. |
+| `DIRECTUS_DATA_CACHE_ENABLED` | `true` | Recommended in production. Enables Directus's own output cache for repeated upstream reads. |
+| `DIRECTUS_DATA_CACHE_TTL` | `5m` | Directus output-cache TTL in production. |
+| `DIRECTUS_DATA_CACHE_AUTO_PURGE` | `true` | Keeps Directus cache freshness acceptable after content changes. |
+| `DIRECTUS_DATA_CACHE_STORE` | `redis` | Use Redis rather than Directus in-memory cache for production stability. |
+| `DIRECTUS_DATA_CACHE_STATUS_HEADER` | `X-Directus-Cache` | Optional debugging header to confirm Directus cache hits/misses in staging or production. |
+| `DIRECTUS_REDIS_URL` | `redis://redis:6379` | Directus Redis cache connection string for the production compose stack. |
 | `API_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh` and remote monitoring. Defaults to `http://127.0.0.1:8080/health/redis`. |
 | `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh`. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health` when `DIRECTUS_PUBLIC_URL` is set. |
 | `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional backend CMS facade probe, for example `https://<backend-host>/content/navigation?placement=footer`. |
@@ -237,6 +267,9 @@ Current behavior:
 - Resolves `page_sections` and `page_section_items` server-side instead of relying on Directus alias fields
 - Returns `404 CONTENT_NOT_FOUND` when a published page slug does not exist
 - Keeps CMS tokens and Redis-backed caching server-side, not in the browser
+- Maintains a stale published-content fallback tier in Redis so expired CMS entries can survive short Directus outages
+- Emits media asset URLs from `DIRECTUS_PUBLIC_URL/assets/{id}` so browser-facing content does not depend on the backend’s internal Directus origin
+- Emits `Cache-Control` on public `/content/*` responses using `DIRECTUS_RESPONSE_CACHE_*` and marks preview routes `private, no-store`
 - Uses these cache keys by default: `cms:content:site-settings`, `cms:content:navigation:all`, `cms:content:navigation:<placement>`, `cms:content:page:<slug>`
 - Supports admin-only manual invalidation through `POST /admin/content/cache/invalidate`
 - Requires Keycloak-authenticated privileged roles for `GET /content/preview/**`; public routes remain published-only

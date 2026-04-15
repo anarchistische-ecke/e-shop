@@ -171,6 +171,23 @@ class DirectusContentClientHttpTest {
     }
 
     @Test
+    void assetUrl_prefersConfiguredPublicUrl() {
+        DirectusContentProperties properties = new DirectusContentProperties();
+        properties.setBaseUrl("http://directus-internal:8055");
+        properties.setPublicUrl("https://cms.example.com/");
+        properties.setConnectTimeout(Duration.ofSeconds(2));
+        properties.setReadTimeout(Duration.ofSeconds(2));
+
+        DirectusContentClient publicClient = new DirectusContentClient(
+                RestClient.builder(),
+                properties,
+                new CmsObservabilityService(new SimpleMeterRegistry(), properties)
+        );
+
+        assertThat(publicClient.assetUrl(" file-1 ")).isEqualTo("https://cms.example.com/assets/file-1");
+    }
+
+    @Test
     void fetchPageBySlug_throwsNotFoundWhenDirectusReturnsNoItems() {
         enqueueJson("""
                 {

@@ -301,7 +301,7 @@ public class DirectusContentClient {
             return "";
         }
 
-        return UriComponentsBuilder.fromHttpUrl(baseUrl())
+        return UriComponentsBuilder.fromHttpUrl(assetBaseUrl())
                 .path("/assets/{id}")
                 .buildAndExpand(fileId.trim())
                 .encode()
@@ -363,6 +363,14 @@ public class DirectusContentClient {
         }
 
         return properties.getBaseUrl().replaceAll("/+$", "");
+    }
+
+    private String assetBaseUrl() {
+        if (StringUtils.hasText(properties.getPublicUrl())) {
+            return properties.getPublicUrl().replaceAll("/+$", "");
+        }
+
+        return baseUrl();
     }
 
     private static SimpleClientHttpRequestFactory requestFactory(DirectusContentProperties properties) {

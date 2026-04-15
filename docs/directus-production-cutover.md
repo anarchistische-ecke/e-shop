@@ -112,17 +112,22 @@ Go/no-go rule:
    - `/content/navigation?placement=header`
    - `/content/navigation?placement=footer`
    - `/content/pages/delivery`
-2. Verify manual smoke in the storefront while still in `legacy` mode:
+   - published responses include the expected `Cache-Control` header for browser/intermediary reuse
+   - preview routes remain `private, no-store`
+2. Run infrastructure/content checks against the target environment:
+   - `bash ./scripts/directus-storage-smoke-test.sh --env-file .env`
+   - `node ./scripts/directus-content-audit.js --env-file .env`
+3. Verify manual smoke in the storefront while still in `legacy` mode:
    - homepage loads
    - header navigation works
    - footer links work
    - delivery/payment/bonuses/production/about pages load
-3. Run the existing automated CMS smoke test path against the target environment if available.
+4. Run the existing automated CMS smoke test path against the target environment if available.
    This refers to the Playwright CMS smoke suite already added in the frontend repo.
 
 Go/no-go rule:
 
-- if backend facade responses or storefront smoke checks fail, stop here and use the rollback plan
+- if backend facade responses, storage/content audits, or storefront smoke checks fail, stop here and use the rollback plan
 
 ### Phase 4: Enable partial rollout
 

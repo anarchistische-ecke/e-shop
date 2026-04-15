@@ -18,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 @Service
 public class DirectusContentCacheService {
@@ -48,23 +49,29 @@ public class DirectusContentCacheService {
         }
 
         String redisKey = namespaced(cacheKey);
-        String cachedPayload = read(cacheKey, redisKey);
-        if (StringUtils.hasText(cachedPayload)) {
-            try {
-                T value = objectMapper.readValue(cachedPayload, typeReference);
-                observabilityService.recordCacheLookup(cacheKey, "hit");
-                return value;
-            } catch (IOException ex) {
-                observabilityService.recordCacheLookup(cacheKey, "deserialize_error");
-                log.warn("Failed to deserialize CMS cache entry {}, evicting stale payload", redisKey, ex);
-                safeDelete(List.of(redisKey));
-            }
+        String staleRedisKey = staleKey(cacheKey);
+        T value = deserialize(cacheKey, redisKey, typeReference, false);
+        if (value != null) {
+            observabilityService.recordCacheLookup(cacheKey, "hit");
+            return value;
         }
 
-        observabilityService.recordCacheLookup(cacheKey, "miss");
-        T loaded = loader.get();
-        write(cacheKey, redisKey, loaded);
-        return loaded;
+        try {
+            T loaded = loader.get();
+            observabilityService.recordCacheLookup(cacheKey, "miss");
+            write(cacheKey, redisKey, staleRedisKey, loaded);
+            return loaded;
+        } catch (RuntimeException ex) {
+            T staleValue = deserialize(cacheKey, staleRedisKey, typeReference, true);
+            if (staleValue != null) {
+                observabilityService.recordCacheLookup(cacheKey, "stale_hit");
+                log.warn("Serving stale CMS cache entry {} after loader failure", staleRedisKey, ex);
+                return staleValue;
+            }
+
+            observabilityService.recordCacheLookup(cacheKey, "stale_miss");
+            throw ex;
+        }
     }
 
     public CacheInvalidationResult invalidateAll() {
@@ -108,9 +115,11 @@ public class DirectusContentCacheService {
         }
     }
 
-    private void write(String cacheKey, String redisKey, Object value) {
+    private void write(String cacheKey, String redisKey, String staleRedisKey, Object value) {
         try {
-            redisTemplate.opsForValue().set(redisKey, objectMapper.writeValueAsString(value), properties.getCacheTtl());
+            String payload = objectMapper.writeValueAsString(value);
+            redisTemplate.opsForValue().set(redisKey, payload, properties.getCacheTtl());
+            writeStaleCopy(staleRedisKey, payload);
             observabilityService.recordCacheWrite(cacheKey, "success");
         } catch (DataAccessException | IOException ex) {
             observabilityService.recordCacheWrite(cacheKey, "error");
@@ -120,7 +129,7 @@ public class DirectusContentCacheService {
 
     private CacheInvalidationResult invalidateByKeys(String scope, List<String> rawKeys) {
         List<String> selectors = rawKeys.stream()
-                .map(this::namespaced)
+                .flatMap(rawKey -> Stream.of(namespaced(rawKey), staleKey(rawKey)))
                 .distinct()
                 .toList();
 
@@ -179,9 +188,38 @@ public class DirectusContentCacheService {
         return ttl != null && !ttl.isZero() && !ttl.isNegative();
     }
 
+    private void writeStaleCopy(String staleRedisKey, String payload) {
+        Duration staleTtl = properties.getCacheStaleTtl();
+        if (staleTtl == null || staleTtl.isZero() || staleTtl.isNegative()) {
+            return;
+        }
+
+        redisTemplate.opsForValue().set(staleRedisKey, payload, staleTtl);
+    }
+
+    private <T> T deserialize(String cacheKey, String redisKey, TypeReference<T> typeReference, boolean staleEntry) {
+        String cachedPayload = read(cacheKey, redisKey);
+        if (!StringUtils.hasText(cachedPayload)) {
+            return null;
+        }
+
+        try {
+            return objectMapper.readValue(cachedPayload, typeReference);
+        } catch (IOException ex) {
+            observabilityService.recordCacheLookup(cacheKey, staleEntry ? "stale_deserialize_error" : "deserialize_error");
+            log.warn("Failed to deserialize CMS cache entry {}, evicting payload", redisKey, ex);
+            safeDelete(List.of(redisKey));
+            return null;
+        }
+    }
+
     private String namespaced(String rawKey) {
         String prefix = keyPrefix();
         return StringUtils.hasText(prefix) ? prefix + ":" + rawKey : rawKey;
+    }
+
+    private String staleKey(String rawKey) {
+        return namespaced(rawKey + ":stale");
     }
 
     private String keyPrefix() {
