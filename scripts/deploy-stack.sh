@@ -101,6 +101,12 @@ if ! compose exec -T -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 directus \
   exit 1
 fi
 
+echo "Bootstrapping automatic published_at handling..."
+bash "$ROOT_DIR/scripts/directus-published-at-bootstrap.sh" \
+  --env-file "$ENV_FILE" \
+  --compose-file "$COMPOSE_FILE" \
+  --database-service postgres
+
 echo "Running stack health checks..."
 bash "$ROOT_DIR/scripts/check-stack-health.sh" \
   --env-file "$ENV_FILE" \

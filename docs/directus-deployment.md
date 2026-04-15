@@ -60,9 +60,10 @@ That script performs these steps:
 4. Pull the pinned Directus image tag
 5. Start or update `api` and `directus`
 6. Apply the committed Directus schema snapshot from `directus/schema/schema.snapshot.json`
-7. Run `scripts/check-stack-health.sh`
+7. Run `scripts/directus-published-at-bootstrap.sh`
+8. Run `scripts/check-stack-health.sh`
 
-This keeps Directus core upgrades, schema drift control, and app deployment on one path.
+This keeps Directus core upgrades, schema drift control, publish-timestamp automation, and app deployment on one path.
 
 `scripts/directus-db-init.sh` also enforces the CMS/commerce boundary during provisioning. It creates or updates the dedicated Directus runtime role, revokes `PUBLIC` access on both databases, revokes Directus access to the commerce database/schema, and grants the commerce runtime role the expected commerce-side schema access. When the commerce runtime role differs from the PostgreSQL bootstrap/admin role, the script also provisions it as a non-superuser login role.
 

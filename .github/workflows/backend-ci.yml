@@ -28,6 +28,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate committed Directus schema snapshot
+        run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:

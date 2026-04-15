@@ -19,27 +19,63 @@ async function main() {
     issues: [],
   };
 
-  const [siteSettings, pages, pageSections, pageSectionItems, navigationItems] = await Promise.all([
-    getSingletonItem(context, 'site_settings', 'fields=default_og_image,status'),
+  const [
+    siteSettings,
+    navigationGroups,
+    pages,
+    pageSections,
+    pageSectionItems,
+    navigationItems,
+    faqs,
+    legalDocuments,
+    banners,
+    posts,
+  ] = await Promise.all([
+    getSingletonItem(context, 'site_settings', 'fields=default_og_image,status,published_at'),
+    listItems(context, 'navigation', [
+      'limit=-1',
+      'filter[status][_eq]=published',
+      'fields=id,key,title,placement,published_at',
+    ]),
     listItems(context, 'page', [
       'limit=-1',
       'filter[status][_eq]=published',
-      'fields=id,slug,path,title',
+      'fields=id,slug,path,title,published_at',
     ]),
     listItems(context, 'page_sections', [
       'limit=-1',
       'filter[status][_eq]=published',
-      'fields=id,page,internal_name,section_type,title,image,image_alt,mobile_image,mobile_image_alt,primary_cta_label,primary_cta_url,secondary_cta_label,secondary_cta_url',
+      'fields=id,page,internal_name,section_type,title,image,image_alt,mobile_image,mobile_image_alt,primary_cta_label,primary_cta_url,secondary_cta_label,secondary_cta_url,published_at',
     ]),
     listItems(context, 'page_section_items', [
       'limit=-1',
       'filter[status][_eq]=published',
-      'fields=id,page_section,title,label,url,image,image_alt',
+      'fields=id,page_section,title,label,url,image,image_alt,published_at',
     ]),
     listItems(context, 'navigation_items', [
       'limit=-1',
       'filter[status][_eq]=published',
-      'fields=id,label,url,item_type,page,navigation',
+      'fields=id,label,url,item_type,page,navigation,published_at',
+    ]),
+    listItems(context, 'faq', [
+      'limit=-1',
+      'filter[status][_eq]=published',
+      'fields=id,question,slug,published_at',
+    ]),
+    listItems(context, 'legal_documents', [
+      'limit=-1',
+      'filter[status][_eq]=published',
+      'fields=id,document_key,title,path,published_at',
+    ]),
+    listItems(context, 'banner', [
+      'limit=-1',
+      'filter[status][_eq]=published',
+      'fields=id,internal_name,title,published_at',
+    ]),
+    listItems(context, 'post', [
+      'limit=-1',
+      'filter[status][_eq]=published',
+      'fields=id,title,slug,published_at',
     ]),
   ]);
 
@@ -52,9 +88,27 @@ async function main() {
   const filesById = new Map(files.map((file) => [file.id, file]));
 
   validateSiteSettings(context, siteSettings, filesById);
+  validatePublishedRecords(context, navigationGroups, (group) => (
+    `navigation "${firstText(group.key, group.title, String(group.id))}"`
+  ));
+  validatePublishedRecords(context, pages, (page) => (
+    `page "${firstText(page.slug, page.path, page.title, String(page.id))}"`
+  ));
   validateSections(context, pageSections, pagesById, filesById);
   validateSectionItems(context, pageSectionItems, sectionsById, pagesById, filesById);
   validateNavigationItems(context, navigationItems, pagesById);
+  validatePublishedRecords(context, faqs, (faq) => (
+    `faq "${firstText(faq.slug, faq.question, String(faq.id))}"`
+  ));
+  validatePublishedRecords(context, legalDocuments, (document) => (
+    `legal_document "${firstText(document.document_key, document.path, document.title, String(document.id))}"`
+  ));
+  validatePublishedRecords(context, banners, (banner) => (
+    `banner "${firstText(banner.internal_name, banner.title, String(banner.id))}"`
+  ));
+  validatePublishedRecords(context, posts, (post) => (
+    `post "${firstText(post.slug, post.title, String(post.id))}"`
+  ));
 
   if (options.json) {
     console.log(JSON.stringify({
@@ -263,7 +317,13 @@ function addFileId(set, value) {
 }
 
 function validateSiteSettings(context, siteSettings, filesById) {
-  if (!siteSettings || siteSettings.status !== 'published' || !siteSettings.default_og_image) {
+  if (!siteSettings || siteSettings.status !== 'published') {
+    return;
+  }
+
+  validatePublishedAt(context, 'site_settings', siteSettings.published_at);
+
+  if (!siteSettings.default_og_image) {
     return;
   }
 
@@ -281,6 +341,8 @@ function validateSections(context, sections, pagesById, filesById) {
     const page = pagesById.get(section.page);
     const pageLabel = page ? `${page.slug} (${page.path})` : `page#${section.page}`;
     const sectionLabel = `${pageLabel} -> section "${section.internal_name || section.title || section.id}"`;
+
+    validatePublishedAt(context, sectionLabel, section.published_at);
 
     validateMediaField(context, {
       location: sectionLabel,
@@ -308,6 +370,8 @@ function validateSectionItems(context, items, sectionsById, pagesById, filesById
     const page = section ? pagesById.get(section.page) : null;
     const location = `${page ? page.slug : 'page?'} -> section "${section?.internal_name || section?.title || item.page_section}" -> item "${item.title || item.id}"`;
 
+    validatePublishedAt(context, location, item.published_at);
+
     validateMediaField(context, {
       location,
       fileId: item.image,
@@ -325,6 +389,8 @@ function validateNavigationItems(context, items, pagesById) {
     const hasUrl = hasText(item.url);
     const hasPage = item.page !== null && item.page !== undefined && item.page !== '';
 
+    validatePublishedAt(context, location, item.published_at);
+
     if ((itemType === 'internal_path' || itemType === 'external_url' || itemType === 'anchor') && !hasUrl) {
       pushIssue(context, 'missing_url', location, `${itemType} items must define url.`);
     }
@@ -336,6 +402,18 @@ function validateNavigationItems(context, items, pagesById) {
     if (hasPage && !pagesById.has(item.page)) {
       pushIssue(context, 'broken_page_reference', location, `references missing page id ${item.page}.`);
     }
+  }
+}
+
+function validatePublishedRecords(context, items, getLocation) {
+  for (const item of items) {
+    validatePublishedAt(context, getLocation(item), item.published_at);
+  }
+}
+
+function validatePublishedAt(context, location, publishedAt) {
+  if (!hasValue(publishedAt)) {
+    pushIssue(context, 'missing_published_at', location, 'published items must set published_at.');
   }
 }
 
@@ -392,6 +470,14 @@ function firstText(...values) {
 
 function hasText(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function hasValue(value) {
+  if (typeof value === 'string') {
+    return value.trim().length > 0;
+  }
+
+  return value !== null && value !== undefined;
 }
 
 async function requestJson(baseUrl, authHeader, method, apiPath) {

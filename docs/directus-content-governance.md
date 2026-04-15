@@ -32,6 +32,8 @@ Every CMS collection intended for editorial workflow and public delivery must in
 
 This is the contract used by the public-read filter and by the editor/publisher validation rules in the bootstrap.
 
+Every governed public collection must also carry `published_at`. The governance bootstrap stamps it automatically when a record enters `published`, clears it when a record leaves `published`, and the CMS content audit treats any published record without it as invalid.
+
 Expected progression:
 
 - Editors create and revise content in `draft`.
@@ -125,8 +127,9 @@ This keeps drafts and review-stage content out of anonymous API access.
 
 ## Enforcement In Local Dev
 
-The local bootstrap script [directus-sso-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-sso-bootstrap.sh) enforces this baseline by:
+The local governance bootstrap scripts [directus-published-at-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-published-at-bootstrap.sh) and [directus-sso-bootstrap.sh](/Users/freddycooper/Documents/eshop/scripts/directus-sso-bootstrap.sh) enforce this baseline by:
 
+- creating the `published_at` database trigger across the governed public collection set
 - seeding `CMS Editor`, `CMS Publisher`, and `CMS Administrator`
 - seeding matching Directus policies and role-policy junctions
 - granting least-privilege system-collection access for files and folders
@@ -142,5 +145,6 @@ The full process and editor/publisher responsibilities are documented in [direct
 - The current local Keycloak realm maps `admin` to `CMS Administrator`, `manager` to `CMS Editor`, and `publisher` to `CMS Publisher`.
 - Grant exactly one of the mapped Keycloak realm roles to a Directus user so the assigned Directus role stays deterministic.
 - Keep the break-glass Directus local admin separate from Keycloak identities.
+- Treat `legal_documents`, site-wide seller/contact details in `site_settings`, and any pricing or offer disclaimer copy as sensitive content. Those changes should always go through `in_review`, publisher approval, and a preview or staging check before publication.
 - Public asset permissions should stay conservative until the media/folder model is defined. This document only grants public item reads for published CMS collections.
-- The workflow scaffold also adds `published_at` to each governed collection. For now, publishers set or verify it during the approval step; automatic timestamping can be added later with a Directus flow.
+- The workflow scaffold also adds `published_at` to each governed collection. The governance bootstrap now manages it automatically, and `scripts/directus-content-audit.js` fails published records where it is missing.

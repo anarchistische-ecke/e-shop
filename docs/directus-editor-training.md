@@ -22,6 +22,7 @@ By the end of the session, an editor should be able to:
 - upload or select media safely
 - move work from `draft` to `in_review`
 - understand when a publisher is required
+- recognize that legal, policy, seller-details, and disclaimer changes always need publisher review plus preview/staging validation
 - know how to request help
 
 ## Agenda
@@ -60,6 +61,7 @@ Run these during the session:
 - Show one real example per collection instead of touring every field.
 - Emphasize status changes. Editors should not treat `published` as a save button.
 - Show the difference between `draft`, `in_review`, and `published` on an actual item.
+- Call out `Legal Documents`, returns-policy copy, seller/contact details, and pricing/offer disclaimers as sensitive content that always requires publisher review and preview/staging verification.
 - Use the same vocabulary as the written guide so support requests are consistent.
 
 ## Exit Criteria

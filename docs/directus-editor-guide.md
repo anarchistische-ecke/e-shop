@@ -138,9 +138,14 @@ Editors should:
 Publishers should:
 
 - review the content and storefront result
-- set `published_at` correctly
 - move approved items to `published`
 - send rejected items back to `draft`
+
+`published_at` is filled automatically when a publisher moves content to `published`.
+
+Sensitive content rule:
+
+- `Legal Documents`, returns-policy copy, seller/contact details in `Site Settings`, and pricing or offer disclaimers must always stay in `in_review` until a publisher checks the preview or staging result.
 
 ## 9. Preview And Validation
 

@@ -37,6 +37,12 @@ docker compose --env-file "$DIRECTUS_ENV_FILE" -f "$ROOT_DIR/directus/docker-com
 echo "Applying version-controlled Directus schema..."
 "$ROOT_DIR/scripts/directus-content-model-bootstrap.sh"
 
+echo "Bootstrapping automatic published_at handling..."
+"$ROOT_DIR/scripts/directus-published-at-bootstrap.sh" \
+  --env-file "$DIRECTUS_ENV_FILE" \
+  --compose-file "$ROOT_DIR/directus/docker-compose.yml" \
+  --database-service database
+
 echo "Bootstrapping Directus SSO and governance..."
 "$ROOT_DIR/scripts/directus-sso-bootstrap.sh"
 

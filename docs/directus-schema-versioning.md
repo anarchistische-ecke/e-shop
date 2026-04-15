@@ -54,6 +54,16 @@ The compatibility script `scripts/directus-content-model-bootstrap.sh` now just 
 
 If `directus-schema-check.sh` reports changes, the running Directus instance does not match the committed schema snapshot and should not be treated as in-sync.
 
+## CI/CD Enforcement
+
+Schema drift is now blocked in three places:
+
+- `backend-ci` runs `node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json` on every push and pull request before the Java build starts. A malformed or out-of-bound snapshot fails CI immediately.
+- `cms-governance` watches the committed snapshot, schema scripts, and the content model specification. If any of those files change in a non-draft PR, the workflow fails until the PR has two non-author approvals on the current head commit.
+- `scripts/deploy-stack.sh` still applies the committed snapshot during deployment, so staging and production converge on the reviewed git snapshot instead of whatever was changed manually in Studio.
+
+Require the `cms-governance / review-gate` status check in GitHub branch protection for `main`. Without that repository setting, the workflow still reports failures on PRs, but merge protection would remain optional.
+
 ## Authentication
 
 The schema scripts authenticate in this order:

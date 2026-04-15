@@ -15,7 +15,7 @@ Every public CMS collection uses the same `status` values:
 - `published`: approved for public storefront delivery
 - `archived`: retired content that should not be shown publicly or in preview
 
-The companion `published_at` field records when the current revision was approved for publication. For now, publishers set or confirm it manually during approval.
+The companion `published_at` field records when the current revision was approved for publication. The governance bootstrap stamps it automatically when an item enters `published`, clears it when an item leaves `published`, and the content audit fails published records where it is missing.
 
 ## Roles In The Process
 
@@ -30,7 +30,7 @@ The companion `published_at` field records when the current revision was approve
 
 - Reviews content in `in_review`
 - Publishes approved content by changing `status` to `published`
-- Sets or verifies `published_at` during approval
+- Relies on the automatic `published_at` stamp added during approval
 - Returns content to `draft` when changes are required
 - Archives content when it should be removed from delivery
 
@@ -38,6 +38,10 @@ The companion `published_at` field records when the current revision was approve
 
 - Maintains schema, permissions, SSO mappings, and operational settings
 - Does not participate in the normal editorial path unless acting as an exception handler
+
+Sensitive-content rule:
+
+- `legal_documents`, seller/contact details in `site_settings`, returns-policy copy, and pricing or offer disclaimers always require publisher approval and a preview or staging check before publication.
 
 ## Standard Path
 
@@ -47,7 +51,7 @@ The companion `published_at` field records when the current revision was approve
 4. Publisher reviews the item in Directus and in preview.
 5. Publisher either:
    - returns the item to `draft` for more work, or
-   - sets `status = published` and updates `published_at`
+   - sets `status = published`, which automatically stamps `published_at`
 6. Public storefront routes continue to read only `published` items.
 
 ## In-Product Enforcement
@@ -78,5 +82,5 @@ Public storefront routes under `/content/*` remain published-only.
 
 - Use `archived` only for retired content, not as a temporary review state.
 - If a publisher rejects a submission, return it to `draft` instead of leaving it in `in_review`.
-- Keep `published_at` aligned with the actual approval event until an automatic Directus flow is added later.
+- If a publisher sees a missing or incorrect `published_at`, treat that as a governance/bootstrap defect and rerun the bootstrap or investigate direct DB access outside Directus.
 - If a collection is added to the CMS scope, include the same `status` and `published_at` fields and rerun the governance bootstrap.

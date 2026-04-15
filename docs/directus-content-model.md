@@ -32,7 +32,7 @@ Editorial workflow convention:
 - `published`: visible to public storefront reads
 - `archived`: removed from public delivery and preview flows
 
-For now, `published_at` is maintained during the publisher approval step instead of by an automated Directus flow.
+`published_at` is managed automatically by the governance bootstrap whenever a governed record enters or leaves the `published` state.
 
 ## Collection List
 
@@ -361,8 +361,10 @@ When the full Directus schema implementation task starts:
 
 1. Make schema changes against a local Directus instance using the ids in this document.
 2. Export the updated snapshot with `./scripts/directus-schema-snapshot.sh` and commit the snapshot diff.
-3. Apply the committed snapshot in target environments with `./scripts/directus-schema-apply.sh`.
-4. Keep public permissions on the approved public collection set with `status = published`.
-5. Configure conditional field visibility on `page_sections` by `section_type`.
-6. Keep editor permissions limited to `draft` and `in_review`, and keep publisher approval as the only path to `published`.
-7. Update the bootstrap allowlists only if implemented ids differ.
+3. Keep the snapshot diff, this specification, and any schema helper script changes in the same PR so the reviewed git state stays authoritative.
+4. Do not merge schema or content-model changes until the PR has two non-author approvals on the current head commit.
+5. Apply the committed snapshot in target environments with `./scripts/directus-schema-apply.sh`.
+6. Keep public permissions on the approved public collection set with `status = published`.
+7. Configure conditional field visibility on `page_sections` by `section_type`.
+8. Keep editor permissions limited to `draft` and `in_review`, and keep publisher approval as the only path to `published`.
+9. Update the bootstrap allowlists only if implemented ids differ.

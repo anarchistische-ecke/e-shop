@@ -99,6 +99,8 @@ The committed Directus schema snapshot lives at `directus/schema/schema.snapshot
 
 The helper script `scripts/dev-infra-up.sh` applies the committed schema snapshot automatically on local startup.
 
+The helper script `scripts/directus-published-at-bootstrap.sh` creates the DB trigger that stamps `published_at` when governed content enters `published` and clears it when content leaves `published`.
+
 The helper script `scripts/directus-sso-bootstrap.sh` recreates the local Keycloak `directus` client and seeds the stable Directus roles/policies used by SSO and governance.
 
 The helper script `scripts/keycloak-upsert-cms-user.sh` provides a repeatable local flow for creating or updating a Keycloak-backed CMS editor, publisher, or administrator.
@@ -137,7 +139,7 @@ For predictable onboarding, grant exactly one of those mapped realm roles to a D
 
 Local Directus SSO uses `keycloak.lvh.me` instead of `localhost` for the issuer URL because the browser and the Directus container both need a hostname that resolves consistently.
 
-The governance baseline assumes every public CMS collection includes a `status` field with `draft`, `in_review`, `published`, and `archived`, plus `published_at`. Public reads are filtered to `status = published`, editors can only move content between `draft` and `in_review`, and publishers are the approval gate for `published`.
+The governance baseline assumes every public CMS collection includes a `status` field with `draft`, `in_review`, `published`, and `archived`, plus `published_at`. Public reads are filtered to `status = published`, editors can only move content between `draft` and `in_review`, publishers are the approval gate for `published`, and the governance bootstrap stamps/clears `published_at` automatically as records move into and out of `published`.
 
 The schema snapshot covers the Directus data model only. Roles, policies, permissions, SSO client wiring, and seeded users remain outside the snapshot and continue to be handled by `scripts/directus-sso-bootstrap.sh`.
 
