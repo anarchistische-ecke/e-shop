@@ -82,7 +82,11 @@ compose() {
 
 compose up -d postgres >/dev/null
 
-if ! compose exec -T postgres sh -lc '
+if ! compose exec -T \
+  -e POSTGRES_USER="$POSTGRES_USER" \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
+  postgres sh -lc '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql \
     --username "$POSTGRES_USER" \
@@ -100,7 +104,11 @@ mkdir -p "$OUTPUT_DIR"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_path="$OUTPUT_DIR/directus-${timestamp}.sql.gz"
 
-compose exec -T postgres sh -lc '
+compose exec -T \
+  -e POSTGRES_USER="$POSTGRES_USER" \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
+  postgres sh -lc '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   exec pg_dump \
     --username "$POSTGRES_USER" \

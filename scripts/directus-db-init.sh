@@ -121,7 +121,16 @@ compose() {
 
 compose up -d postgres >/dev/null
 
-compose exec -T postgres sh -lc '
+compose exec -T \
+  -e POSTGRES_USER="$POSTGRES_USER" \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e COMMERCE_DB_DATABASE="$COMMERCE_DB_DATABASE" \
+  -e COMMERCE_DB_USER="$COMMERCE_DB_USER" \
+  -e COMMERCE_DB_PASSWORD="$COMMERCE_DB_PASSWORD" \
+  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
+  -e DIRECTUS_DB_USER="$DIRECTUS_DB_USER" \
+  -e DIRECTUS_DB_PASSWORD="$DIRECTUS_DB_PASSWORD" \
+  postgres sh -lc '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql \
     --username "$POSTGRES_USER" \
@@ -197,7 +206,13 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM %I', :'commerce_db', :'directus_us
 SQL
 '
 
-compose exec -T postgres sh -lc '
+compose exec -T \
+  -e POSTGRES_USER="$POSTGRES_USER" \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e COMMERCE_DB_USER="$COMMERCE_DB_USER" \
+  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
+  -e DIRECTUS_DB_USER="$DIRECTUS_DB_USER" \
+  postgres sh -lc '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql \
     --username "$POSTGRES_USER" \
@@ -223,7 +238,13 @@ SELECT format('GRANT ALL ON SCHEMA public TO %I', :'directus_user') \gexec
 SQL
 '
 
-compose exec -T postgres sh -lc '
+compose exec -T \
+  -e POSTGRES_USER="$POSTGRES_USER" \
+  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+  -e COMMERCE_DB_DATABASE="$COMMERCE_DB_DATABASE" \
+  -e COMMERCE_DB_USER="$COMMERCE_DB_USER" \
+  -e DIRECTUS_DB_USER="$DIRECTUS_DB_USER" \
+  postgres sh -lc '
   export PGPASSWORD="$POSTGRES_PASSWORD"
   psql \
     --username "$POSTGRES_USER" \
