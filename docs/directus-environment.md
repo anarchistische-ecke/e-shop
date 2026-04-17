@@ -48,6 +48,7 @@ These are used only by the local Directus stack:
 | `DIRECTUS_ADMIN_EMAIL` | `directus-admin@example.com` | Break-glass Directus local admin created on first boot. Keep it distinct from Keycloak editor/admin users. |
 | `DIRECTUS_ADMIN_PASSWORD` | `Admin123!` | Used on first boot. Rotate locally by rebuilding volumes if needed. |
 | `DIRECTUS_PUBLIC_URL` | `http://localhost:8055` | Local Studio/API URL. |
+| `DIRECTUS_DEFAULT_LANGUAGE` | `ru-RU` | Project default language for Directus Studio and fallback language for newly provisioned local users. |
 | `DIRECTUS_SCHEMA_ADMIN_TOKEN` | unset in repo | Optional static token used by schema snapshot/apply/check scripts. When set, it is preferred over admin email/password login. |
 | `DIRECTUS_AUTH_DISABLE_DEFAULT` | `false` | Set to `true` when you want to hide Directus email/password login and require SSO. |
 | `DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID` | `directus` | Local Keycloak OIDC client ID for Directus Studio login. |
@@ -91,6 +92,7 @@ These are used only by the local Directus stack:
 | `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS` | `<cms-admin-role-id>,<inventory-operator-role-id>` | Directus role ids allowed to use variant/inventory bridge routes in the operator module. |
 
 The helper script `scripts/dev-infra-up.sh` auto-creates `keycloak/.env` and `directus/.env` from their matching `.env.example` files when they are missing.
+The helper script `scripts/dev-api-up.sh` also sources `directus/.env`, defaults `DIRECTUS_BRIDGE_TOKEN` to `local-directus-bridge-token` when it is absent locally, and maps the local Directus MinIO settings into `YANDEX_STORAGE_*` so backend-owned catalogue media uploads work in `dev` without a second storage env file on the host.
 
 The committed Directus schema snapshot lives at `directus/schema/schema.snapshot.json`. The helper scripts are:
 
@@ -102,6 +104,8 @@ The committed Directus schema snapshot lives at `directus/schema/schema.snapshot
 - `scripts/directus-content-audit.js` to fail on missing media alt fallbacks, broken asset references, and incomplete required CMS URL pairs
 
 The helper script `scripts/dev-infra-up.sh` applies the committed schema snapshot automatically on local startup. It also rebuilds the committed Directus operator runtime extensions before the Directus container starts.
+
+The redesigned operator workspace lives at `/admin/storefront-ops`. Because custom-module icon visibility can be inconsistent in Studio navigation, the bootstrap also seeds an Insights dashboard `Оператор витрины` with the `Запуск рабочего места` panel as a permanent fallback entry path for both desktop and mobile operators.
 
 The helper script `scripts/directus-published-at-bootstrap.sh` creates the DB trigger that stamps `published_at` when governed content enters `published` and clears it when content leaves `published`.
 
@@ -213,6 +217,7 @@ Use the same Directus auth model in production, but with production hostnames, a
 | `AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL` | `true` | Keeps unverified Keycloak users out of Directus. |
 | `AUTH_KEYCLOAK_SYNC_USER_INFO` | `true` | Keeps Directus user names and email aligned with Keycloak. |
 | `AUTH_KEYCLOAK_GROUP_CLAIM_NAME` | `groups` | Claim used for realm-role-to-Directus-role mapping. |
+| `AUTH_KEYCLOAK_LABEL` | `Войти через Keycloak` | Russian login button label shown in Directus Studio. |
 | `AUTH_KEYCLOAK_ROLE_MAPPING` | `json:{"admin":"<cms-admin-role-id>","manager":"<cms-editor-role-id>","publisher":"<cms-publisher-role-id>","catalogue_operator":"<catalogue-operator-role-id>","inventory_operator":"<inventory-operator-role-id>"}` | Include operator-role mappings when the Directus storefront bridge module is enabled. |
 | `AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST` | deployment-specific | Optional. Add external post-login redirect targets outside the Directus domain if you need them later. |
 

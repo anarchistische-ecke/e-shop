@@ -133,6 +133,7 @@ public class DirectusCatalogueContentService implements CatalogueContentService 
                 .collect(Collectors.toMap(
                         overlay -> normalizeRequiredKey(overlay.overlayKey(), "Overlay key is required"),
                         overlay -> new CatalogueContentModels.CatalogueOverlay(
+                                overlay.id(),
                                 normalizeRequiredKey(overlay.overlayKey(), "Overlay key is required"),
                                 entityKind,
                                 overlay.status(),

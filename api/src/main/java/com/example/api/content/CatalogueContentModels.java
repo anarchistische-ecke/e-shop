@@ -37,6 +37,7 @@ public final class CatalogueContentModels {
     }
 
     public record CatalogueOverlay(
+            Integer itemId,
             String key,
             String entityKind,
             String status,

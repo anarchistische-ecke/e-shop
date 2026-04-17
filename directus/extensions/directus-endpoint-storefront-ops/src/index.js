@@ -1,4 +1,4 @@
-const JSON_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function normalizeBaseUrl(value) {
   return typeof value === 'string' ? value.replace(/\/+$/, '') : '';
@@ -28,6 +28,9 @@ function buildRoleSets(env) {
 }
 
 function hasAllowedRole(accountability, allowedRoles) {
+  if (accountability?.admin) {
+    return Boolean(accountability?.user);
+  }
   if (!allowedRoles || allowedRoles.size === 0) {
     return Boolean(accountability?.user);
   }
@@ -49,7 +52,7 @@ async function forwardJson(req, res, context, targetPath) {
 
   if (!backendBaseUrl || !backendToken) {
     res.status(500).json({
-      error: 'Storefront Ops bridge is not configured. Set STOREFRONT_OPS_BACKEND_URL and STOREFRONT_OPS_BACKEND_TOKEN.',
+      error: 'Bridge для управления витриной не настроен. Укажите STOREFRONT_OPS_BACKEND_URL и STOREFRONT_OPS_BACKEND_TOKEN.',
     });
     return;
   }
@@ -80,24 +83,38 @@ async function forwardJson(req, res, context, targetPath) {
     headers.set('X-Directus-User-Roles', 'admin');
   }
 
-  if (JSON_METHODS.has(String(req.method || '').toUpperCase())) {
-    headers.set('Content-Type', 'application/json');
-  }
+  const method = String(req.method || '').toUpperCase();
+  const requestContentType = String(req.headers['content-type'] || '');
 
   if (req.accountability?.user && typeof req.accountability.user === 'object') {
     headers.set('X-Directus-User-Email', req.accountability.user?.email || '');
   }
 
-  const response = await fetch(url, {
+  const fetchOptions = {
     method: req.method,
     headers,
-    body: JSON_METHODS.has(String(req.method || '').toUpperCase()) ? JSON.stringify(req.body ?? {}) : undefined,
-  });
+  };
+
+  if (BODY_METHODS.has(method)) {
+    if (requestContentType.includes('multipart/form-data')) {
+      headers.set('Content-Type', requestContentType);
+      fetchOptions.body = req;
+      fetchOptions.duplex = 'half';
+    } else if (requestContentType.includes('application/json') || !requestContentType) {
+      headers.set('Content-Type', 'application/json');
+      fetchOptions.body = JSON.stringify(req.body ?? {});
+    } else if (req.body !== undefined && req.body !== null) {
+      headers.set('Content-Type', requestContentType);
+      fetchOptions.body = req.body;
+    }
+  }
+
+  const response = await fetch(url, fetchOptions);
 
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json')
     ? await response.json()
-    : await response.text();
+    : Buffer.from(await response.arrayBuffer());
 
   res.status(response.status);
   if (contentType) {
@@ -117,7 +134,7 @@ export default {
 
   router.all('/*', async (req, res) => {
     if (!req.accountability?.user) {
-      res.status(401).json({ error: 'Authentication is required.' });
+      res.status(401).json({ error: 'Требуется авторизация.' });
       return;
     }
 
@@ -126,12 +143,12 @@ export default {
     const allowedRoles = inventoryRoute ? roleSets.inventory : roleSets.catalogue;
 
     if (canWrite(req.method) && !hasAllowedRole(req.accountability, allowedRoles)) {
-      res.status(403).json({ error: 'This Directus role is not allowed to manage this catalogue area.' });
+      res.status(403).json({ error: 'У этой роли Directus нет прав на управление данным разделом каталога.' });
       return;
     }
 
     if (!canWrite(req.method) && !hasAnyAllowedRole(req.accountability, [roleSets.catalogue, roleSets.inventory])) {
-      res.status(403).json({ error: 'This Directus role is not allowed to access storefront operations.' });
+      res.status(403).json({ error: 'У этой роли Directus нет доступа к операциям управления витриной.' });
       return;
     }
 
@@ -139,7 +156,7 @@ export default {
       await forwardJson(req, res, context, path);
     } catch (error) {
       res.status(502).json({
-        error: error instanceof Error ? error.message : 'Failed to reach backend catalogue bridge.',
+        error: error instanceof Error ? error.message : 'Не удалось обратиться к bridge каталога в бэкенде.',
       });
     }
   });

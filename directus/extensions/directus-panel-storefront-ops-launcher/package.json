@@ -1,0 +1,19 @@
+{
+  "name": "directus-panel-storefront-ops-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "directus-extension build"
+  },
+  "devDependencies": {
+    "@directus/extensions-sdk": "^17.1.3",
+    "vue": "^3.5.13"
+  },
+  "directus:extension": {
+    "type": "panel",
+    "path": "dist/index.js",
+    "source": "src/index.js",
+    "host": "^11.0.0"
+  }
+}

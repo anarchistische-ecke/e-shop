@@ -99,6 +99,7 @@ class CataloguePresentationServiceTest {
         );
 
         CatalogueContentModels.CatalogueOverlay overlay = new CatalogueContentModels.CatalogueOverlay(
+                11,
                 "cotton-sheet",
                 "product",
                 "published",

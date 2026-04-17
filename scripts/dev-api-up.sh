@@ -14,6 +14,16 @@ if [[ -f "$DIRECTUS_ENV_FILE" ]]; then
   set +a
 fi
 
+export DIRECTUS_BRIDGE_TOKEN="${DIRECTUS_BRIDGE_TOKEN:-local-directus-bridge-token}"
+
+# Reuse the local Directus/MinIO stack for backend-owned catalogue media when
+# explicit storage variables are not already set on the host.
+export YANDEX_STORAGE_BUCKET="${YANDEX_STORAGE_BUCKET:-${DIRECTUS_STORAGE_S3_BUCKET:-directus}}"
+export YANDEX_STORAGE_KEY="${YANDEX_STORAGE_KEY:-${DIRECTUS_STORAGE_S3_KEY:-minioadmin}}"
+export YANDEX_STORAGE_SECRET="${YANDEX_STORAGE_SECRET:-${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}}"
+export YANDEX_STORAGE_ENDPOINT="${YANDEX_STORAGE_ENDPOINT:-http://localhost:9000}"
+export YANDEX_STORAGE_PUBLIC_BASE_URL="${YANDEX_STORAGE_PUBLIC_BASE_URL:-http://localhost:9000/${YANDEX_STORAGE_BUCKET}}"
+
 echo "Repairing legacy local database schema if needed..."
 "$ROOT_DIR/scripts/dev-db-repair.sh"
 

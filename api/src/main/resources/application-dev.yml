@@ -46,6 +46,14 @@ directus:
   read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}
   slow-request-threshold: ${DIRECTUS_SLOW_REQUEST_THRESHOLD:PT2S}
 
+yandex:
+  storage:
+    bucket: ${YANDEX_STORAGE_BUCKET:directus}
+    access-key: ${YANDEX_STORAGE_KEY:minioadmin}
+    secret-key: ${YANDEX_STORAGE_SECRET:minioadmin123}
+    endpoint: ${YANDEX_STORAGE_ENDPOINT:http://localhost:9000}
+    public-base-url: ${YANDEX_STORAGE_PUBLIC_BASE_URL:http://localhost:9000/directus}
+
 management:
   endpoints:
     web:

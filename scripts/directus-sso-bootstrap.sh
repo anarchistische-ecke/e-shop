@@ -21,6 +21,8 @@ set -a
 set +a
 
 DIRECTUS_PUBLIC_URL="${DIRECTUS_PUBLIC_URL:-http://localhost:8055}"
+DIRECTUS_DEFAULT_LANGUAGE="${DIRECTUS_DEFAULT_LANGUAGE:-ru-RU}"
+DIRECTUS_PROJECT_NAME="${DIRECTUS_PROJECT_NAME:-Магазин}"
 DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID="${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID:-directus}"
 DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET="${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET:-directus-local-secret}"
 LEGACY_DIRECTUS_ADMIN_EMAIL="${LEGACY_DIRECTUS_ADMIN_EMAIL:-admin@example.com}"
@@ -39,6 +41,8 @@ DIRECTUS_ACCESS_CMS_EDITOR_ID="${DIRECTUS_ACCESS_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d
 DIRECTUS_ACCESS_CMS_PUBLISHER_ID="${DIRECTUS_ACCESS_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30003}"
 DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID="${DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30004}"
 DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID="${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30005}"
+DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID="${DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f40001}"
+DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID="${DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f40002}"
 DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_settings,navigation,navigation_items,page,page_sections,page_section_items,faq,legal_documents,banner,post,product_overlay,category_overlay,catalogue_overlay_block,catalogue_overlay_block_item,storefront_collection,storefront_collection_item}"
 DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-$DIRECTUS_CMS_CONTENT_COLLECTIONS}"
 DIRECTUS_CMS_STATUS_FIELD="${DIRECTUS_CMS_STATUS_FIELD:-status}"
@@ -76,6 +80,15 @@ wait_for_url() {
 wait_for_url "Keycloak" "http://localhost:8081/realms/cozyhome/.well-known/openid-configuration"
 wait_for_url "Directus" "${DIRECTUS_PUBLIC_URL}/server/health"
 
+DIRECTUS_MODULE_BAR_BASELINE='[
+  {"type":"module","id":"content","enabled":true},
+  {"type":"module","id":"visual","enabled":false},
+  {"type":"module","id":"users","enabled":true},
+  {"type":"module","id":"files","enabled":true},
+  {"type":"module","id":"insights","enabled":true},
+  {"type":"module","id":"settings","enabled":true}
+]'
+
 PUBLIC_POLICY_ID="$(
   docker exec -i directus-database-1 psql -At -U directus -d directus \
     -c "SELECT id FROM directus_policies WHERE name = '\$t:public_label' LIMIT 1;" \
@@ -105,8 +118,8 @@ fi
 cat <<JSON >/tmp/directus-keycloak-client.json
 {
   "clientId": "${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID}",
-  "name": "Directus Admin",
-  "description": "Local Directus Studio SSO client",
+  "name": "Админка Directus",
+  "description": "Локальный SSO-клиент для Directus Studio",
   "enabled": true,
   "publicClient": false,
   "secret": "${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET}",
@@ -160,6 +173,10 @@ docker exec keycloak-keycloak-1 /opt/keycloak/bin/kcadm.sh create clients -r coz
 rm -f /tmp/directus-keycloak-client.json
 
 docker exec -i directus-database-1 psql -v ON_ERROR_STOP=1 -U directus -d directus <<SQL
+UPDATE directus_settings
+SET default_language = '${DIRECTUS_DEFAULT_LANGUAGE}',
+    project_name = '${DIRECTUS_PROJECT_NAME}';
+
 UPDATE directus_users
 SET email = '${DIRECTUS_ADMIN_EMAIL}'
 WHERE provider = 'default'
@@ -170,6 +187,10 @@ WHERE provider = 'default'
     FROM directus_users
     WHERE email = '${DIRECTUS_ADMIN_EMAIL}'
   );
+
+UPDATE directus_users
+SET language = '${DIRECTUS_DEFAULT_LANGUAGE}'
+WHERE COALESCE(language, '') = '';
 
 DELETE FROM directus_access
 WHERE id IN (
@@ -184,11 +205,11 @@ WHERE id = '11111111-1111-4111-8111-111111111111';
 
 INSERT INTO directus_policies (id, name, icon, description, ip_access, enforce_tfa, admin_access, app_access)
 VALUES
-  ('${DIRECTUS_POLICY_CMS_ADMIN_ID}', 'CMS Administrator Policy', 'verified', 'Full Directus administration for Keycloak admins.', NULL, false, true, true),
-  ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', 'CMS Editor Policy', 'edit', 'Draft authoring and asset management without publish privileges.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', 'CMS Publisher Policy', 'fact_check', 'Review and publication rights for CMS content.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', 'Catalogue Operator Policy', 'inventory_2', 'Backend catalogue operations via the Directus storefront bridge.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Inventory Operator Policy', 'inventory', 'Variant, pricing, and stock operations via the Directus storefront bridge.', NULL, false, false, true)
+  ('${DIRECTUS_POLICY_CMS_ADMIN_ID}', 'Политика администратора CMS', 'verified', 'Полный доступ к администрированию Directus для администраторов Keycloak.', NULL, false, true, true),
+  ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', 'Политика редактора CMS', 'edit', 'Подготовка черновиков и работа с файлами без права публикации.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', 'Политика публикатора CMS', 'fact_check', 'Проверка и публикация CMS-контента.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', 'Политика оператора каталога', 'inventory_2', 'Операции с каталогом через витринный bridge Directus.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через витринный bridge Directus.', NULL, false, false, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -200,11 +221,11 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO directus_roles (id, name, icon, description, parent)
 VALUES
-  ('${DIRECTUS_ROLE_CMS_ADMIN_ID}', 'CMS Administrator', 'verified_user', 'Role mapped from Keycloak admin users.', NULL),
-  ('${DIRECTUS_ROLE_CMS_EDITOR_ID}', 'CMS Editor', 'edit_note', 'Draft authoring role for content editors.', NULL),
-  ('${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', 'CMS Publisher', 'fact_check', 'Reviewer/publisher role for approving and publishing content.', NULL),
-  ('${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID}', 'Catalogue Operator', 'inventory_2', 'Operator role for backend-owned products, categories, brands, and merchandising bridge reads.', NULL),
-  ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Inventory Operator', 'inventory', 'Operator role for variant, price, and stock changes through the backend bridge.', NULL)
+  ('${DIRECTUS_ROLE_CMS_ADMIN_ID}', 'Администратор CMS', 'verified_user', 'Роль, которая назначается администраторам Keycloak.', NULL),
+  ('${DIRECTUS_ROLE_CMS_EDITOR_ID}', 'Редактор CMS', 'edit_note', 'Роль редактора для подготовки контента и черновиков.', NULL),
+  ('${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', 'Публикатор CMS', 'fact_check', 'Роль для проверки, утверждения и публикации контента.', NULL),
+  ('${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID}', 'Оператор каталога', 'inventory_2', 'Роль для работы с товарами, категориями, брендами и bridge-операциями каталога.', NULL),
+  ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Оператор остатков', 'inventory', 'Роль для работы с вариантами, ценами и остатками через bridge.', NULL)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -244,6 +265,107 @@ VALUES
   ('directus_folders', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
   ('directus_folders', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
   ('directus_folders', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}');
+
+DELETE FROM directus_permissions
+WHERE collection IN ('directus_dashboards', 'directus_panels')
+  AND policy IN (
+    '${DIRECTUS_POLICY_CMS_EDITOR_ID}',
+    '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}',
+    '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}',
+    '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}'
+  );
+
+INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
+VALUES
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_EDITOR_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_EDITOR_ID}'),
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}'),
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}');
+
+INSERT INTO directus_dashboards (id, name, icon, note, color, user_created)
+VALUES
+  ('${DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID}', 'Оператор витрины', 'dashboard_customize', 'Резервная точка входа в рабочее место управления витриной.', 'primary', NULL)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  icon = EXCLUDED.icon,
+  note = EXCLUDED.note,
+  color = EXCLUDED.color,
+  user_created = EXCLUDED.user_created;
+
+INSERT INTO directus_panels (
+  id,
+  dashboard,
+  name,
+  icon,
+  color,
+  show_header,
+  note,
+  type,
+  position_x,
+  position_y,
+  width,
+  height,
+  options,
+  user_created
+)
+VALUES (
+  '${DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID}',
+  '${DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID}',
+  'Запуск рабочего места',
+  'dashboard_customize',
+  'primary',
+  true,
+  'Быстрый вход в разделы товаров, категорий, брендов и остатков.',
+  'storefront-ops-launcher',
+  1,
+  1,
+  12,
+  10,
+  '{}'::json,
+  NULL
+)
+ON CONFLICT (id) DO UPDATE SET
+  dashboard = EXCLUDED.dashboard,
+  name = EXCLUDED.name,
+  icon = EXCLUDED.icon,
+  color = EXCLUDED.color,
+  show_header = EXCLUDED.show_header,
+  note = EXCLUDED.note,
+  type = EXCLUDED.type,
+  position_x = EXCLUDED.position_x,
+  position_y = EXCLUDED.position_y,
+  width = EXCLUDED.width,
+  height = EXCLUDED.height,
+  options = EXCLUDED.options,
+  user_created = EXCLUDED.user_created;
+SQL
+
+CURRENT_DIRECTUS_MODULE_BAR="$(
+  docker exec -i directus-database-1 psql -At -U directus -d directus \
+    -c "SELECT COALESCE(module_bar::text, 'null') FROM directus_settings LIMIT 1;" \
+  | tr -d '\r'
+)"
+
+NEXT_DIRECTUS_MODULE_BAR="$(
+  printf '%s' "${CURRENT_DIRECTUS_MODULE_BAR:-null}" | jq -c --argjson baseline "$DIRECTUS_MODULE_BAR_BASELINE" '
+    def storefront: {"type":"module","id":"storefront-ops","enabled":true};
+    (if type == "array" then . else $baseline end)
+    | map(if .id == "storefront-ops" then (. + {"type":"module","enabled":true}) else . end)
+    | map(select(.id != "storefront-ops"))
+    | if any(.[]; .id == "content")
+      then (map(if .id == "content" then [., storefront] else [.] end) | add)
+      else [storefront] + .
+      end
+  '
+)"
+
+docker exec -i directus-database-1 psql -v ON_ERROR_STOP=1 -U directus -d directus <<SQL
+UPDATE directus_settings
+SET module_bar = '${NEXT_DIRECTUS_MODULE_BAR}'::json;
 SQL
 
 while IFS= read -r collection; do

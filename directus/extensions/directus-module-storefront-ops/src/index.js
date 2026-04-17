@@ -3,8 +3,8 @@ import ModuleComponent from './module.vue';
 
 export default defineModule({
   id: 'storefront-ops',
-  name: 'Storefront Ops',
-  icon: 'storefront',
+  name: 'Управление витриной',
+  icon: 'shop_2',
   routes: [
     {
       path: '',

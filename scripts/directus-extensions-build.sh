@@ -39,5 +39,6 @@ mkdir -p "$RUNTIME_DIR"
 
 build_extension "$SOURCE_DIR/directus-endpoint-storefront-ops" "directus-endpoint-storefront-ops"
 build_extension "$SOURCE_DIR/directus-module-storefront-ops" "directus-module-storefront-ops"
+build_extension "$SOURCE_DIR/directus-panel-storefront-ops-launcher" "directus-panel-storefront-ops-launcher"
 
 echo "Directus runtime extensions built into $RUNTIME_DIR"
