@@ -67,11 +67,7 @@ jobs:
       (
         github.event_name == 'workflow_dispatch' ||
         (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/add-cms'))
-      ) &&
-      secrets.YC_VM_HOST != '' &&
-      secrets.YC_VM_USER != '' &&
-      secrets.YC_VM_SSH_KEY != '' &&
-      secrets.YC_VM_DEPLOY_PATH != ''
+      )
     runs-on: ubuntu-latest
     environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
     concurrency:
@@ -80,16 +76,26 @@ jobs:
     env:
       DEPLOY_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
       DEPLOY_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || (github.ref == 'refs/heads/main' && 'main' || 'add-cms') }}
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
     steps:
+      - name: Skip deploy when VM secrets are not configured
+        if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
+        run: |
+          echo "Skipping deploy because one or more VM deployment secrets are missing."
+
       - name: Build and deploy on VM
+        if: ${{ env.YC_VM_HOST != '' && env.YC_VM_USER != '' && env.YC_VM_SSH_KEY != '' && env.YC_VM_DEPLOY_PATH != '' }}
         uses: appleboy/ssh-action@v1.2.0
         with:
-          host: ${{ secrets.YC_VM_HOST }}
-          username: ${{ secrets.YC_VM_USER }}
-          key: ${{ secrets.YC_VM_SSH_KEY }}
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
           script: |
             set -euo pipefail
-            cd ${{ secrets.YC_VM_DEPLOY_PATH }}
+            cd ${{ env.YC_VM_DEPLOY_PATH }}
             git fetch origin "${{ env.DEPLOY_REF }}"
             git checkout "${{ env.DEPLOY_REF }}" || git checkout -b "${{ env.DEPLOY_REF }}" "origin/${{ env.DEPLOY_REF }}"
             git pull --ff-only origin "${{ env.DEPLOY_REF }}"
