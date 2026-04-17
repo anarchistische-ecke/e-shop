@@ -31,3 +31,31 @@ cors:
   allowed-origins: "http://localhost:3000"
   allowed-methods: "*"
   allowed-headers: "*"
+
+directus:
+  base-url: ${DIRECTUS_BASE_URL:http://localhost:8055}
+  public-url: ${DIRECTUS_PUBLIC_URL:${DIRECTUS_BASE_URL:http://localhost:8055}}
+  static-token: ${DIRECTUS_STATIC_TOKEN:}
+  cache-ttl: ${DIRECTUS_CACHE_TTL:PT5M}
+  cache-stale-ttl: ${DIRECTUS_CACHE_STALE_TTL:PT1H}
+  cache-key-prefix: ${DIRECTUS_CACHE_KEY_PREFIX:cms:content}
+  response-cache-max-age: ${DIRECTUS_RESPONSE_CACHE_MAX_AGE:PT1M}
+  response-cache-stale-while-revalidate: ${DIRECTUS_RESPONSE_CACHE_STALE_WHILE_REVALIDATE:PT5M}
+  response-cache-stale-if-error: ${DIRECTUS_RESPONSE_CACHE_STALE_IF_ERROR:PT1H}
+  connect-timeout: ${DIRECTUS_CONNECT_TIMEOUT:PT3S}
+  read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}
+  slow-request-threshold: ${DIRECTUS_SLOW_REQUEST_THRESHOLD:PT2S}
+
+yandex:
+  storage:
+    bucket: ${YANDEX_STORAGE_BUCKET:directus}
+    access-key: ${YANDEX_STORAGE_KEY:minioadmin}
+    secret-key: ${YANDEX_STORAGE_SECRET:minioadmin123}
+    endpoint: ${YANDEX_STORAGE_ENDPOINT:http://localhost:9000}
+    public-base-url: ${YANDEX_STORAGE_PUBLIC_BASE_URL:http://localhost:9000/directus}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus

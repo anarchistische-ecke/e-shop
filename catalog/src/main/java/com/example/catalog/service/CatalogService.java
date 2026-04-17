@@ -192,6 +192,22 @@ public class CatalogService {
         return product;
     }
 
+    @Transactional
+    public Optional<Product> getProductBySlug(String slug) {
+        Optional<Product> product = productRepository.findBySlug(slug);
+        product.ifPresent(this::hydrateProduct);
+        return product;
+    }
+
+    public List<Product> getProductsBySlugs(List<String> slugs) {
+        if (slugs == null || slugs.isEmpty()) {
+            return List.of();
+        }
+        List<Product> products = productRepository.findBySlugIn(slugs);
+        products.forEach(this::hydrateProduct);
+        return products;
+    }
+
     public List<Product> getAllProducts() {
         List<Product> products = productRepository.findAll();
         products.forEach(this::hydrateProduct);
@@ -268,6 +284,13 @@ public class CatalogService {
 
     public Optional<Category> getByCategoryId(UUID id) {
         return categoryRepository.findById(id);
+    }
+
+    public List<Category> getBySlugs(List<String> slugs) {
+        if (slugs == null || slugs.isEmpty()) {
+            return List.of();
+        }
+        return categoryRepository.findBySlugIn(slugs);
     }
 
     public Category create(Category category) {

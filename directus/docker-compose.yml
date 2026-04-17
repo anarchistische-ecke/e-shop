@@ -1,0 +1,124 @@
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DIRECTUS_DB_DATABASE:-directus}
+      POSTGRES_USER: ${DIRECTUS_DB_USER:-directus}
+      POSTGRES_PASSWORD: ${DIRECTUS_DB_PASSWORD:-directus}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DIRECTUS_DB_USER:-directus} -d ${DIRECTUS_DB_DATABASE:-directus}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - directus-db-data:/var/lib/postgresql/data
+
+  cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+
+  storage:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${DIRECTUS_STORAGE_S3_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - directus-object-storage:/data
+
+  storage-init:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    restart: "no"
+    depends_on:
+      - storage
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until /usr/bin/mc alias set directus http://storage:9000
+        "${DIRECTUS_STORAGE_S3_KEY:-minioadmin}"
+        "${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}";
+        do sleep 2; done &&
+        /usr/bin/mc mb --ignore-existing directus/${DIRECTUS_STORAGE_S3_BUCKET:-directus} &&
+        /usr/bin/mc anonymous set download directus/${DIRECTUS_STORAGE_S3_BUCKET:-directus}
+
+  directus:
+    image: directus/directus:${DIRECTUS_VERSION:-11.17.2}
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_started
+      storage:
+        condition: service_started
+      storage-init:
+        condition: service_completed_successfully
+    ports:
+      - "8055:8055"
+    extra_hosts:
+      - "keycloak.lvh.me:host-gateway"
+      - "host.docker.internal:host-gateway"
+    environment:
+      KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in directus/.env}
+      SECRET: ${DIRECTUS_SECRET:?Set DIRECTUS_SECRET in directus/.env}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:-directus-admin@example.com}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?Set DIRECTUS_ADMIN_PASSWORD in directus/.env}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:-http://localhost:8055}
+      AUTH_PROVIDERS: keycloak
+      AUTH_DISABLE_DEFAULT: ${DIRECTUS_AUTH_DISABLE_DEFAULT:-false}
+      AUTH_KEYCLOAK_DRIVER: openid
+      AUTH_KEYCLOAK_CLIENT_ID: ${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID:-directus}
+      AUTH_KEYCLOAK_CLIENT_SECRET: ${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET:-directus-local-secret}
+      AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL:-http://keycloak.lvh.me:8081/realms/cozyhome/.well-known/openid-configuration}
+      AUTH_KEYCLOAK_IDENTIFIER_KEY: ${DIRECTUS_AUTH_KEYCLOAK_IDENTIFIER_KEY:-email}
+      AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: ${DIRECTUS_AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION:-true}
+      AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL: ${DIRECTUS_AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL:-true}
+      AUTH_KEYCLOAK_SYNC_USER_INFO: ${DIRECTUS_AUTH_KEYCLOAK_SYNC_USER_INFO:-true}
+      AUTH_KEYCLOAK_GROUP_CLAIM_NAME: ${DIRECTUS_AUTH_KEYCLOAK_GROUP_CLAIM_NAME:-groups}
+      AUTH_KEYCLOAK_LABEL: ${DIRECTUS_AUTH_KEYCLOAK_LABEL:-Войти через Keycloak}
+      AUTH_KEYCLOAK_ICON: ${DIRECTUS_AUTH_KEYCLOAK_ICON:-vpn_key}
+      AUTH_KEYCLOAK_ROLE_MAPPING: 'json:{"admin":"${DIRECTUS_ROLE_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}","manager":"${DIRECTUS_ROLE_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002}","publisher":"${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}","catalogue_operator":"${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}","inventory_operator":"${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}"}'
+      DB_CLIENT: pg
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_DATABASE: ${DIRECTUS_DB_DATABASE:-directus}
+      DB_USER: ${DIRECTUS_DB_USER:-directus}
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:-directus}
+      CACHE_ENABLED: ${DIRECTUS_DATA_CACHE_ENABLED:-false}
+      CACHE_TTL: ${DIRECTUS_DATA_CACHE_TTL:-5m}
+      CACHE_AUTO_PURGE: ${DIRECTUS_DATA_CACHE_AUTO_PURGE:-true}
+      CACHE_STORE: ${DIRECTUS_DATA_CACHE_STORE:-redis}
+      CACHE_STATUS_HEADER: ${DIRECTUS_DATA_CACHE_STATUS_HEADER:-X-Directus-Cache}
+      REDIS: ${DIRECTUS_REDIS_URL:-redis://cache:6379}
+      STORAGE_LOCATIONS: s3
+      STORAGE_S3_DRIVER: s3
+      STORAGE_S3_KEY: ${DIRECTUS_STORAGE_S3_KEY:-minioadmin}
+      STORAGE_S3_SECRET: ${DIRECTUS_STORAGE_S3_SECRET:-minioadmin123}
+      STORAGE_S3_BUCKET: ${DIRECTUS_STORAGE_S3_BUCKET:-directus}
+      STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-http://storage:9000}
+      STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-true}
+      STOREFRONT_OPS_BACKEND_URL: ${DIRECTUS_STOREFRONT_OPS_BACKEND_URL:-http://host.docker.internal:8080}
+      STOREFRONT_OPS_BACKEND_TOKEN: ${DIRECTUS_BRIDGE_TOKEN:-local-directus-bridge-token}
+      STOREFRONT_OPS_CATALOGUE_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}
+      STOREFRONT_OPS_INVENTORY_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}
+      WEBSOCKETS_ENABLED: "true"
+    volumes:
+      - ./runtime-extensions:/directus/extensions:ro
+      - directus-templates:/directus/templates
+
+volumes:
+  directus-db-data:
+  directus-object-storage:
+  directus-templates:

@@ -2,10 +2,24 @@ name: backend-ci
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, add-cms ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+      ref:
+        description: Git ref to deploy
+        required: true
+        default: main
+        type: string
 
 jobs:
   build:
@@ -13,6 +27,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate committed Directus schema snapshot
+        run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
+
+      - name: Build Directus extensions
+        run: bash ./scripts/directus-extensions-build.sh
+
+      - name: Verify committed Directus runtime extensions are up to date
+        run: git diff --exit-code -- directus/runtime-extensions
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,8 +63,23 @@ jobs:
 
   deploy:
     needs: build
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    if: |
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/add-cms'))
+      ) &&
+      secrets.YC_VM_HOST != '' &&
+      secrets.YC_VM_USER != '' &&
+      secrets.YC_VM_SSH_KEY != '' &&
+      secrets.YC_VM_DEPLOY_PATH != ''
     runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+    concurrency:
+      group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+      cancel-in-progress: false
+    env:
+      DEPLOY_ENVIRONMENT: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+      DEPLOY_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || (github.ref == 'refs/heads/main' && 'main' || 'add-cms') }}
     steps:
       - name: Build and deploy on VM
         uses: appleboy/ssh-action@v1.2.0
@@ -45,16 +88,9 @@ jobs:
           username: ${{ secrets.YC_VM_USER }}
           key: ${{ secrets.YC_VM_SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
             cd ${{ secrets.YC_VM_DEPLOY_PATH }}
-            git fetch origin main
-            git checkout main
-            git pull --ff-only origin main
-            if docker compose version >/dev/null 2>&1; then
-              docker compose -f docker-compose.prod.yml up -d --build
-            elif command -v docker-compose >/dev/null 2>&1; then
-              docker-compose -f docker-compose.prod.yml up -d --build
-            else
-              echo "Docker Compose not found on server." >&2
-              exit 1
-            fi
+            git fetch origin "${{ env.DEPLOY_REF }}"
+            git checkout "${{ env.DEPLOY_REF }}" || git checkout -b "${{ env.DEPLOY_REF }}" "origin/${{ env.DEPLOY_REF }}"
+            git pull --ff-only origin "${{ env.DEPLOY_REF }}"
+            bash ./scripts/deploy-stack.sh --env-file .env --compose-file docker-compose.prod.yml
