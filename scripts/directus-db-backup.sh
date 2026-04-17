@@ -83,18 +83,14 @@ compose() {
 compose up -d postgres >/dev/null
 
 if ! compose exec -T \
-  -e POSTGRES_USER="$POSTGRES_USER" \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
-  postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname postgres \
     --tuples-only \
     --no-align \
-    --command "SELECT 1 FROM pg_database WHERE datname = '\''$DIRECTUS_DB_DATABASE'\''" | grep -q "^1$"
-'; then
+    --command "SELECT 1 FROM pg_database WHERE datname = '$DIRECTUS_DB_DATABASE'" | grep -q "^1$"; then
   echo "Skipping Directus DB backup because database '$DIRECTUS_DB_DATABASE' does not exist yet."
   exit 0
 fi
@@ -105,19 +101,15 @@ timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_path="$OUTPUT_DIR/directus-${timestamp}.sql.gz"
 
 compose exec -T \
-  -e POSTGRES_USER="$POSTGRES_USER" \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
-  postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
-  exec pg_dump \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
+  pg_dump \
     --username "$POSTGRES_USER" \
     --dbname "$DIRECTUS_DB_DATABASE" \
     --clean \
     --if-exists \
     --no-owner \
-    --no-privileges
-' | gzip -c >"$backup_path"
+    --no-privileges | gzip -c >"$backup_path"
 
 find "$OUTPUT_DIR" -type f -name 'directus-*.sql.gz' -mtime +"$RETENTION_DAYS" -delete
 

@@ -126,13 +126,13 @@ compose() {
 
 run_psql_directus() {
   local sql="$1"
-  compose exec -T "$DATABASE_SERVICE" sh -lc '
-    export PGPASSWORD="$POSTGRES_PASSWORD"
+  compose exec -T \
+    -e PGPASSWORD="$POSTGRES_PASSWORD" \
+    "$DATABASE_SERVICE" \
     psql \
       --username "$POSTGRES_USER" \
       --dbname "$DIRECTUS_DB_DATABASE" \
-      -v ON_ERROR_STOP=1
-  ' <<SQL
+      -v ON_ERROR_STOP=1 <<SQL
 $sql
 SQL
 }
@@ -140,15 +140,15 @@ SQL
 compose up -d "$DATABASE_SERVICE" >/dev/null
 
 PUBLIC_POLICY_ID="$(
-  compose exec -T "$DATABASE_SERVICE" sh -lc '
-    export PGPASSWORD="$POSTGRES_PASSWORD"
+  compose exec -T \
+    -e PGPASSWORD="$POSTGRES_PASSWORD" \
+    "$DATABASE_SERVICE" \
     psql \
       --username "$POSTGRES_USER" \
       --dbname "$DIRECTUS_DB_DATABASE" \
       --tuples-only \
       --no-align \
-      -c "SELECT id FROM directus_policies WHERE name = '\''\$t:public_label'\'' LIMIT 1;"
-  ' | tr -d '[:space:]\r'
+      -c "SELECT id FROM directus_policies WHERE name = '\$t:public_label' LIMIT 1;" | tr -d '[:space:]\r'
 )"
 
 if [[ -z "$PUBLIC_POLICY_ID" ]]; then

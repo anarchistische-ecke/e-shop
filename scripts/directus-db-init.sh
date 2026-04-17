@@ -122,16 +122,8 @@ compose() {
 compose up -d postgres >/dev/null
 
 compose exec -T \
-  -e POSTGRES_USER="$POSTGRES_USER" \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -e COMMERCE_DB_DATABASE="$COMMERCE_DB_DATABASE" \
-  -e COMMERCE_DB_USER="$COMMERCE_DB_USER" \
-  -e COMMERCE_DB_PASSWORD="$COMMERCE_DB_PASSWORD" \
-  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
-  -e DIRECTUS_DB_USER="$DIRECTUS_DB_USER" \
-  -e DIRECTUS_DB_PASSWORD="$DIRECTUS_DB_PASSWORD" \
-  postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname postgres \
@@ -142,7 +134,7 @@ compose exec -T \
     -v commerce_password="$COMMERCE_DB_PASSWORD" \
     -v directus_db="$DIRECTUS_DB_DATABASE" \
     -v directus_user="$DIRECTUS_DB_USER" \
-    -v directus_password="$DIRECTUS_DB_PASSWORD" <<'"'"'SQL'"'"'
+    -v directus_password="$DIRECTUS_DB_PASSWORD" <<'SQL'
 SELECT
   format(
     'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
@@ -204,23 +196,17 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'commerce_db') \gexec
 SELECT format('GRANT CONNECT, TEMP ON DATABASE %I TO %I', :'commerce_db', :'commerce_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM %I', :'commerce_db', :'directus_user') \gexec
 SQL
-'
 
 compose exec -T \
-  -e POSTGRES_USER="$POSTGRES_USER" \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -e COMMERCE_DB_USER="$COMMERCE_DB_USER" \
-  -e DIRECTUS_DB_DATABASE="$DIRECTUS_DB_DATABASE" \
-  -e DIRECTUS_DB_USER="$DIRECTUS_DB_USER" \
-  postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname "$DIRECTUS_DB_DATABASE" \
     -v ON_ERROR_STOP=1 \
     -v admin_user="$POSTGRES_USER" \
     -v commerce_user="$COMMERCE_DB_USER" \
-    -v directus_user="$DIRECTUS_DB_USER" <<'"'"'SQL'"'"'
+    -v directus_user="$DIRECTUS_DB_USER" <<'SQL'
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
@@ -236,23 +222,17 @@ WHERE :'commerce_user' <> :'admin_user' \gexec
 SELECT format('ALTER SCHEMA public OWNER TO %I', :'directus_user') \gexec
 SELECT format('GRANT ALL ON SCHEMA public TO %I', :'directus_user') \gexec
 SQL
-'
 
 compose exec -T \
-  -e POSTGRES_USER="$POSTGRES_USER" \
-  -e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
-  -e COMMERCE_DB_DATABASE="$COMMERCE_DB_DATABASE" \
-  -e COMMERCE_DB_USER="$COMMERCE_DB_USER" \
-  -e DIRECTUS_DB_USER="$DIRECTUS_DB_USER" \
-  postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname "$COMMERCE_DB_DATABASE" \
     -v ON_ERROR_STOP=1 \
     -v admin_user="$POSTGRES_USER" \
     -v commerce_user="$COMMERCE_DB_USER" \
-    -v directus_user="$DIRECTUS_DB_USER" <<'"'"'SQL'"'"'
+    -v directus_user="$DIRECTUS_DB_USER" <<'SQL'
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
@@ -299,6 +279,5 @@ SELECT format(
   :'commerce_user'
 ) \gexec
 SQL
-'
 
 echo "Directus database '$DIRECTUS_DB_DATABASE' and commerce database '$COMMERCE_DB_DATABASE' are isolated and ready."
