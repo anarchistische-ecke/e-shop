@@ -89,10 +89,11 @@ bash "$ROOT_DIR/scripts/directus-db-init.sh" \
   --compose-file "$COMPOSE_FILE"
 
 echo "Pulling pinned Directus image..."
-compose pull directus
+compose pull api directus
 
 echo "Deploying API and Directus containers..."
-compose up -d --build api directus
+echo "API image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}"
+compose up -d api directus
 
 echo "Applying committed Directus schema snapshot..."
 if ! compose exec -T -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 directus \

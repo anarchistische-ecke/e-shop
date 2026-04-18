@@ -21,6 +21,7 @@ Backup restore rehearsal is documented in [directus-restore-drill.md](./directus
 The staging and production stacks use the same compose file and the same deploy script. They differ only by:
 
 - Git ref deployed
+- API image tag deployed
 - VM/host target
 - server-side `.env`
 - GitHub Environment secrets
@@ -52,13 +53,14 @@ If those secrets are missing, the deploy job is skipped and only CI verification
 ## Server Deploy Flow
 
 The GitHub Action now runs `./scripts/deploy-stack.sh` on the target VM after `git pull`.
+The API Docker image is built in GitHub Actions, pushed to GHCR, and the VM only pulls the exact image tag for the current commit.
 
 That script performs these steps:
 
 1. Start `postgres` and `redis`
 2. Run `scripts/directus-db-backup.sh`
 3. Run `scripts/directus-db-init.sh`
-4. Pull the pinned Directus image tag
+4. Pull the exact API image tag for the deployed commit and the pinned Directus image tag
 5. Start or update `api` and `directus`
 6. Apply the committed Directus schema snapshot from `directus/schema/schema.snapshot.json`
 7. Run `scripts/directus-published-at-bootstrap.sh`
@@ -120,16 +122,21 @@ The compose file now expects these Directus deployment variables in the target s
 - `DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID`
 - `DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET`
 - `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL`
-- `DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING`
 - `DIRECTUS_BRIDGE_TOKEN`
 - `DIRECTUS_STOREFRONT_OPS_BACKEND_URL`
-- `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS`
-- `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS`
 - `DIRECTUS_STORAGE_S3_KEY`
 - `DIRECTUS_STORAGE_S3_SECRET`
 - `DIRECTUS_STORAGE_S3_BUCKET`
 - `DIRECTUS_STORAGE_S3_REGION`
 - `DIRECTUS_STORAGE_S3_ENDPOINT`
+- `API_IMAGE_REPOSITORY` optional override for manual deploys. The GitHub workflow injects this automatically.
+- `API_IMAGE_TAG` optional override for manual deploys. The GitHub workflow injects the exact commit SHA automatically.
+
+These role-related variables are now optional because the production bootstrap seeds the same stable Directus role IDs used locally and the compose defaults point at those IDs:
+
+- `DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING`
+- `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS`
+- `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS`
 
 Recommended cache-related variables in the same `.env`:
 
@@ -172,7 +179,7 @@ Before the first staging or production Directus deploy:
 1. Add the Directus variables to the target server `.env`
 2. Create the dedicated Directus S3 bucket and credentials
 3. Create the Directus Keycloak client and callback URL
-4. Add the Directus operator bridge token and role-id env values if the `Storefront Ops` module will be enabled
+4. Add the Directus operator bridge token. Role-id env overrides are optional now.
 5. Ensure the GitHub Environment secrets point at the correct VM and deploy path
 6. Confirm the target VM can expose Directus on port `8055` or place it behind nginx
 7. Run one successful restore drill with `scripts/directus-db-restore-drill.sh` against a recent Directus backup and record the result
