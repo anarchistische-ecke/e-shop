@@ -102,8 +102,28 @@ bash "$ROOT_DIR/scripts/directus-schema-token-bootstrap.sh" \
   --database-service postgres
 
 echo "Applying committed Directus schema snapshot..."
-if ! compose exec -T -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 directus \
-  node /opt/directus-deploy/scripts/directus-schema.js apply; then
+SCHEMA_APPLY_SUCCESS=false
+for attempt in 1 2 3; do
+  if compose exec -T \
+    -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 \
+    -e DIRECTUS_SCHEMA_ADMIN_TOKEN="${DIRECTUS_SCHEMA_ADMIN_TOKEN:-}" \
+    -e DIRECTUS_ADMIN_EMAIL="${DIRECTUS_ADMIN_EMAIL:-}" \
+    -e DIRECTUS_ADMIN_PASSWORD="${DIRECTUS_ADMIN_PASSWORD:-}" \
+    directus \
+    node /opt/directus-deploy/scripts/directus-schema.js apply; then
+    SCHEMA_APPLY_SUCCESS=true
+    break
+  fi
+
+  echo "Directus schema apply attempt ${attempt} failed." >&2
+  if [[ "$attempt" -lt 3 ]]; then
+    sleep 5
+  fi
+done
+
+if [[ "$SCHEMA_APPLY_SUCCESS" != "true" ]]; then
+  echo "Directus schema apply failed after retries. Recent Directus logs:" >&2
+  compose logs --tail=200 directus >&2 || true
   echo "Directus schema apply failed. If default Directus login is disabled, set DIRECTUS_SCHEMA_ADMIN_TOKEN in the deployment .env." >&2
   exit 1
 fi
