@@ -79,6 +79,23 @@ compose() {
   fi
 }
 
+query_directus_scalar() {
+  local sql="$1"
+
+  compose exec -T \
+    -e PGPASSWORD="$POSTGRES_PASSWORD" \
+    "$DATABASE_SERVICE" \
+    psql \
+      --username "$POSTGRES_USER" \
+      --dbname "$DIRECTUS_DB_DATABASE" \
+      --tuples-only \
+      --no-align \
+      -v ON_ERROR_STOP=1 \
+      -v admin_email="$DIRECTUS_ADMIN_EMAIL" <<SQL | tr -d '[:space:]\r'
+$sql
+SQL
+}
+
 if [[ -z "$SCHEMA_ADMIN_TOKEN" ]]; then
   if [[ "$AUTH_DISABLE_DEFAULT" == "true" ]]; then
     echo "DIRECTUS_AUTH_DISABLE_DEFAULT=true but DIRECTUS_SCHEMA_ADMIN_TOKEN is not set. Schema automation cannot authenticate." >&2
@@ -95,36 +112,10 @@ wait_for_admin_user() {
   local count
 
   for _ in $(seq 1 30); do
-    count="$(
-      compose exec -T \
-        -e PGPASSWORD="$POSTGRES_PASSWORD" \
-        "$DATABASE_SERVICE" \
-        psql \
-          --username "$POSTGRES_USER" \
-          --dbname "$DIRECTUS_DB_DATABASE" \
-          --tuples-only \
-          --no-align \
-          -v ON_ERROR_STOP=1 \
-          -v admin_email="$DIRECTUS_ADMIN_EMAIL" \
-          -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'directus_users';" \
-        | tr -d '[:space:]\r'
-    )"
+    count="$(query_directus_scalar "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'directus_users';")"
 
     if [[ "$count" == "1" ]]; then
-      count="$(
-        compose exec -T \
-          -e PGPASSWORD="$POSTGRES_PASSWORD" \
-          "$DATABASE_SERVICE" \
-          psql \
-            --username "$POSTGRES_USER" \
-            --dbname "$DIRECTUS_DB_DATABASE" \
-            --tuples-only \
-            --no-align \
-            -v ON_ERROR_STOP=1 \
-            -v admin_email="$DIRECTUS_ADMIN_EMAIL" \
-            -c "SELECT COUNT(*) FROM directus_users WHERE email = :'admin_email';" \
-          | tr -d '[:space:]\r'
-      )"
+      count="$(query_directus_scalar "SELECT COUNT(*) FROM directus_users WHERE email = :'admin_email';")"
 
       if [[ "$count" == "1" ]]; then
         return 0
