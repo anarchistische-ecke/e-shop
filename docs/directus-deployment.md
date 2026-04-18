@@ -62,10 +62,11 @@ That script performs these steps:
 3. Run `scripts/directus-db-init.sh`
 4. Pull the exact API image tag for the deployed commit and the pinned Directus image tag
 5. Start or update `api` and `directus`
-6. Apply the committed Directus schema snapshot from `directus/schema/schema.snapshot.json`
-7. Run `scripts/directus-published-at-bootstrap.sh`
-8. Run `scripts/check-stack-health.sh`
-9. Load the committed Directus operator runtime extensions from `directus/runtime-extensions/`
+6. Seed `DIRECTUS_SCHEMA_ADMIN_TOKEN` into the Directus admin user record when automation login is configured through a static token
+7. Apply the committed Directus schema snapshot from `directus/schema/schema.snapshot.json`
+8. Run `scripts/directus-published-at-bootstrap.sh`
+9. Run `scripts/check-stack-health.sh`
+10. Load the committed Directus operator runtime extensions from `directus/runtime-extensions/`
 
 This keeps Directus core upgrades, schema drift control, publish-timestamp automation, and app deployment on one path.
 

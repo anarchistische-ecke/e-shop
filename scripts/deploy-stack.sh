@@ -95,6 +95,12 @@ echo "Deploying API and Directus containers..."
 echo "API image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}"
 compose up -d api directus
 
+echo "Bootstrapping Directus schema automation token..."
+bash "$ROOT_DIR/scripts/directus-schema-token-bootstrap.sh" \
+  --env-file "$ENV_FILE" \
+  --compose-file "$COMPOSE_FILE" \
+  --database-service postgres
+
 echo "Applying committed Directus schema snapshot..."
 if ! compose exec -T -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 directus \
   node /opt/directus-deploy/scripts/directus-schema.js apply; then
