@@ -5,18 +5,14 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$ROOT_DIR/.env"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
   ./scripts/directus-db-init.sh [--env-file <path>] [--compose-file <path>]
 EOF
-}
-
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
 }
 
 extract_database_name_from_jdbc_url() {
@@ -33,11 +29,11 @@ extract_database_name_from_jdbc_url() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --compose-file)
-      COMPOSE_FILE="$(resolve_path "$2")"
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --help|-h)
@@ -62,9 +58,7 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
-set -a
-source "$ENV_FILE"
-set +a
+load_env_file "$ENV_FILE"
 
 : "${POSTGRES_USER:?Set POSTGRES_USER in $ENV_FILE}"
 : "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in $ENV_FILE}"
@@ -121,8 +115,9 @@ compose() {
 
 compose up -d postgres >/dev/null
 
-compose exec -T postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+compose exec -T \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname postgres \
@@ -133,7 +128,7 @@ compose exec -T postgres sh -lc '
     -v commerce_password="$COMMERCE_DB_PASSWORD" \
     -v directus_db="$DIRECTUS_DB_DATABASE" \
     -v directus_user="$DIRECTUS_DB_USER" \
-    -v directus_password="$DIRECTUS_DB_PASSWORD" <<'"'"'SQL'"'"'
+    -v directus_password="$DIRECTUS_DB_PASSWORD" <<'SQL'
 SELECT
   format(
     'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
@@ -195,17 +190,17 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'commerce_db') \gexec
 SELECT format('GRANT CONNECT, TEMP ON DATABASE %I TO %I', :'commerce_db', :'commerce_user') \gexec
 SELECT format('REVOKE ALL ON DATABASE %I FROM %I', :'commerce_db', :'directus_user') \gexec
 SQL
-'
 
-compose exec -T postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+compose exec -T \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname "$DIRECTUS_DB_DATABASE" \
     -v ON_ERROR_STOP=1 \
     -v admin_user="$POSTGRES_USER" \
     -v commerce_user="$COMMERCE_DB_USER" \
-    -v directus_user="$DIRECTUS_DB_USER" <<'"'"'SQL'"'"'
+    -v directus_user="$DIRECTUS_DB_USER" <<'SQL'
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
@@ -221,17 +216,17 @@ WHERE :'commerce_user' <> :'admin_user' \gexec
 SELECT format('ALTER SCHEMA public OWNER TO %I', :'directus_user') \gexec
 SELECT format('GRANT ALL ON SCHEMA public TO %I', :'directus_user') \gexec
 SQL
-'
 
-compose exec -T postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+compose exec -T \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname "$COMMERCE_DB_DATABASE" \
     -v ON_ERROR_STOP=1 \
     -v admin_user="$POSTGRES_USER" \
     -v commerce_user="$COMMERCE_DB_USER" \
-    -v directus_user="$DIRECTUS_DB_USER" <<'"'"'SQL'"'"'
+    -v directus_user="$DIRECTUS_DB_USER" <<'SQL'
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC;
@@ -278,6 +273,5 @@ SELECT format(
   :'commerce_user'
 ) \gexec
 SQL
-'
 
 echo "Directus database '$DIRECTUS_DB_DATABASE' and commerce database '$COMMERCE_DB_DATABASE' are isolated and ready."

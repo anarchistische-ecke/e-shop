@@ -1,6 +1,6 @@
 # Directus Rollback Strategy
 
-This document defines how CMS-related changes are reversed in staging or production.
+This document defines how CMS-related changes are reversed in production today, and in staging later when a separate staging target exists.
 
 Use it together with:
 
@@ -32,7 +32,10 @@ The rollback plan depends on these already-established controls:
 - committed schema snapshots in `directus/schema/schema.snapshot.json`
 - committed initial content seeds in `directus/seed/initial-content.js` and `directus/seed/legal/`
 - operational restore script `scripts/directus-db-restore.sh`
-- deploy script `scripts/deploy-stack.sh`
+- runtime rollback script `scripts/rollback-runtime-release.sh`
+- destructive deploy script `scripts/deploy-stack.sh`
+- immutable runtime release directories under `releases/<git-sha>/`
+- runtime state under `.deploy-state/runtime-live.env`
 
 If any of those controls are bypassed, rollback risk increases immediately.
 
@@ -133,8 +136,8 @@ Preferred path:
 2. Determine whether the bad schema change was destructive.
    Destructive examples: dropped field, renamed field, relation rewrite, incompatible status/workflow change.
 3. If the change was destructive, restore the matching pre-deploy Directus DB backup first.
-4. Check out the last known good git ref on the target VM.
-5. Redeploy:
+4. Check out the last known good git ref on the target VM or trigger the destructive/manual workflow at that ref.
+5. Redeploy destructively:
 
    ```bash
    cd <deploy-path>
@@ -156,10 +159,18 @@ Do not rely on “forward-fixing” a broken schema in production unless the bla
 
 Use this when the problem is the Directus image version or the deployed application ref rather than the content model itself.
 
+For runtime-safe application changes, prefer the recorded runtime release rollback over git checkout surgery. That is the smallest safe rollback unit in the new pipeline.
+
+Important boundary for the current single-VM production bring-up:
+
+- immediately after the first manual bootstrap of the rewritten pipeline, there is no previous blue-green release to roll back to yet
+- use the legacy nginx include-file fallback from [single-vm-production-bringup.md](./single-vm-production-bringup.md) if that first bootstrap must be undone
+- `scripts/rollback-runtime-release.sh` and `.github/workflows/rollback-production.yml` become useful only after at least one later successful runtime-safe deploy records a previous live release
+
 ### Directus version rollback
 
 1. Revert `DIRECTUS_VERSION` in the server `.env` to the previous pinned tag.
-2. Redeploy:
+2. Redeploy through the destructive/manual workflow:
 
    ```bash
    cd <deploy-path>
@@ -170,7 +181,16 @@ Use this when the problem is the Directus image version or the deployed applicat
 
 ### Full application ref rollback
 
-Use the same git-ref rollback described in the schema section.
+For runtime-safe production releases:
+
+```bash
+cd <deploy-path>
+bash ./scripts/rollback-runtime-release.sh --env-file .env --compose-file docker-compose.prod.yml
+```
+
+That swaps nginx back to the recorded previous runtime slot, rechecks public health, and leaves the immutable release directories intact for later forensics.
+
+For destructive/schema-affecting releases, use the same git-ref rollback described in the schema section.
 
 ## Post-Rollback Verification
 

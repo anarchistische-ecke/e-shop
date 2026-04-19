@@ -7,6 +7,9 @@ COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 OUTPUT_DIR="$ROOT_DIR/backups/directus"
 RETENTION_DAYS="${DIRECTUS_BACKUP_RETENTION_DAYS:-14}"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -14,25 +17,18 @@ Usage:
 EOF
 }
 
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --compose-file)
-      COMPOSE_FILE="$(resolve_path "$2")"
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --output-dir)
-      OUTPUT_DIR="$(resolve_path "$2")"
+      OUTPUT_DIR="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --retention-days)
@@ -61,9 +57,7 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
-set -a
-source "$ENV_FILE"
-set +a
+load_env_file "$ENV_FILE"
 
 : "${POSTGRES_USER:?Set POSTGRES_USER in $ENV_FILE}"
 : "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in $ENV_FILE}"
@@ -82,15 +76,15 @@ compose() {
 
 compose up -d postgres >/dev/null
 
-if ! compose exec -T postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
+if ! compose exec -T \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
   psql \
     --username "$POSTGRES_USER" \
     --dbname postgres \
     --tuples-only \
     --no-align \
-    --command "SELECT 1 FROM pg_database WHERE datname = '\''$DIRECTUS_DB_DATABASE'\''" | grep -q "^1$"
-'; then
+    --command "SELECT 1 FROM pg_database WHERE datname = '$DIRECTUS_DB_DATABASE'" | grep -q "^1$"; then
   echo "Skipping Directus DB backup because database '$DIRECTUS_DB_DATABASE' does not exist yet."
   exit 0
 fi
@@ -100,16 +94,16 @@ mkdir -p "$OUTPUT_DIR"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_path="$OUTPUT_DIR/directus-${timestamp}.sql.gz"
 
-compose exec -T postgres sh -lc '
-  export PGPASSWORD="$POSTGRES_PASSWORD"
-  exec pg_dump \
+compose exec -T \
+  -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  postgres \
+  pg_dump \
     --username "$POSTGRES_USER" \
     --dbname "$DIRECTUS_DB_DATABASE" \
     --clean \
     --if-exists \
     --no-owner \
-    --no-privileges
-' | gzip -c >"$backup_path"
+    --no-privileges | gzip -c >"$backup_path"
 
 find "$OUTPUT_DIR" -type f -name 'directus-*.sql.gz' -mtime +"$RETENTION_DAYS" -delete
 

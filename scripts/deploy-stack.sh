@@ -7,6 +7,9 @@ COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 BACKUP_DIR="$ROOT_DIR/backups/directus"
 SKIP_BACKUP=false
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -14,25 +17,18 @@ Usage:
 EOF
 }
 
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --compose-file)
-      COMPOSE_FILE="$(resolve_path "$2")"
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --backup-dir)
-      BACKUP_DIR="$(resolve_path "$2")"
+      BACKUP_DIR="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --skip-backup)
@@ -60,6 +56,8 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "Missing compose file: $COMPOSE_FILE" >&2
   exit 1
 fi
+
+load_env_file "$ENV_FILE"
 
 compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -89,17 +87,51 @@ bash "$ROOT_DIR/scripts/directus-db-init.sh" \
   --compose-file "$COMPOSE_FILE"
 
 echo "Pulling pinned Directus image..."
-compose pull directus
+compose pull api directus
 
 echo "Deploying API and Directus containers..."
-compose up -d --build api directus
+echo "API image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}"
+echo "This path is the destructive/manual production apply workflow. Runtime-safe auto deploys must use scripts/deploy-runtime-bluegreen.sh."
+compose up -d api directus
+
+echo "Bootstrapping Directus schema automation token..."
+bash "$ROOT_DIR/scripts/directus-schema-token-bootstrap.sh" \
+  --env-file "$ENV_FILE" \
+  --compose-file "$COMPOSE_FILE" \
+  --database-service postgres
 
 echo "Applying committed Directus schema snapshot..."
-if ! compose exec -T -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 directus \
-  node /opt/directus-deploy/scripts/directus-schema.js apply; then
+SCHEMA_APPLY_SUCCESS=false
+for attempt in 1 2 3; do
+  if compose exec -T \
+    -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 \
+    -e DIRECTUS_SCHEMA_ADMIN_TOKEN="${DIRECTUS_SCHEMA_ADMIN_TOKEN:-}" \
+    -e DIRECTUS_ADMIN_EMAIL="${DIRECTUS_ADMIN_EMAIL:-}" \
+    -e DIRECTUS_ADMIN_PASSWORD="${DIRECTUS_ADMIN_PASSWORD:-}" \
+    directus \
+    node /opt/directus-deploy/scripts/directus-schema.js apply; then
+    SCHEMA_APPLY_SUCCESS=true
+    break
+  fi
+
+  echo "Directus schema apply attempt ${attempt} failed." >&2
+  if [[ "$attempt" -lt 3 ]]; then
+    sleep 5
+  fi
+done
+
+if [[ "$SCHEMA_APPLY_SUCCESS" != "true" ]]; then
+  echo "Directus schema apply failed after retries. Recent Directus logs:" >&2
+  compose logs --tail=200 directus >&2 || true
   echo "Directus schema apply failed. If default Directus login is disabled, set DIRECTUS_SCHEMA_ADMIN_TOKEN in the deployment .env." >&2
   exit 1
 fi
+
+echo "Bootstrapping Directus roles, permissions, and operator workspace defaults..."
+bash "$ROOT_DIR/scripts/directus-governance-bootstrap.sh" \
+  --env-file "$ENV_FILE" \
+  --compose-file "$COMPOSE_FILE" \
+  --database-service postgres
 
 echo "Bootstrapping automatic published_at handling..."
 bash "$ROOT_DIR/scripts/directus-published-at-bootstrap.sh" \

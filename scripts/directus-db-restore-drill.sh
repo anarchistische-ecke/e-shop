@@ -11,18 +11,14 @@ POSTGRES_PASSWORD="${DIRECTUS_RESTORE_DRILL_PASSWORD:-directus}"
 TIMEOUT_SECONDS="${DIRECTUS_RESTORE_DRILL_TIMEOUT_SECONDS:-120}"
 CONTAINER_NAME="directus-restore-drill-$RANDOM-$RANDOM"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
   ./scripts/directus-db-restore-drill.sh --backup-file <path> [--env-file <path>] [--postgres-image <image>] [--timeout-seconds <seconds>]
 EOF
-}
-
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
 }
 
 normalize_csv() {
@@ -36,11 +32,11 @@ normalize_csv() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --backup-file)
-      BACKUP_FILE="$(resolve_path "$2")"
+      BACKUP_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --postgres-image)
@@ -75,9 +71,7 @@ if [[ ! -f "$BACKUP_FILE" ]]; then
 fi
 
 if [[ -f "$ENV_FILE" ]]; then
-  set -a
-  source "$ENV_FILE"
-  set +a
+  load_env_file "$ENV_FILE"
 fi
 
 DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-${DIRECTUS_CMS_CONTENT_COLLECTIONS:-}}"

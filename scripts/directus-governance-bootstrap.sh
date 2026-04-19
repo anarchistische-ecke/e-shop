@@ -2,31 +2,66 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-DIRECTUS_ENV_FILE="$ROOT_DIR/directus/.env"
-KEYCLOAK_ENV_FILE="$ROOT_DIR/keycloak/.env"
+ENV_FILE="$ROOT_DIR/.env"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
+DATABASE_SERVICE="postgres"
 
 # shellcheck source=scripts/lib/env-file.sh
 source "$ROOT_DIR/scripts/lib/env-file.sh"
 
-if [[ ! -f "$DIRECTUS_ENV_FILE" ]]; then
-  echo "Missing $DIRECTUS_ENV_FILE" >&2
+usage() {
+  cat <<'EOF'
+Usage:
+  ./scripts/directus-governance-bootstrap.sh [--env-file <path>] [--compose-file <path>] [--database-service <name>]
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      ENV_FILE="$(resolve_env_file_path "$2")"
+      shift 2
+      ;;
+    --compose-file)
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
+      shift 2
+      ;;
+    --database-service)
+      DATABASE_SERVICE="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unsupported argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Missing env file: $ENV_FILE" >&2
   exit 1
 fi
 
-if [[ ! -f "$KEYCLOAK_ENV_FILE" ]]; then
-  echo "Missing $KEYCLOAK_ENV_FILE" >&2
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+  echo "Missing compose file: $COMPOSE_FILE" >&2
   exit 1
 fi
 
-load_env_file "$DIRECTUS_ENV_FILE"
-load_env_file "$KEYCLOAK_ENV_FILE"
+load_env_file "$ENV_FILE"
 
-DIRECTUS_PUBLIC_URL="${DIRECTUS_PUBLIC_URL:-http://localhost:8055}"
+: "${POSTGRES_USER:?Set POSTGRES_USER in $ENV_FILE}"
+: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in $ENV_FILE}"
+: "${DIRECTUS_DB_DATABASE:?Set DIRECTUS_DB_DATABASE in $ENV_FILE}"
+
 DIRECTUS_DEFAULT_LANGUAGE="${DIRECTUS_DEFAULT_LANGUAGE:-ru-RU}"
 DIRECTUS_PROJECT_NAME="${DIRECTUS_PROJECT_NAME:-Магазин}"
-DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID="${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID:-directus}"
-DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET="${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET:-directus-local-secret}"
 LEGACY_DIRECTUS_ADMIN_EMAIL="${LEGACY_DIRECTUS_ADMIN_EMAIL:-admin@example.com}"
+DIRECTUS_ADMIN_EMAIL="${DIRECTUS_ADMIN_EMAIL:-$LEGACY_DIRECTUS_ADMIN_EMAIL}"
 DIRECTUS_ROLE_CMS_ADMIN_ID="${DIRECTUS_ROLE_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}"
 DIRECTUS_ROLE_CMS_EDITOR_ID="${DIRECTUS_ROLE_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002}"
 DIRECTUS_ROLE_CMS_PUBLISHER_ID="${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}"
@@ -54,6 +89,15 @@ PUBLISHER_CREATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_eq":"draft"}}' "$DIR
 PUBLISHER_UPDATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_in":["draft","in_review","published","archived"]}}' "$DIRECTUS_CMS_STATUS_FIELD")"
 CREATE_STATUS_PRESET_JSON="$(printf '{"%s":"draft"}' "$DIRECTUS_CMS_STATUS_FIELD")"
 PUBLIC_PUBLISHED_FILTER_JSON="$(printf '{"%s":{"_eq":"published"}}' "$DIRECTUS_CMS_STATUS_FIELD")"
+DIRECTUS_MODULE_BAR='[
+  {"type":"module","id":"content","enabled":true},
+  {"type":"module","id":"storefront-ops","enabled":true},
+  {"type":"module","id":"visual","enabled":false},
+  {"type":"module","id":"users","enabled":true},
+  {"type":"module","id":"files","enabled":true},
+  {"type":"module","id":"insights","enabled":true},
+  {"type":"module","id":"settings","enabled":true}
+]'
 
 normalize_csv() {
   printf '%s' "$1" \
@@ -63,37 +107,42 @@ normalize_csv() {
     | sort -u
 }
 
-wait_for_url() {
-  local label="$1"
-  local url="$2"
-
-  for _ in $(seq 1 60); do
-    if curl -fsS "$url" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 2
-  done
-
-  echo "Timed out waiting for $label at $url" >&2
-  exit 1
+compose() {
+  if docker compose version >/dev/null 2>&1; then
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+  else
+    echo "Docker Compose not found." >&2
+    exit 1
+  fi
 }
 
-wait_for_url "Keycloak" "http://localhost:8081/realms/cozyhome/.well-known/openid-configuration"
-wait_for_url "Directus" "${DIRECTUS_PUBLIC_URL}/server/health"
+run_psql_directus() {
+  local sql="$1"
+  compose exec -T \
+    -e PGPASSWORD="$POSTGRES_PASSWORD" \
+    "$DATABASE_SERVICE" \
+    psql \
+      --username "$POSTGRES_USER" \
+      --dbname "$DIRECTUS_DB_DATABASE" \
+      -v ON_ERROR_STOP=1 <<SQL
+$sql
+SQL
+}
 
-DIRECTUS_MODULE_BAR_BASELINE='[
-  {"type":"module","id":"content","enabled":true},
-  {"type":"module","id":"visual","enabled":false},
-  {"type":"module","id":"users","enabled":true},
-  {"type":"module","id":"files","enabled":true},
-  {"type":"module","id":"insights","enabled":true},
-  {"type":"module","id":"settings","enabled":true}
-]'
+compose up -d "$DATABASE_SERVICE" >/dev/null
 
 PUBLIC_POLICY_ID="$(
-  docker exec -i directus-database-1 psql -At -U directus -d directus \
-    -c "SELECT id FROM directus_policies WHERE name = '\$t:public_label' LIMIT 1;" \
-  | tr -d '[:space:]'
+  compose exec -T \
+    -e PGPASSWORD="$POSTGRES_PASSWORD" \
+    "$DATABASE_SERVICE" \
+    psql \
+      --username "$POSTGRES_USER" \
+      --dbname "$DIRECTUS_DB_DATABASE" \
+      --tuples-only \
+      --no-align \
+      -c "SELECT id FROM directus_policies WHERE name = '\$t:public_label' LIMIT 1;" | tr -d '[:space:]\r'
 )"
 
 if [[ -z "$PUBLIC_POLICY_ID" ]]; then
@@ -101,82 +150,11 @@ if [[ -z "$PUBLIC_POLICY_ID" ]]; then
   exit 1
 fi
 
-docker exec keycloak-keycloak-1 /opt/keycloak/bin/kcadm.sh config credentials \
-  --server http://localhost:8080 \
-  --realm master \
-  --user "${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME}" \
-  --password "${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD}" >/dev/null
-
-EXISTING_CLIENT_ID="$(
-  docker exec keycloak-keycloak-1 /opt/keycloak/bin/kcadm.sh get clients -r cozyhome -q clientId="${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID}" --fields id \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const data=JSON.parse(s); console.log(data[0]?.id || "");})'
-)"
-
-if [[ -n "$EXISTING_CLIENT_ID" ]]; then
-  docker exec keycloak-keycloak-1 /opt/keycloak/bin/kcadm.sh delete "clients/${EXISTING_CLIENT_ID}" -r cozyhome >/dev/null
-fi
-
-cat <<JSON >/tmp/directus-keycloak-client.json
-{
-  "clientId": "${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID}",
-  "name": "Админка Directus",
-  "description": "Локальный SSO-клиент для Directus Studio",
-  "enabled": true,
-  "publicClient": false,
-  "secret": "${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET}",
-  "standardFlowEnabled": true,
-  "directAccessGrantsEnabled": false,
-  "implicitFlowEnabled": false,
-  "serviceAccountsEnabled": false,
-  "frontchannelLogout": true,
-  "redirectUris": [
-    "http://localhost:8055/auth/login/keycloak/callback",
-    "http://localhost:8055/*"
-  ],
-  "webOrigins": [
-    "http://localhost:8055"
-  ],
-  "protocol": "openid-connect",
-  "defaultClientScopes": [
-    "web-origins",
-    "acr",
-    "profile",
-    "roles",
-    "email"
-  ],
-  "optionalClientScopes": [
-    "address",
-    "phone",
-    "offline_access",
-    "microprofile-jwt"
-  ],
-  "protocolMappers": [
-    {
-      "name": "realm-roles-as-groups",
-      "protocol": "openid-connect",
-      "protocolMapper": "oidc-usermodel-realm-role-mapper",
-      "consentRequired": false,
-      "config": {
-        "multivalued": "true",
-        "userinfo.token.claim": "true",
-        "id.token.claim": "true",
-        "access.token.claim": "true",
-        "claim.name": "groups",
-        "jsonType.label": "String"
-      }
-    }
-  ]
-}
-JSON
-
-docker cp /tmp/directus-keycloak-client.json keycloak-keycloak-1:/tmp/directus-keycloak-client.json
-docker exec keycloak-keycloak-1 /opt/keycloak/bin/kcadm.sh create clients -r cozyhome -f /tmp/directus-keycloak-client.json >/dev/null
-rm -f /tmp/directus-keycloak-client.json
-
-docker exec -i directus-database-1 psql -v ON_ERROR_STOP=1 -U directus -d directus <<SQL
+run_psql_directus "
 UPDATE directus_settings
 SET default_language = '${DIRECTUS_DEFAULT_LANGUAGE}',
-    project_name = '${DIRECTUS_PROJECT_NAME}';
+    project_name = '${DIRECTUS_PROJECT_NAME}',
+    module_bar = '${DIRECTUS_MODULE_BAR}'::json;
 
 UPDATE directus_users
 SET email = '${DIRECTUS_ADMIN_EMAIL}'
@@ -210,7 +188,7 @@ VALUES
   ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', 'Политика редактора CMS', 'edit', 'Подготовка черновиков и работа с файлами без права публикации.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', 'Политика публикатора CMS', 'fact_check', 'Проверка и публикация CMS-контента.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', 'Политика оператора каталога', 'inventory_2', 'Операции с каталогом через витринный bridge Directus.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через витринный bridge Directus.', NULL, false, false, true)
+  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через bridge.', NULL, false, false, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -233,7 +211,7 @@ ON CONFLICT (id) DO UPDATE SET
   description = EXCLUDED.description,
   parent = EXCLUDED.parent;
 
-INSERT INTO directus_access (id, role, "user", policy, sort)
+INSERT INTO directus_access (id, role, \"user\", policy, sort)
 VALUES
   ('${DIRECTUS_ACCESS_CMS_ADMIN_ID}', '${DIRECTUS_ROLE_CMS_ADMIN_ID}', NULL, '${DIRECTUS_POLICY_CMS_ADMIN_ID}', NULL),
   ('${DIRECTUS_ACCESS_CMS_EDITOR_ID}', '${DIRECTUS_ROLE_CMS_EDITOR_ID}', NULL, '${DIRECTUS_POLICY_CMS_EDITOR_ID}', NULL),
@@ -242,7 +220,7 @@ VALUES
   ('${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID}', '${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', NULL, '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', NULL)
 ON CONFLICT (id) DO UPDATE SET
   role = EXCLUDED.role,
-  "user" = EXCLUDED."user",
+  \"user\" = EXCLUDED.\"user\",
   policy = EXCLUDED.policy,
   sort = EXCLUDED.sort;
 
@@ -343,42 +321,18 @@ ON CONFLICT (id) DO UPDATE SET
   height = EXCLUDED.height,
   options = EXCLUDED.options,
   user_created = EXCLUDED.user_created;
-SQL
-
-CURRENT_DIRECTUS_MODULE_BAR="$(
-  docker exec -i directus-database-1 psql -At -U directus -d directus \
-    -c "SELECT COALESCE(module_bar::text, 'null') FROM directus_settings LIMIT 1;" \
-  | tr -d '\r'
-)"
-
-NEXT_DIRECTUS_MODULE_BAR="$(
-  printf '%s' "${CURRENT_DIRECTUS_MODULE_BAR:-null}" | jq -c --argjson baseline "$DIRECTUS_MODULE_BAR_BASELINE" '
-    def storefront: {"type":"module","id":"storefront-ops","enabled":true};
-    (if type == "array" then . else $baseline end)
-    | map(if .id == "storefront-ops" then (. + {"type":"module","enabled":true}) else . end)
-    | map(select(.id != "storefront-ops"))
-    | if any(.[]; .id == "content")
-      then (map(if .id == "content" then [., storefront] else [.] end) | add)
-      else [storefront] + .
-      end
-  '
-)"
-
-docker exec -i directus-database-1 psql -v ON_ERROR_STOP=1 -U directus -d directus <<SQL
-UPDATE directus_settings
-SET module_bar = '${NEXT_DIRECTUS_MODULE_BAR}'::json;
-SQL
+"
 
 while IFS= read -r collection; do
-  docker exec -i directus-database-1 psql -v ON_ERROR_STOP=1 -U directus -d directus <<SQL
-\set collection '${collection}'
-\set editor_policy '${DIRECTUS_POLICY_CMS_EDITOR_ID}'
-\set publisher_policy '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'
-\set editor_create_status_validation '${EDITOR_CREATE_STATUS_VALIDATION_JSON}'
-\set editor_update_status_validation '${EDITOR_UPDATE_STATUS_VALIDATION_JSON}'
-\set publisher_create_status_validation '${PUBLISHER_CREATE_STATUS_VALIDATION_JSON}'
-\set publisher_update_status_validation '${PUBLISHER_UPDATE_STATUS_VALIDATION_JSON}'
-\set create_status_preset '${CREATE_STATUS_PRESET_JSON}'
+  run_psql_directus "
+\\set collection '${collection}'
+\\set editor_policy '${DIRECTUS_POLICY_CMS_EDITOR_ID}'
+\\set publisher_policy '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'
+\\set editor_create_status_validation '${EDITOR_CREATE_STATUS_VALIDATION_JSON}'
+\\set editor_update_status_validation '${EDITOR_UPDATE_STATUS_VALIDATION_JSON}'
+\\set publisher_create_status_validation '${PUBLISHER_CREATE_STATUS_VALIDATION_JSON}'
+\\set publisher_update_status_validation '${PUBLISHER_UPDATE_STATUS_VALIDATION_JSON}'
+\\set create_status_preset '${CREATE_STATUS_PRESET_JSON}'
 
 DELETE FROM directus_permissions
 WHERE collection = :'collection'
@@ -392,14 +346,14 @@ VALUES
   (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'publisher_policy'),
   (:'collection', 'create', '{}'::json, :'publisher_create_status_validation'::json, :'create_status_preset'::json, '*', :'publisher_policy'),
   (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'publisher_policy');
-SQL
+"
 done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
 
 while IFS= read -r collection; do
-  docker exec -i directus-database-1 psql -v ON_ERROR_STOP=1 -U directus -d directus <<SQL
-\set collection '${collection}'
-\set public_policy '${PUBLIC_POLICY_ID}'
-\set public_published_filter '${PUBLIC_PUBLISHED_FILTER_JSON}'
+  run_psql_directus "
+\\set collection '${collection}'
+\\set public_policy '${PUBLIC_POLICY_ID}'
+\\set public_published_filter '${PUBLIC_PUBLISHED_FILTER_JSON}'
 
 DELETE FROM directus_permissions
 WHERE collection = :'collection'
@@ -408,7 +362,7 @@ WHERE collection = :'collection'
 INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
 VALUES
   (:'collection', 'read', :'public_published_filter'::json, NULL, NULL, '*', :'public_policy');
-SQL
+"
 done < <(normalize_csv "$DIRECTUS_CMS_PUBLIC_COLLECTIONS")
 
-echo "Directus Keycloak SSO and governance bootstrap completed."
+echo "Directus governance bootstrap completed."

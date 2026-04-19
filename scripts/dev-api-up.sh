@@ -5,13 +5,13 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SPRING_PROFILE="${SPRING_PROFILE:-dev}"
 DIRECTUS_ENV_FILE="$ROOT_DIR/directus/.env"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 cd "$ROOT_DIR"
 
 if [[ -f "$DIRECTUS_ENV_FILE" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$DIRECTUS_ENV_FILE"
-  set +a
+  load_env_file "$DIRECTUS_ENV_FILE"
 fi
 
 export DIRECTUS_BRIDGE_TOKEN="${DIRECTUS_BRIDGE_TOKEN:-local-directus-bridge-token}"

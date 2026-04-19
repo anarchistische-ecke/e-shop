@@ -2,206 +2,189 @@
 
 This repo now treats Directus as part of the deployed application stack instead of a separate manual service.
 
-Operational incident handling is documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
-Rollback decision-making is documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
-Go-live sequencing is documented in [directus-production-cutover.md](./directus-production-cutover.md).
-Metrics, alerts, dashboards, and structured-log search are documented in [directus-observability.md](./directus-observability.md).
-Backup restore rehearsal is documented in [directus-restore-drill.md](./directus-restore-drill.md).
+Use these documents together:
 
-## Deployment Shape
+- VM preparation: [production-vm-preparation.md](./production-vm-preparation.md)
+- first single-VM bootstrap: [single-vm-production-bringup.md](./single-vm-production-bringup.md)
+- operations and incidents: [directus-operations-runbook.md](./directus-operations-runbook.md)
+- rollback scope: [directus-rollback-strategy.md](./directus-rollback-strategy.md)
+- restore drill: [directus-restore-drill.md](./directus-restore-drill.md)
+- observability: [directus-observability.md](./directus-observability.md)
+- environment contract: [directus-environment.md](./directus-environment.md)
 
-- One shared Docker Compose file: `docker-compose.prod.yml`
-- One shared PostgreSQL service with two databases:
-  - commerce: `eshop`
-  - CMS: `directus`
-- One Directus runtime container pinned to `11.17.2`
-- One existing Redis service reused by the backend only
-- One S3-compatible object storage bucket for Directus assets
+## Current Production Model
 
-The staging and production stacks use the same compose file and the same deploy script. They differ only by:
+The current deployment model is:
 
-- Git ref deployed
-- VM/host target
-- server-side `.env`
-- GitHub Environment secrets
+- one Debian 11 VM
+- production only
+- no real staging target yet
+- GitHub-hosted Actions SSH into the VM and run deploy scripts inside an existing checkout
 
-## CI/CD Entry Points
+The runtime shape on that VM is:
 
-Workflow: `.github/workflows/backend-ci.yml`
+- one shared infrastructure compose file: `docker-compose.prod.yml`
+- one runtime-slot compose file: `docker-compose.runtime-slot.yml`
+- one shared PostgreSQL service with separate `eshop` and `directus` databases
+- one shared Redis service
+- immutable runtime releases under `releases/<git-sha>/`
+- runtime state under `.deploy-state/runtime-live.env`
+- blue slot on `127.0.0.1:18080` and `127.0.0.1:18055`
+- green slot on `127.0.0.1:28080` and `127.0.0.1:28055`
+- nginx cutover through generated upstream include files, not by mutating a live container in place
 
-Current deployment rules:
+## Current CI/CD Entry Points
 
-- push to `add-cms` -> deploy `staging`
-- push to `main` -> deploy `production`
-- `workflow_dispatch` -> choose `staging` or `production` and choose the Git ref
+The workflows that matter right now are:
 
-Recommended GitHub Environments:
+- `backend-ci`
+  - file: `.github/workflows/backend-ci.yml`
+  - runs on pull requests to `main` and manual dispatch
+  - validates the change set, Directus schema snapshot, Directus runtime extensions, and Java build/test path
+- `deploy-production-runtime`
+  - file: `.github/workflows/deploy-production-runtime.yml`
+  - runs on pushes to `main` and manual dispatch
+  - builds `ghcr.io/<repo-owner>/eshop-api:<sha>` and runs `scripts/deploy-runtime-bluegreen.sh`
+  - only deploys runtime-safe changes
+- `deploy-production-destructive`
+  - file: `.github/workflows/deploy-production-destructive.yml`
+  - manual only
+  - runs `scripts/deploy-stack.sh`
+  - requires successful staging verification for the same SHA, so treat it as blocked until a real staging target exists
+- `rollback-production`
+  - file: `.github/workflows/rollback-production.yml`
+  - manual only
+  - runs `scripts/rollback-runtime-release.sh`
+  - only rolls back to the recorded previous live blue-green release
+- `ops-health-check`
+  - file: `.github/workflows/ops-health-check.yml`
+  - runs every 15 minutes and on manual dispatch
+  - SSHes to the VM and runs `scripts/check-stack-health.sh`
 
-- `staging`
-- `production`
+Also present but intentionally unused for now:
 
-Each environment should define the same secret names:
+- `deploy-staging-runtime`
+  - file: `.github/workflows/deploy-staging-runtime.yml`
+  - should remain unused until a separate staging target exists
 
-- `YC_VM_HOST`
-- `YC_VM_USER`
-- `YC_VM_SSH_KEY`
-- `YC_VM_DEPLOY_PATH`
+## Suitability For Blue-Green On One VM
 
-If those secrets are missing, the deploy job is skipped and only CI verification runs.
+The current system is suitable for blue-green deployment on a single VM only for runtime-safe application and runtime changes.
 
-## Server Deploy Flow
+It is not full-stack blue-green for destructive changes because:
 
-The GitHub Action now runs `./scripts/deploy-stack.sh` on the target VM after `git pull`.
+- PostgreSQL and Redis are shared by both slots
+- changes to Directus schema, Directus seed content, `docker-compose.prod.yml`, `docker-compose.runtime-slot.yml`, and `scripts/directus-*` are classified as destructive
+- destructive production deploys are intentionally kept out of the automatic runtime-safe path
+- the first bootstrap is manual
 
-That script performs these steps:
+Treat the production workflow as:
 
-1. Start `postgres` and `redis`
-2. Run `scripts/directus-db-backup.sh`
-3. Run `scripts/directus-db-init.sh`
-4. Pull the pinned Directus image tag
-5. Start or update `api` and `directus`
-6. Apply the committed Directus schema snapshot from `directus/schema/schema.snapshot.json`
-7. Run `scripts/directus-published-at-bootstrap.sh`
-8. Run `scripts/check-stack-health.sh`
-9. Load the committed Directus operator runtime extensions from `directus/runtime-extensions/`
+- blue-green for runtime-safe releases
+- manual for the first bootstrap
+- manual and effectively unavailable for destructive releases until a real staging target exists
 
-This keeps Directus core upgrades, schema drift control, publish-timestamp automation, and app deployment on one path.
+## Runtime-Safe Deploy Flow
 
-`scripts/directus-db-init.sh` also enforces the CMS/commerce boundary during provisioning. It creates or updates the dedicated Directus runtime role, revokes `PUBLIC` access on both databases, revokes Directus access to the commerce database/schema, and grants the commerce runtime role the expected commerce-side schema access. When the commerce runtime role differs from the PostgreSQL bootstrap/admin role, the script also provisions it as a non-superuser login role.
+The runtime-safe path is:
 
-## Migrations
+- workflow: `.github/workflows/deploy-production-runtime.yml`
+- script: `scripts/deploy-runtime-bluegreen.sh`
 
-Two different migration layers matter here:
+That script:
 
-- Directus core database migrations:
-  Directus handles these automatically on container start for the pinned image version.
-- Project CMS schema:
-  The deploy script applies the committed snapshot with `scripts/directus-schema.js apply` inside the running Directus container.
+1. loads `.env` as strict `KEY=value` data
+2. checks host capacity, nginx include files, and Keycloak discovery
+3. materializes `releases/<git-sha>/` with `git worktree`
+4. starts the candidate slot from `docker-compose.runtime-slot.yml`
+5. runs internal candidate health checks
+6. switches the nginx upstream include files
+7. runs public post-cutover health checks
+8. records the new live slot in `.deploy-state/runtime-live.env`
+9. retires the previous slot only after the observation window succeeds
 
-This means the runtime VM does not need a host Node install. It only needs Docker Compose, Git, and shell access.
+If a failure happens after cutover, the script restores the previous nginx upstream include files automatically.
 
-The production compose file mounts the committed `directus/` and `scripts/` directories read-only into the Directus container so schema apply and seed-content import/rollback can run inside the container when needed.
+## Destructive Deploy Flow
 
-## Backups
+The destructive/manual path is:
 
-The deploy path now takes a pre-deploy PostgreSQL dump of the `directus` database when it already exists:
+- workflow: `.github/workflows/deploy-production-destructive.yml`
+- script: `scripts/deploy-stack.sh`
 
-- script: `scripts/directus-db-backup.sh`
-- default output directory on the server: `backups/directus/`
-- format: `directus-<timestamp>.sql.gz`
-- default retention: 14 days
+This path still owns:
 
-Important scope boundary:
+- Directus database backup
+- Directus database bootstrap and hardening
+- Directus schema apply
+- Directus governance bootstrap
+- `published_at` bootstrap
+- Directus runtime/core upgrades
+- schema, seed, governance, and compose changes
 
-- the automated backup covers the Directus PostgreSQL database only
+The destructive flow is not part of the normal automatic single-VM runtime-safe deploy path.
+
+## What The VM Must Already Have
+
+The production VM must already provide:
+
+- a Debian 11 host
+- one fixed deploy checkout with a working `origin` remote
+- a deploy user that can run Docker without `sudo`
+- non-interactive `sudo nginx -t` and `sudo systemctl reload nginx`
+- nginx API and CMS vhosts that include the generated upstream files
+- a valid `<deploy-path>/.env`
+- runtime directories:
+  - `releases/`
+  - `.deploy-state/`
+  - `.deploy-state/logs/`
+  - `backups/directus/`
+- GitHub Environment secrets:
+  - `YC_VM_HOST`
+  - `YC_VM_USER`
+  - `YC_VM_SSH_KEY`
+  - `YC_VM_DEPLOY_PATH`
+  - `GHCR_PULL_USERNAME`
+  - `GHCR_PULL_TOKEN`
+
+The authoritative preparation runbook is [production-vm-preparation.md](./production-vm-preparation.md).
+
+## First Production Bring-Up
+
+Important first-bootstrap boundary:
+
+- the CI/CD rewrite commit itself is classified as `destructive`
+- the first single-VM production bootstrap must therefore be performed manually on the VM
+- `rollback-production.yml` becomes useful only after a later successful runtime-safe deploy records a previous live slot
+
+Use [single-vm-production-bringup.md](./single-vm-production-bringup.md) for that one-time bootstrap.
+
+## Migrations And Backups
+
+Two migration layers matter:
+
+- Directus core database migrations run automatically when the pinned Directus image starts
+- project CMS schema is applied from `directus/schema/schema.snapshot.json` by `scripts/directus-schema.js apply` inside the Directus container
+
+The destructive path also takes a Directus PostgreSQL backup through `scripts/directus-db-backup.sh` before applying schema-affecting changes.
+
+Backup scope boundary:
+
+- automated backup covers the Directus PostgreSQL database only
 - it does not back up S3/Yandex Object Storage assets
 
-For production, treat object storage separately:
-
-- keep Directus assets in a dedicated bucket
-- enable bucket versioning or the Yandex backup/retention policy you choose
-- document restore ownership outside this repo if infra manages bucket snapshots elsewhere
-
-## Required Server-Side `.env`
-
-The compose file now expects these Directus deployment variables in the target server `.env`:
-
-- `DIRECTUS_VERSION`
-- `DIRECTUS_KEY`
-- `DIRECTUS_SECRET`
-- `DIRECTUS_ADMIN_EMAIL`
-- `DIRECTUS_ADMIN_PASSWORD`
-- `DIRECTUS_PUBLIC_URL`
-- `DIRECTUS_SCHEMA_ADMIN_TOKEN` recommended for automation
-- `DIRECTUS_DB_DATABASE`
-- `DIRECTUS_DB_USER`
-- `DIRECTUS_DB_PASSWORD`
-- `DIRECTUS_REDIS_URL` recommended when Directus output cache is enabled
-- `DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID`
-- `DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET`
-- `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL`
-- `DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING`
-- `DIRECTUS_BRIDGE_TOKEN`
-- `DIRECTUS_STOREFRONT_OPS_BACKEND_URL`
-- `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS`
-- `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS`
-- `DIRECTUS_STORAGE_S3_KEY`
-- `DIRECTUS_STORAGE_S3_SECRET`
-- `DIRECTUS_STORAGE_S3_BUCKET`
-- `DIRECTUS_STORAGE_S3_REGION`
-- `DIRECTUS_STORAGE_S3_ENDPOINT`
-
-Recommended cache-related variables in the same `.env`:
-
-- `DIRECTUS_CACHE_TTL`
-- `DIRECTUS_CACHE_STALE_TTL`
-- `DIRECTUS_RESPONSE_CACHE_MAX_AGE`
-- `DIRECTUS_RESPONSE_CACHE_STALE_WHILE_REVALIDATE`
-- `DIRECTUS_RESPONSE_CACHE_STALE_IF_ERROR`
-- `DIRECTUS_DATA_CACHE_ENABLED`
-- `DIRECTUS_DATA_CACHE_TTL`
-- `DIRECTUS_DATA_CACHE_AUTO_PURGE`
-- `DIRECTUS_DATA_CACHE_STORE`
-- `DIRECTUS_DATA_CACHE_STATUS_HEADER`
-
-The database-hardening step derives the commerce runtime connection from:
-
-- `SPRING_DATASOURCE_URL`
-- `SPRING_DATASOURCE_USERNAME`
-- `SPRING_DATASOURCE_PASSWORD`
-
-Recommended production split:
-
-- `POSTGRES_USER=postgres_admin`
-- `SPRING_DATASOURCE_USERNAME=eshop_app`
-
-For an existing deployment that still uses one shared role for both values, change the env first and rerun `scripts/directus-db-init.sh` before redeploying the API so the `eshop_app` role and grants exist before Spring reconnects.
-
-If you need explicit overrides for `scripts/directus-db-init.sh`, also set:
-
-- `ESHOP_DB_DATABASE`
-- `ESHOP_DB_USER`
-- `ESHOP_DB_PASSWORD`
-
-The full environment contract remains in [directus-environment.md](./directus-environment.md).
-
-## First Deploy Checklist
-
-Before the first staging or production Directus deploy:
-
-1. Add the Directus variables to the target server `.env`
-2. Create the dedicated Directus S3 bucket and credentials
-3. Create the Directus Keycloak client and callback URL
-4. Add the Directus operator bridge token and role-id env values if the `Storefront Ops` module will be enabled
-5. Ensure the GitHub Environment secrets point at the correct VM and deploy path
-6. Confirm the target VM can expose Directus on port `8055` or place it behind nginx
-7. Run one successful restore drill with `scripts/directus-db-restore-drill.sh` against a recent Directus backup and record the result
-
-After the first container deploy:
-
-1. Verify `https://<directus-host>/server/health`
-2. Verify Keycloak SSO login
-3. Run `bash ./scripts/directus-storage-smoke-test.sh --env-file .env`
-4. Run `node ./scripts/directus-content-audit.js --env-file .env`
-5. Run the initial content import if the environment is empty
-6. Verify the backend `/content/*` facade against the deployed Directus instance
-7. Confirm published `/content/*` responses return the expected `Cache-Control` header and preview routes return `private, no-store`
+Do not restore the Directus database without validating the matching object-storage state.
 
 ## Residual Infra Dependency
 
-This repo now defines backend Redis TTLs, stale fallback behavior, browser/intermediary `Cache-Control` headers, and optional Directus Redis output caching. One material residual still remains outside the repo-owned stack:
+One material production dependency still lives outside this repo-owned stack:
 
 - production should place a CDN or reverse proxy in front of `DIRECTUS_PUBLIC_URL/assets/*` and let it respect Directus asset caching headers
 
-That rule is not implemented in this repo because the production nginx/CDN configuration is managed externally. Until that infra change exists, editorial pages still work, but asset delivery will not get the full latency and cache-hit benefit planned for storefront media.
+Until that infra piece exists, editorial pages still work, but asset delivery will not get the full cache-hit and latency benefit intended for storefront media.
 
-## Rollback Notes
+## Next Documents To Use
 
-- Roll back application code by redeploying the previous git ref.
-- Roll back Directus runtime by reverting `DIRECTUS_VERSION` to the previous pinned tag and redeploying.
-- Roll back CMS database content/schema by restoring a `directus-*.sql.gz` dump and then redeploying the matching code/schema snapshot.
-
-Do not restore the Directus database without also validating the corresponding object storage state for uploaded assets.
-
-For the operator-facing incident steps, use [directus-operations-runbook.md](./directus-operations-runbook.md).
-For rollback scope selection, use [directus-rollback-strategy.md](./directus-rollback-strategy.md).
+- To prepare a fresh Debian 11 VM or adapt the existing production VM: [production-vm-preparation.md](./production-vm-preparation.md)
+- To perform the first manual bootstrap on that prepared VM: [single-vm-production-bringup.md](./single-vm-production-bringup.md)
+- To operate, restart, restore, or roll back after go-live: [directus-operations-runbook.md](./directus-operations-runbook.md) and [directus-rollback-strategy.md](./directus-rollback-strategy.md)

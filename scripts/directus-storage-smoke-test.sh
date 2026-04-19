@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIRECTUS_DIR="$ROOT_DIR/directus"
 ENV_FILE="$DIRECTUS_DIR/.env"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -12,17 +15,10 @@ Usage:
 EOF
 }
 
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --help|-h)
@@ -42,9 +38,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-set -a
-. "$ENV_FILE"
-set +a
+load_env_file "$ENV_FILE"
 
 DIRECTUS_ORIGIN="${DIRECTUS_PUBLIC_URL:-${DIRECTUS_BASE_URL:-}}"
 : "${DIRECTUS_ORIGIN:?Set DIRECTUS_PUBLIC_URL or DIRECTUS_BASE_URL in $ENV_FILE}"

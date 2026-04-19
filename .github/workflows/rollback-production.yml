@@ -1,0 +1,97 @@
+name: rollback-production
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Recorded previous release id to roll back to (leave empty for the recorded previous live release)
+        required: false
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: rollback-production-runtime
+      cancel-in-progress: false
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+      ROLLBACK_RELEASE_ID: ${{ inputs.release_id }}
+      ROLLBACK_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Skip rollback when VM secrets are not configured
+        if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
+        run: |
+          echo "Skipping production rollback because one or more VM deployment secrets are missing."
+
+      - name: Run runtime rollback on production VM
+        id: rollback_remote
+        if: ${{ env.YC_VM_HOST != '' && env.YC_VM_USER != '' && env.YC_VM_SSH_KEY != '' && env.YC_VM_DEPLOY_PATH != '' }}
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 20m
+          envs: ROLLBACK_RELEASE_ID,ROLLBACK_RUN_ID
+          script: |
+            set -euo pipefail
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            rollback_args=""
+            if [ -n "${ROLLBACK_RELEASE_ID:-}" ]; then
+              rollback_args="--release-id ${ROLLBACK_RELEASE_ID}"
+            fi
+            bash ./scripts/rollback-runtime-release.sh \
+              --env-file .env \
+              --compose-file docker-compose.prod.yml \
+              --run-id "${ROLLBACK_RUN_ID}" \
+              ${rollback_args}
+
+      - name: Stage remote rollback diagnostics
+        if: ${{ steps.rollback_remote.outcome == 'failure' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            mkdir -p .deploy-state/export
+            cp .deploy-state/latest-runtime-summary.txt .deploy-state/export/runtime-summary.txt 2>/dev/null || true
+            latest_log="$(ls -1t .deploy-state/logs/*.log 2>/dev/null | head -n 1 || true)"
+            if [ -n "$latest_log" ]; then
+              cp "$latest_log" .deploy-state/export/
+            fi
+
+      - name: Download rollback diagnostics
+        if: ${{ steps.rollback_remote.outcome == 'failure' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          source: "${{ env.YC_VM_DEPLOY_PATH }}/.deploy-state/export/*"
+          target: "rollback-diagnostics-production"
+
+      - name: Upload rollback diagnostics artifact
+        if: ${{ steps.rollback_remote.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-rollback-diagnostics-${{ github.run_id }}
+          path: rollback-diagnostics-production
+          if-no-files-found: warn
+
+      - name: Fail workflow after rollback error
+        if: ${{ steps.rollback_remote.outcome == 'failure' }}
+        run: |
+          echo "Production runtime rollback failed. See uploaded diagnostics."
+          exit 1

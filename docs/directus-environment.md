@@ -14,6 +14,7 @@ The initial content import workflow is documented in [directus-content-migration
 The storefront/backend integration choice is documented in [directus-integration-pattern-decision.md](./directus-integration-pattern-decision.md).
 The backend CMS cache strategy is documented in [directus-content-cache.md](./directus-content-cache.md).
 The staging/production Directus deploy path is documented in [directus-deployment.md](./directus-deployment.md).
+The current one-VM production-only bring-up procedure is documented in [single-vm-production-bringup.md](./single-vm-production-bringup.md).
 The operational restart/restore/rollback procedures are documented in [directus-operations-runbook.md](./directus-operations-runbook.md).
 The rollback scope and frontend flag contract are documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 The production go-live sequence is documented in [directus-production-cutover.md](./directus-production-cutover.md).
@@ -48,6 +49,7 @@ These are used only by the local Directus stack:
 | `DIRECTUS_ADMIN_EMAIL` | `directus-admin@example.com` | Break-glass Directus local admin created on first boot. Keep it distinct from Keycloak editor/admin users. |
 | `DIRECTUS_ADMIN_PASSWORD` | `Admin123!` | Used on first boot. Rotate locally by rebuilding volumes if needed. |
 | `DIRECTUS_PUBLIC_URL` | `http://localhost:8055` | Local Studio/API URL. |
+| `DIRECTUS_IP_TRUST_PROXY` | `true` | Lets Directus honor the reverse-proxy scheme/host headers when it sits behind nginx in staging/production. |
 | `DIRECTUS_DEFAULT_LANGUAGE` | `ru-RU` | Project default language for Directus Studio and fallback language for newly provisioned local users. |
 | `DIRECTUS_SCHEMA_ADMIN_TOKEN` | unset in repo | Optional static token used by schema snapshot/apply/check scripts. When set, it is preferred over admin email/password login. |
 | `DIRECTUS_AUTH_DISABLE_DEFAULT` | `false` | Set to `true` when you want to hide Directus email/password login and require SSO. |
@@ -216,6 +218,7 @@ Use the same Directus auth model in production, but with production hostnames, a
 | `AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION` | `true` | Lets Directus auto-create editor/admin users on first SSO login. |
 | `AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL` | `true` | Keeps unverified Keycloak users out of Directus. |
 | `AUTH_KEYCLOAK_SYNC_USER_INFO` | `true` | Keeps Directus user names and email aligned with Keycloak. |
+| `AUTH_KEYCLOAK_ISSUER_DISCOVERY_MUST_SUCCEED` | `false` | Recommended in production for resilience. When `false`, Directus does not crash the whole process if Keycloak issuer discovery is temporarily unavailable during startup. |
 | `AUTH_KEYCLOAK_GROUP_CLAIM_NAME` | `groups` | Claim used for realm-role-to-Directus-role mapping. |
 | `AUTH_KEYCLOAK_LABEL` | `Войти через Keycloak` | Russian login button label shown in Directus Studio. |
 | `AUTH_KEYCLOAK_ROLE_MAPPING` | `json:{"admin":"<cms-admin-role-id>","manager":"<cms-editor-role-id>","publisher":"<cms-publisher-role-id>","catalogue_operator":"<catalogue-operator-role-id>","inventory_operator":"<inventory-operator-role-id>"}` | Include operator-role mappings when the Directus storefront bridge module is enabled. |
@@ -230,6 +233,7 @@ The production compose file also reads:
 | Variable | Example | Notes |
 | --- | --- | --- |
 | `DIRECTUS_VERSION` | `11.17.2` | Keep the production Directus image pinned to the tested repo version. |
+| `DIRECTUS_IP_TRUST_PROXY` | `true` | Recommended in staging/production so Directus generates canonical URLs behind the nginx TLS proxy. |
 | `DIRECTUS_SCHEMA_ADMIN_TOKEN` | unset in repo | Recommended for staging/production schema automation, especially if `AUTH_DISABLE_DEFAULT=true`. |
 | `DIRECTUS_DATA_CACHE_ENABLED` | `true` | Recommended in production. Enables Directus's own output cache for repeated upstream reads. |
 | `DIRECTUS_DATA_CACHE_TTL` | `5m` | Directus output-cache TTL in production. |
@@ -240,9 +244,24 @@ The production compose file also reads:
 | `DIRECTUS_STOREFRONT_OPS_BACKEND_URL` | `http://api:8080` | Internal backend base URL used by the Directus operator endpoint extension in staging/production. |
 | `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS` | `<cms-admin-role-id>,<catalogue-operator-role-id>` | Directus role ids allowed to use catalogue bridge routes. |
 | `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS` | `<cms-admin-role-id>,<inventory-operator-role-id>` | Directus role ids allowed to use variant/inventory bridge routes. |
-| `API_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh` and remote monitoring. Defaults to `http://127.0.0.1:8080/health/redis`. |
-| `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional override for `scripts/check-stack-health.sh`. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health` when `DIRECTUS_PUBLIC_URL` is set. |
-| `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional backend CMS facade probe, for example `https://<backend-host>/content/navigation?placement=footer`. |
+| `PUBLIC_API_HEALTHCHECK_URL` | deployment-specific | Public post-cutover API probe used by blue-green deploys and scheduled ops checks. Example: `https://api.example.com/health/redis`. |
+| `PUBLIC_DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional public Directus override used after nginx cutover. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health`. |
+| `PUBLIC_CONTENT_HEALTHCHECK_URL` | deployment-specific | Public CMS facade smoke check used after nginx cutover. Example: `https://api.example.com/content/navigation?placement=header`. |
+| `API_HEALTHCHECK_URL` | deployment-specific | Optional internal override for `scripts/check-stack-health.sh`. Defaults to the live slot loopback API URL from `.deploy-state/runtime-live.env`, or `http://127.0.0.1:8080/health/redis` before the first blue-green cutover. |
+| `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional internal override for `scripts/check-stack-health.sh`. Defaults to the live slot loopback Directus URL from `.deploy-state/runtime-live.env`, or `http://127.0.0.1:8055/server/health` before the first blue-green cutover. |
+| `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional internal CMS facade probe override for `scripts/check-stack-health.sh`. If unset, the runtime path uses the live slot loopback `/content/navigation?placement=header` smoke check. |
+| `DEPLOY_RUNTIME_RELEASES_DIR` | `<deploy-path>/releases` | Root directory for immutable runtime releases created with `git worktree`. |
+| `DEPLOY_RUNTIME_STATE_DIR` | `<deploy-path>/.deploy-state` | Stores runtime state, locks, summaries, and deploy logs. |
+| `DEPLOY_RUNTIME_BLUE_API_PORT` | `18080` | Loopback host port for the blue API slot. |
+| `DEPLOY_RUNTIME_BLUE_DIRECTUS_PORT` | `18055` | Loopback host port for the blue Directus slot. |
+| `DEPLOY_RUNTIME_GREEN_API_PORT` | `28080` | Loopback host port for the green API slot. |
+| `DEPLOY_RUNTIME_GREEN_DIRECTUS_PORT` | `28055` | Loopback host port for the green Directus slot. |
+| `DEPLOY_SHARED_DOCKER_NETWORK` | `eshop-shared` | External Docker network shared by the runtime slots and the infrastructure compose stack. |
+| `DEPLOY_NGINX_API_UPSTREAM_INCLUDE` | `/etc/nginx/includes/eshop-api-upstream.conf` | Generated nginx include file that contains the active API `proxy_pass` target. |
+| `DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE` | `/etc/nginx/includes/eshop-cms-upstream.conf` | Generated nginx include file that contains the active Directus `proxy_pass` target. |
+| `DEPLOY_RUNTIME_MIN_AVAILABLE_MEMORY_MB` | `1024` | Preflight floor for free memory before a candidate slot may start. |
+| `DEPLOY_RUNTIME_MIN_AVAILABLE_DISK_MB` | `1024` | Preflight floor for free disk before a candidate release directory may be created. |
+| `DEPLOY_RUNTIME_OBSERVATION_SECONDS` | `15` | Post-cutover observation window before the previous slot is retired. |
 | `APP_OBSERVABILITY_PROMETHEUS_TOKEN` | unset in repo | Optional shared token required for `GET /actuator/prometheus` via the `X-Prometheus-Token` header. |
 | `DIRECTUS_SLOW_REQUEST_THRESHOLD` | `PT2S` | Duration after which a backend Directus upstream call emits `event=cms_directus_request_slow`. |
 

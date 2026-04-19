@@ -1,6 +1,8 @@
 # Directus Operations Runbook
 
-This runbook is the operational reference for staging and production CMS incidents.
+This runbook is the operational reference for production CMS incidents in the current single-VM setup.
+
+If you later add a separate staging target, the same procedures also apply there.
 
 Use it together with [directus-deployment.md](./directus-deployment.md).
 For rollback scope selection and frontend flag strategy, use [directus-rollback-strategy.md](./directus-rollback-strategy.md).
@@ -21,15 +23,20 @@ Operational health script:
 
 Default checks on the VM:
 
-- `http://127.0.0.1:8080/health/redis`
-- `${DIRECTUS_PUBLIC_URL}/server/health` if `DIRECTUS_PUBLIC_URL` is set in `.env`
-- otherwise `http://127.0.0.1:8055/server/health`
+- current live API slot from `.deploy-state/runtime-live.env`
+- current live Directus slot from `.deploy-state/runtime-live.env`
+- public API health from `PUBLIC_API_HEALTHCHECK_URL`
+- public Directus health from `${DIRECTUS_PUBLIC_URL}/server/health` or `PUBLIC_DIRECTUS_HEALTHCHECK_URL`
+- public backend CMS facade health from `PUBLIC_CONTENT_HEALTHCHECK_URL`
 
 Optional server-side overrides in `.env`:
 
 - `API_HEALTHCHECK_URL`
 - `DIRECTUS_HEALTHCHECK_URL`
 - `CONTENT_HEALTHCHECK_URL`
+- `PUBLIC_API_HEALTHCHECK_URL`
+- `PUBLIC_DIRECTUS_HEALTHCHECK_URL`
+- `PUBLIC_CONTENT_HEALTHCHECK_URL`
 
 `CONTENT_HEALTHCHECK_URL` is optional and is useful when you want the health probe to verify the backend CMS facade too, for example `https://<backend-host>/content/navigation?placement=footer`.
 
@@ -42,7 +49,8 @@ GitHub Actions workflow:
 Current behavior:
 
 - every 15 minutes, production health checks run over SSH
-- operators can also run the same workflow manually for `staging` or `production`
+- operators can also run the same workflow manually for `production`
+- the `staging` option should stay unused until a real isolated staging target exists
 
 The workflow calls `scripts/check-stack-health.sh` on the target VM. A failure means the environment should be treated as degraded until someone inspects the host.
 
@@ -53,14 +61,15 @@ The workflow calls `scripts/check-stack-health.sh` on the target VM. A failure m
 
    ```bash
    cd <deploy-path>
-   bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml
+   bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state
    ```
 
 3. Inspect running containers:
 
    ```bash
-   docker compose --env-file .env -f docker-compose.prod.yml ps
-   docker compose --env-file .env -f docker-compose.prod.yml logs --tail 200 directus api postgres
+   cat .deploy-state/runtime-live.env
+   docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+   ls -1t .deploy-state/logs | head
    ```
 
 4. If Directus is down but PostgreSQL is healthy, restart Directus first.
@@ -72,16 +81,21 @@ Restart only Directus:
 
 ```bash
 cd <deploy-path>
-docker compose --env-file .env -f docker-compose.prod.yml restart directus
-bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml
+current_slot="$(awk -F= '/^CURRENT_LIVE_SLOT=/{print $2}' .deploy-state/runtime-live.env)"
+current_release_dir="$(awk -F= '/^CURRENT_LIVE_RELEASE_DIR=/{print $2}' .deploy-state/runtime-live.env)"
+current_project="$(awk -F= '/^CURRENT_LIVE_PROJECT=/{print $2}' .deploy-state/runtime-live.env)"
+docker compose --project-name "$current_project" --env-file .env -f "$current_release_dir/docker-compose.runtime-slot.yml" restart directus
+bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state
 ```
 
 Restart API and Directus together:
 
 ```bash
 cd <deploy-path>
-docker compose --env-file .env -f docker-compose.prod.yml restart api directus
-bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml
+current_release_dir="$(awk -F= '/^CURRENT_LIVE_RELEASE_DIR=/{print $2}' .deploy-state/runtime-live.env)"
+current_project="$(awk -F= '/^CURRENT_LIVE_PROJECT=/{print $2}' .deploy-state/runtime-live.env)"
+docker compose --project-name "$current_project" --env-file .env -f "$current_release_dir/docker-compose.runtime-slot.yml" restart api directus
+bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state
 ```
 
 If the restart does not recover the service, use the rollback or restore paths below instead of looping restarts.
@@ -144,21 +158,24 @@ Use rollback when the outage is caused by a bad deploy rather than broken conten
 
 ### Application rollback
 
-1. SSH to the VM.
-2. Check out the previous known-good git ref.
-3. Redeploy:
+Use the recorded previous live runtime release:
 
-   ```bash
-   cd <deploy-path>
-   git fetch origin
-   git checkout <known-good-ref>
-   git pull --ff-only origin <known-good-ref>
-   bash ./scripts/deploy-stack.sh --env-file .env --compose-file docker-compose.prod.yml
-   ```
+```bash
+cd <deploy-path>
+bash ./scripts/rollback-runtime-release.sh --env-file .env --compose-file docker-compose.prod.yml
+```
+
+If the recorded previous release is not the one you want, use the manual GitHub workflow `.github/workflows/rollback-production.yml` or select the release id explicitly when the state file still records it.
+
+Important first-bootstrap boundary:
+
+- immediately after the first manual blue-green bootstrap, there is no previous runtime release yet
+- `rollback-production.yml` only becomes useful after a later successful runtime-safe deploy records `previous-live`
+- for that first bootstrap only, use the legacy include-file fallback described in [single-vm-production-bringup.md](./single-vm-production-bringup.md) if you must return to the old `8080/8055` stack
 
 ### Directus runtime rollback
 
-If the problem is a Directus upgrade, revert `DIRECTUS_VERSION` in the server `.env` to the previous pinned tag and rerun:
+If the problem is a Directus upgrade, revert `DIRECTUS_VERSION` in the server `.env` to the previous pinned tag and rerun the destructive/manual deploy path:
 
 ```bash
 cd <deploy-path>
