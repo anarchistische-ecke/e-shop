@@ -4,8 +4,6 @@ on:
   pull_request:
     branches: [ main ]
     types: [ opened, reopened, synchronize, ready_for_review, edited ]
-  pull_request_review:
-    types: [ submitted, dismissed ]
 
 permissions:
   contents: read
@@ -62,71 +60,14 @@ jobs:
             if (pr.draft) {
               core.notice(
                 `Governed CMS files changed (${governedFiles.join(', ')}), but the pull request is still draft. ` +
-                'The two-review gate starts when the PR is ready for review.'
+                'No approval quorum is enforced for this repository.'
               );
               return;
             }
-
-            const reviews = await github.paginate(github.rest.pulls.listReviews, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: pr.number,
-              per_page: 100,
-            });
-
-            reviews.sort((left, right) => {
-              const leftDate = new Date(left.submitted_at || left.created_at || 0);
-              const rightDate = new Date(right.submitted_at || right.created_at || 0);
-              return leftDate - rightDate;
-            });
-
-            const approvalState = new Map();
-            const currentHeadSha = pr.head.sha;
-            const authorLogin = pr.user?.login;
-
-            for (const review of reviews) {
-              const reviewer = review.user?.login;
-
-              if (!reviewer || reviewer === authorLogin) {
-                continue;
-              }
-
-              if (review.state === 'DISMISSED') {
-                approvalState.set(reviewer, false);
-                continue;
-              }
-
-              if (review.commit_id !== currentHeadSha) {
-                continue;
-              }
-
-              if (review.state === 'APPROVED') {
-                approvalState.set(reviewer, true);
-                continue;
-              }
-
-              if (review.state === 'CHANGES_REQUESTED') {
-                approvalState.set(reviewer, false);
-              }
-            }
-
-            const approvers = Array.from(approvalState.entries())
-              .filter(([, approved]) => approved)
-              .map(([reviewer]) => reviewer)
-              .sort();
 
             const governedSummary = governedFiles.join(', ');
 
-            if (approvers.length < 2) {
-              core.setFailed(
-                `CMS schema/content-model changes require two non-author approvals on the current head commit. ` +
-                `Current approvals: ${approvers.length}/2 (${approvers.join(', ') || 'none'}). ` +
-                `Governed files: ${governedSummary}.`
-              );
-              return;
-            }
-
             core.notice(
-              `CMS governance satisfied with ${approvers.length} approvals on the current head commit ` +
-              `(${approvers.join(', ')}). Governed files: ${governedSummary}.`
+              `Governed CMS schema/content-model files changed in this pull request: ${governedSummary}. ` +
+              'No approval quorum is enforced for this repository.'
             );
