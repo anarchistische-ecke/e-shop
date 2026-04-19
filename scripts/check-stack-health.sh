@@ -9,29 +9,47 @@ WAIT_INTERVAL_SECONDS=5
 API_URL=""
 DIRECTUS_URL=""
 CONTENT_URL=""
+PUBLIC_API_URL=""
+PUBLIC_DIRECTUS_URL=""
+PUBLIC_CONTENT_URL=""
+SKIP_PUBLIC=false
+VERIFY_RUNTIME_STATE=false
+
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+# shellcheck source=scripts/lib/runtime-release.sh
+source "$ROOT_DIR/scripts/lib/runtime-release.sh"
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/check-stack-health.sh [--env-file <path>] [--compose-file <path>] [--api-url <url>] [--directus-url <url>] [--content-url <url>] [--timeout-seconds <seconds>]
+  ./scripts/check-stack-health.sh \
+    [--env-file <path>] \
+    [--compose-file <path>] \
+    [--api-url <url>] \
+    [--directus-url <url>] \
+    [--content-url <url>] \
+    [--public-api-url <url>] \
+    [--public-directus-url <url>] \
+    [--public-content-url <url>] \
+    [--skip-public] \
+    [--verify-runtime-state] \
+    [--timeout-seconds <seconds>]
 EOF
 }
 
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
+normalize_url() {
+  printf '%s\n' "${1%/}"
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --compose-file)
-      COMPOSE_FILE="$(resolve_path "$2")"
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --api-url)
@@ -45,6 +63,26 @@ while [[ $# -gt 0 ]]; do
     --content-url)
       CONTENT_URL="$2"
       shift 2
+      ;;
+    --public-api-url)
+      PUBLIC_API_URL="$2"
+      shift 2
+      ;;
+    --public-directus-url)
+      PUBLIC_DIRECTUS_URL="$2"
+      shift 2
+      ;;
+    --public-content-url)
+      PUBLIC_CONTENT_URL="$2"
+      shift 2
+      ;;
+    --skip-public)
+      SKIP_PUBLIC=true
+      shift
+      ;;
+    --verify-runtime-state)
+      VERIFY_RUNTIME_STATE=true
+      shift
       ;;
     --timeout-seconds)
       WAIT_TIMEOUT_SECONDS="$2"
@@ -72,42 +110,17 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
-set -a
-source "$ENV_FILE"
-set +a
-
-compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
-  elif command -v docker-compose >/dev/null 2>&1; then
-    docker-compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
-  else
-    echo "Docker Compose not found." >&2
-    exit 1
-  fi
-}
-
-normalize_url() {
-  printf '%s\n' "${1%/}"
-}
-
-API_URL="${API_URL:-${API_HEALTHCHECK_URL:-http://127.0.0.1:8080/health/redis}}"
-DIRECTUS_URL="${DIRECTUS_URL:-${DIRECTUS_HEALTHCHECK_URL:-}}"
-CONTENT_URL="${CONTENT_URL:-${CONTENT_HEALTHCHECK_URL:-}}"
-
-if [[ -z "$DIRECTUS_URL" ]]; then
-  if [[ -n "${DIRECTUS_PUBLIC_URL:-}" ]]; then
-    DIRECTUS_URL="$(normalize_url "$DIRECTUS_PUBLIC_URL")/server/health"
-  else
-    DIRECTUS_URL="http://127.0.0.1:8055/server/health"
-  fi
-fi
+load_env_file "$ENV_FILE"
+runtime_set_defaults
+runtime_prepare_dirs
+runtime_load_state
 
 check_url() {
   local label="$1"
   local url="$2"
-  local attempts=$(( WAIT_TIMEOUT_SECONDS / WAIT_INTERVAL_SECONDS ))
+  local attempts
 
+  attempts=$(( WAIT_TIMEOUT_SECONDS / WAIT_INTERVAL_SECONDS ))
   if (( attempts < 1 )); then
     attempts=1
   fi
@@ -125,14 +138,76 @@ check_url() {
   return 1
 }
 
-echo "Checking Docker Compose service status..."
-compose ps
+verify_runtime_state() {
+  local upstream_api_port upstream_directus_port
 
+  if [[ -z "${CURRENT_LIVE_API_PORT:-}" || -z "${CURRENT_LIVE_DIRECTUS_PORT:-}" ]]; then
+    echo "Runtime state is incomplete; cannot verify nginx upstreams." >&2
+    return 1
+  fi
+
+  upstream_api_port="$(runtime_read_upstream_port "$DEPLOY_NGINX_API_UPSTREAM_INCLUDE" || true)"
+  upstream_directus_port="$(runtime_read_upstream_port "$DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE" || true)"
+
+  if [[ "$upstream_api_port" != "$CURRENT_LIVE_API_PORT" ]]; then
+    echo "API upstream drift detected: nginx points to ${upstream_api_port:-unset}, state expects ${CURRENT_LIVE_API_PORT}." >&2
+    return 1
+  fi
+
+  if [[ "$upstream_directus_port" != "$CURRENT_LIVE_DIRECTUS_PORT" ]]; then
+    echo "CMS upstream drift detected: nginx points to ${upstream_directus_port:-unset}, state expects ${CURRENT_LIVE_DIRECTUS_PORT}." >&2
+    return 1
+  fi
+
+  echo "[ok] Runtime state matches nginx upstream includes."
+}
+
+if [[ -n "${CURRENT_LIVE_API_PORT:-}" ]]; then
+  API_URL="${API_URL:-$(runtime_internal_api_url "$CURRENT_LIVE_API_PORT")}"
+  DIRECTUS_URL="${DIRECTUS_URL:-$(runtime_internal_directus_url "$CURRENT_LIVE_DIRECTUS_PORT")}"
+  CONTENT_URL="${CONTENT_URL:-$(runtime_internal_content_url "$CURRENT_LIVE_API_PORT")}"
+else
+  API_URL="${API_URL:-${API_HEALTHCHECK_URL:-http://127.0.0.1:8080/health/redis}}"
+  DIRECTUS_URL="${DIRECTUS_URL:-${DIRECTUS_HEALTHCHECK_URL:-http://127.0.0.1:8055/server/health}}"
+  CONTENT_URL="${CONTENT_URL:-${CONTENT_HEALTHCHECK_URL:-}}"
+fi
+
+PUBLIC_API_URL="${PUBLIC_API_URL:-${PUBLIC_API_HEALTHCHECK_URL:-}}"
+PUBLIC_DIRECTUS_URL="${PUBLIC_DIRECTUS_URL:-$(runtime_public_directus_url)}"
+PUBLIC_CONTENT_URL="${PUBLIC_CONTENT_URL:-${PUBLIC_CONTENT_HEALTHCHECK_URL:-}}"
+
+echo "Checking internal runtime health..."
 check_url "Backend health" "$API_URL"
 check_url "Directus health" "$DIRECTUS_URL"
 
 if [[ -n "$CONTENT_URL" ]]; then
   check_url "CMS facade health" "$CONTENT_URL"
+fi
+
+if [[ "$VERIFY_RUNTIME_STATE" == "true" ]]; then
+  verify_runtime_state
+fi
+
+if [[ "$SKIP_PUBLIC" != "true" ]]; then
+  echo "Checking public edge health..."
+
+  if [[ -n "$PUBLIC_API_URL" ]]; then
+    check_url "Public backend health" "$PUBLIC_API_URL"
+  else
+    echo "[skip] Public backend health URL is not configured."
+  fi
+
+  if [[ -n "$PUBLIC_DIRECTUS_URL" ]]; then
+    check_url "Public Directus health" "$PUBLIC_DIRECTUS_URL"
+  else
+    echo "[skip] Public Directus health URL is not configured."
+  fi
+
+  if [[ -n "$PUBLIC_CONTENT_URL" ]]; then
+    check_url "Public CMS facade health" "$PUBLIC_CONTENT_URL"
+  else
+    echo "[skip] Public CMS facade health URL is not configured."
+  fi
 fi
 
 echo "Stack health checks passed."

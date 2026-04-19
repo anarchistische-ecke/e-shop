@@ -7,18 +7,14 @@ COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 DATABASE_SERVICE="postgres"
 PUBLISHED_AT_FUNCTION="directus_set_cms_published_at"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
   ./scripts/directus-published-at-bootstrap.sh [--env-file <path>] [--compose-file <path>] [--database-service <name>]
 EOF
-}
-
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
 }
 
 normalize_csv() {
@@ -32,11 +28,11 @@ normalize_csv() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --compose-file)
-      COMPOSE_FILE="$(resolve_path "$2")"
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --database-service)
@@ -65,9 +61,7 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
-set -a
-. "$ENV_FILE"
-set +a
+load_env_file "$ENV_FILE"
 
 DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-}"
 DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-$DIRECTUS_CMS_CONTENT_COLLECTIONS}"

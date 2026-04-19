@@ -39,7 +39,8 @@ jobs:
           host: ${{ env.YC_VM_HOST }}
           username: ${{ env.YC_VM_USER }}
           key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 10m
           script: |
             set -euo pipefail
             cd ${{ env.YC_VM_DEPLOY_PATH }}
-            bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml
+            bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state

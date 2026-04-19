@@ -7,6 +7,9 @@ COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 BACKUP_DIR="$ROOT_DIR/backups/directus"
 SKIP_BACKUP=false
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -14,25 +17,18 @@ Usage:
 EOF
 }
 
-resolve_path() {
-  case "$1" in
-    /*) printf '%s\n' "$1" ;;
-    *) printf '%s\n' "$PWD/$1" ;;
-  esac
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --env-file)
-      ENV_FILE="$(resolve_path "$2")"
+      ENV_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --compose-file)
-      COMPOSE_FILE="$(resolve_path "$2")"
+      COMPOSE_FILE="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --backup-dir)
-      BACKUP_DIR="$(resolve_path "$2")"
+      BACKUP_DIR="$(resolve_env_file_path "$2")"
       shift 2
       ;;
     --skip-backup)
@@ -60,6 +56,8 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   echo "Missing compose file: $COMPOSE_FILE" >&2
   exit 1
 fi
+
+load_env_file "$ENV_FILE"
 
 compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -93,6 +91,7 @@ compose pull api directus
 
 echo "Deploying API and Directus containers..."
 echo "API image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}"
+echo "This path is the destructive/manual production apply workflow. Runtime-safe auto deploys must use scripts/deploy-runtime-bluegreen.sh."
 compose up -d api directus
 
 echo "Bootstrapping Directus schema automation token..."

@@ -5,6 +5,9 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIRECTUS_ENV_FILE="$ROOT_DIR/directus/.env"
 KEYCLOAK_ENV_FILE="$ROOT_DIR/keycloak/.env"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 if [[ ! -f "$DIRECTUS_ENV_FILE" ]]; then
   echo "Missing $DIRECTUS_ENV_FILE" >&2
   exit 1
@@ -15,10 +18,8 @@ if [[ ! -f "$KEYCLOAK_ENV_FILE" ]]; then
   exit 1
 fi
 
-set -a
-. "$DIRECTUS_ENV_FILE"
-. "$KEYCLOAK_ENV_FILE"
-set +a
+load_env_file "$DIRECTUS_ENV_FILE"
+load_env_file "$KEYCLOAK_ENV_FILE"
 
 DIRECTUS_PUBLIC_URL="${DIRECTUS_PUBLIC_URL:-http://localhost:8055}"
 DIRECTUS_DEFAULT_LANGUAGE="${DIRECTUS_DEFAULT_LANGUAGE:-ru-RU}"

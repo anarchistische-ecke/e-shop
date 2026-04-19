@@ -1,82 +1,30 @@
 services:
   api:
-    image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}
+    image: ${API_IMAGE_REPOSITORY:?Set API_IMAGE_REPOSITORY}:${API_IMAGE_TAG:?Set API_IMAGE_TAG}
     env_file:
-      - .env
+      - ${RUNTIME_ENV_FILE:?Set RUNTIME_ENV_FILE}
     ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - "127.0.0.1:${RUNTIME_API_HOST_PORT:?Set RUNTIME_API_HOST_PORT}:8080"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health/redis"]
       interval: 30s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 768m
+    labels:
+      com.eshop.release_id: ${RUNTIME_RELEASE_ID:?Set RUNTIME_RELEASE_ID}
+      com.eshop.slot: ${RUNTIME_SLOT:?Set RUNTIME_SLOT}
+      com.eshop.service: api
     networks:
-      default:
-      shared:
-
-  postgres:
-    image: postgres:15-alpine
-    command: ["postgres", "-c", "max_connections=200"]
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-eshop}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres_admin}"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-    networks:
-      default:
-      shared:
-        aliases:
-          - postgres
-
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--save", "", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-    networks:
-      default:
-      shared:
-        aliases:
-          - redis
+      - default
+      - shared
 
   directus:
     image: directus/directus:${DIRECTUS_VERSION:-11.17.2}
     env_file:
-      - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - ${RUNTIME_ENV_FILE:?Set RUNTIME_ENV_FILE}
     ports:
-      - "8055:8055"
+      - "127.0.0.1:${RUNTIME_DIRECTUS_HOST_PORT:?Set RUNTIME_DIRECTUS_HOST_PORT}:8055"
     restart: unless-stopped
     environment:
       KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in the deployment .env}
@@ -137,20 +85,23 @@ services:
       interval: 30s
       timeout: 5s
       retries: 10
+    labels:
+      com.eshop.release_id: ${RUNTIME_RELEASE_ID:?Set RUNTIME_RELEASE_ID}
+      com.eshop.slot: ${RUNTIME_SLOT:?Set RUNTIME_SLOT}
+      com.eshop.service: directus
     volumes:
-      - ./directus/runtime-extensions:/directus/extensions:ro
+      - ${RUNTIME_RELEASE_DIR:?Set RUNTIME_RELEASE_DIR}/directus/runtime-extensions:/directus/extensions:ro
       - directus-templates:/directus/templates
-      - ./directus:/opt/directus-deploy/directus:ro
-      - ./scripts:/opt/directus-deploy/scripts:ro
+      - ${RUNTIME_RELEASE_DIR:?Set RUNTIME_RELEASE_DIR}/directus:/opt/directus-deploy/directus:ro
+      - ${RUNTIME_RELEASE_DIR:?Set RUNTIME_RELEASE_DIR}/scripts:/opt/directus-deploy/scripts:ro
     networks:
-      default:
-      shared:
+      - default
+      - shared
 
 volumes:
-  redisdata:
-  pgdata:
   directus-templates:
 
 networks:
   shared:
+    external: true
     name: ${DEPLOY_SHARED_DOCKER_NETWORK:-eshop-shared}

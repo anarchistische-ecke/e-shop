@@ -7,14 +7,15 @@ KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://localhost:8081}"
 KEYCLOAK_REALM="${KEYCLOAK_REALM:-cozyhome}"
 MAPPED_ROLES="admin manager publisher"
 
+# shellcheck source=scripts/lib/env-file.sh
+source "$ROOT_DIR/scripts/lib/env-file.sh"
+
 if [[ ! -f "$KEYCLOAK_ENV_FILE" ]]; then
   echo "Missing $KEYCLOAK_ENV_FILE" >&2
   exit 1
 fi
 
-set -a
-. "$KEYCLOAK_ENV_FILE"
-set +a
+load_env_file "$KEYCLOAK_ENV_FILE"
 
 EMAIL=""
 PASSWORD=""
