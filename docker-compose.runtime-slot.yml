@@ -19,6 +19,44 @@ services:
       - default
       - shared
 
+  storefront:
+    image: ${STOREFRONT_IMAGE_REPOSITORY:?Set STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG:?Set STOREFRONT_IMAGE_TAG}
+    env_file:
+      - ${RUNTIME_ENV_FILE:?Set RUNTIME_ENV_FILE}
+    ports:
+      - "127.0.0.1:${RUNTIME_STOREFRONT_HOST_PORT:?Set RUNTIME_STOREFRONT_HOST_PORT}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SERVER_API_BASE: ${STOREFRONT_SERVER_API_BASE:-http://api:8080}
+      REACT_APP_API_BASE: ${REACT_APP_API_BASE:-https://api.yug-postel.ru}
+      REACT_APP_SITE_URL: ${REACT_APP_SITE_URL:-https://yug-postel.ru}
+      REACT_APP_KEYCLOAK_URL: ${REACT_APP_KEYCLOAK_URL:-https://yug-postel.ru/auth}
+      REACT_APP_KEYCLOAK_REALM: ${REACT_APP_KEYCLOAK_REALM:-cozyhome}
+      REACT_APP_KEYCLOAK_CLIENT_ID: ${REACT_APP_KEYCLOAK_CLIENT_ID:-cozyhome-web}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    labels:
+      com.eshop.release_id: ${RUNTIME_RELEASE_ID:?Set RUNTIME_RELEASE_ID}
+      com.eshop.slot: ${RUNTIME_SLOT:?Set RUNTIME_SLOT}
+      com.eshop.service: storefront
+    networks:
+      - default
+      - shared
+
   directus:
     image: directus/directus:${DIRECTUS_VERSION:-11.17.2}
     env_file:

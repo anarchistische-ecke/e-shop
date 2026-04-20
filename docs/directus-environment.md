@@ -247,18 +247,33 @@ The production compose file also reads:
 | `PUBLIC_API_HEALTHCHECK_URL` | deployment-specific | Public post-cutover API probe used by blue-green deploys and scheduled ops checks. Example: `https://api.example.com/health/redis`. |
 | `PUBLIC_DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional public Directus override used after nginx cutover. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health`. |
 | `PUBLIC_CONTENT_HEALTHCHECK_URL` | deployment-specific | Public CMS facade smoke check used after nginx cutover. Example: `https://api.example.com/content/navigation?placement=header`. |
+| `PUBLIC_STOREFRONT_HEALTHCHECK_URL` | deployment-specific | Public storefront probe used after nginx cutover. Defaults to `${STOREFRONT_PUBLIC_URL}/healthz`. |
+| `STOREFRONT_PUBLIC_URL` | deployment-specific | Canonical storefront origin. Example: `https://yug-postel.ru`. |
+| `STOREFRONT_HOST_PORT` | `3000` | Loopback host port used by the destructive/in-place storefront container in `docker-compose.prod.yml`. |
+| `STOREFRONT_SERVER_API_BASE` | `http://api:8080` | Internal API base URL injected into the Node SSR storefront container. |
+| `STOREFRONT_IMAGE_REPOSITORY` | deployment-specific | Storefront container repository, for example `ghcr.io/<owner>/cozyhome-storefront`. |
+| `STOREFRONT_IMAGE_TAG` | deployment-specific | Storefront container tag used by both destructive and blue-green deploy paths. |
+| `REACT_APP_SITE_URL` | deployment-specific | Canonical public storefront URL injected into the SSR runtime. Example: `https://yug-postel.ru`. |
+| `REACT_APP_API_BASE` | deployment-specific | Public browser-facing API base URL injected into the SSR runtime. Example: `https://api.example.com`. |
+| `REACT_APP_KEYCLOAK_URL` | deployment-specific | Public Keycloak base URL injected into the SSR runtime. Example: `https://yug-postel.ru/auth`. |
+| `REACT_APP_KEYCLOAK_REALM` | `cozyhome` | Storefront Keycloak realm name. |
+| `REACT_APP_KEYCLOAK_CLIENT_ID` | `cozyhome-web` | Storefront Keycloak client id. |
 | `API_HEALTHCHECK_URL` | deployment-specific | Optional internal override for `scripts/check-stack-health.sh`. Defaults to the live slot loopback API URL from `.deploy-state/runtime-live.env`, or `http://127.0.0.1:8080/health/redis` before the first blue-green cutover. |
 | `DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional internal override for `scripts/check-stack-health.sh`. Defaults to the live slot loopback Directus URL from `.deploy-state/runtime-live.env`, or `http://127.0.0.1:8055/server/health` before the first blue-green cutover. |
+| `STOREFRONT_HEALTHCHECK_URL` | deployment-specific | Optional internal storefront probe override for `scripts/check-stack-health.sh`. Defaults to the live slot loopback storefront URL from `.deploy-state/runtime-live.env`, or `http://127.0.0.1:${STOREFRONT_HOST_PORT}/healthz` before the first blue-green cutover. |
 | `CONTENT_HEALTHCHECK_URL` | deployment-specific | Optional internal CMS facade probe override for `scripts/check-stack-health.sh`. If unset, the runtime path uses the live slot loopback `/content/navigation?placement=header` smoke check. |
 | `DEPLOY_RUNTIME_RELEASES_DIR` | `<deploy-path>/releases` | Root directory for immutable runtime releases created with `git worktree`. |
 | `DEPLOY_RUNTIME_STATE_DIR` | `<deploy-path>/.deploy-state` | Stores runtime state, locks, summaries, and deploy logs. |
 | `DEPLOY_RUNTIME_BLUE_API_PORT` | `18080` | Loopback host port for the blue API slot. |
 | `DEPLOY_RUNTIME_BLUE_DIRECTUS_PORT` | `18055` | Loopback host port for the blue Directus slot. |
+| `DEPLOY_RUNTIME_BLUE_STOREFRONT_PORT` | `13000` | Loopback host port for the blue storefront slot. |
 | `DEPLOY_RUNTIME_GREEN_API_PORT` | `28080` | Loopback host port for the green API slot. |
 | `DEPLOY_RUNTIME_GREEN_DIRECTUS_PORT` | `28055` | Loopback host port for the green Directus slot. |
+| `DEPLOY_RUNTIME_GREEN_STOREFRONT_PORT` | `23000` | Loopback host port for the green storefront slot. |
 | `DEPLOY_SHARED_DOCKER_NETWORK` | `eshop-shared` | External Docker network shared by the runtime slots and the infrastructure compose stack. |
 | `DEPLOY_NGINX_API_UPSTREAM_INCLUDE` | `/etc/nginx/includes/eshop-api-upstream.conf` | Generated nginx include file that contains the active API `proxy_pass` target. |
 | `DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE` | `/etc/nginx/includes/eshop-cms-upstream.conf` | Generated nginx include file that contains the active Directus `proxy_pass` target. |
+| `DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE` | `/etc/nginx/includes/eshop-storefront-upstream.conf` | Generated nginx include file that contains the active storefront `proxy_pass` target. |
 | `DEPLOY_RUNTIME_MIN_AVAILABLE_MEMORY_MB` | `1024` | Preflight floor for free memory before a candidate slot may start. |
 | `DEPLOY_RUNTIME_MIN_AVAILABLE_DISK_MB` | `1024` | Preflight floor for free disk before a candidate release directory may be created. |
 | `DEPLOY_RUNTIME_OBSERVATION_SECONDS` | `15` | Post-cutover observation window before the previous slot is retired. |

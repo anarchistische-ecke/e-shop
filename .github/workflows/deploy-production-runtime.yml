@@ -14,6 +14,16 @@ on:
         required: true
         default: main
         type: string
+      storefront_image_repository:
+        description: Optional storefront image repository override
+        required: false
+        default: ""
+        type: string
+      storefront_image_tag:
+        description: Optional storefront image tag override
+        required: false
+        default: ""
+        type: string
 
 jobs:
   classify:
@@ -70,7 +80,7 @@ jobs:
 
   build:
     needs: classify
-    if: ${{ needs.classify.outputs.classification != 'no-runtime-change' }}
+    if: ${{ needs.classify.outputs.classification != 'no-runtime-change' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     outputs:
       image_repository: ${{ needs.classify.outputs.image_repository }}
@@ -133,7 +143,7 @@ jobs:
 
   deploy:
     needs: [classify, build]
-    if: ${{ needs.classify.outputs.classification != 'no-runtime-change' }}
+    if: ${{ needs.classify.outputs.classification != 'no-runtime-change' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     environment: production
     concurrency:
@@ -153,6 +163,8 @@ jobs:
       GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
       API_IMAGE_REPOSITORY: ${{ needs.build.outputs.image_repository }}
       API_IMAGE_TAG: ${{ needs.build.outputs.sha }}
+      STOREFRONT_IMAGE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.storefront_image_repository || vars.STOREFRONT_IMAGE_REPOSITORY }}
+      STOREFRONT_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.storefront_image_tag || vars.STOREFRONT_IMAGE_TAG }}
     steps:
       - name: Skip deploy when VM secrets are not configured
         if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
@@ -175,7 +187,7 @@ jobs:
           username: ${{ env.YC_VM_USER }}
           key: ${{ env.YC_VM_SSH_KEY }}
           command_timeout: 45m
-          envs: DEPLOY_CLASSIFICATION,DEPLOY_REF,DEPLOY_SHA,DEPLOY_RUN_ID,API_IMAGE_REPOSITORY,API_IMAGE_TAG,GHCR_PULL_USERNAME,GHCR_PULL_TOKEN,DESTRUCTIVE_FILES
+          envs: DEPLOY_CLASSIFICATION,DEPLOY_REF,DEPLOY_SHA,DEPLOY_RUN_ID,API_IMAGE_REPOSITORY,API_IMAGE_TAG,STOREFRONT_IMAGE_REPOSITORY,STOREFRONT_IMAGE_TAG,GHCR_PULL_USERNAME,GHCR_PULL_TOKEN,DESTRUCTIVE_FILES
           script: |
             set -euo pipefail
             if [ -n "${GHCR_PULL_USERNAME:-}" ] && [ -n "${GHCR_PULL_TOKEN:-}" ]; then
@@ -191,14 +203,23 @@ jobs:
                 --env-file .env \
                 --compose-file docker-compose.prod.yml
             else
-              bash ./scripts/deploy-runtime-bluegreen.sh \
-                --env-file .env \
-                --compose-file docker-compose.prod.yml \
-                --deploy-ref "${DEPLOY_REF}" \
-                --deploy-sha "${DEPLOY_SHA}" \
-                --api-image-repository "${API_IMAGE_REPOSITORY}" \
-                --api-image-tag "${API_IMAGE_TAG}" \
+              args=(
+                bash ./scripts/deploy-runtime-bluegreen.sh
+                --env-file .env
+                --compose-file docker-compose.prod.yml
+                --deploy-ref "${DEPLOY_REF}"
+                --deploy-sha "${DEPLOY_SHA}"
+                --api-image-repository "${API_IMAGE_REPOSITORY}"
+                --api-image-tag "${API_IMAGE_TAG}"
                 --run-id "${DEPLOY_RUN_ID}"
+              )
+              if [ -n "${STOREFRONT_IMAGE_REPOSITORY:-}" ]; then
+                args+=(--storefront-image-repository "${STOREFRONT_IMAGE_REPOSITORY}")
+              fi
+              if [ -n "${STOREFRONT_IMAGE_TAG:-}" ]; then
+                args+=(--storefront-image-tag "${STOREFRONT_IMAGE_TAG}")
+              fi
+              "${args[@]}"
             fi
 
       - name: Stage remote diagnostics
@@ -244,7 +265,7 @@ jobs:
 
   noop:
     needs: classify
-    if: ${{ needs.classify.outputs.classification == 'no-runtime-change' }}
+    if: ${{ needs.classify.outputs.classification == 'no-runtime-change' && github.event_name != 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Skip no-op production deploy
