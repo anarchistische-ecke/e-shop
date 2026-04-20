@@ -44,13 +44,14 @@ The workflows that matter right now are:
 - `deploy-production-runtime`
   - file: `.github/workflows/deploy-production-runtime.yml`
   - runs on pushes to `main` and manual dispatch
-  - builds `ghcr.io/<repo-owner>/eshop-api:<sha>` and runs `scripts/deploy-runtime-bluegreen.sh`
-  - only deploys runtime-safe changes
+  - builds `ghcr.io/<repo-owner>/eshop-api:<sha>`
+  - uses `scripts/deploy-runtime-bluegreen.sh` for runtime-safe changes
+  - uses `scripts/deploy-stack.sh` for destructive changes after printing a warning
 - `deploy-production-destructive`
   - file: `.github/workflows/deploy-production-destructive.yml`
   - manual only
   - runs `scripts/deploy-stack.sh`
-  - requires successful staging verification for the same SHA, so treat it as blocked until a real staging target exists
+  - exists as an operator-triggered destructive apply path with optional `skip_backup`
 - `rollback-production`
   - file: `.github/workflows/rollback-production.yml`
   - manual only
@@ -75,14 +76,14 @@ It is not full-stack blue-green for destructive changes because:
 
 - PostgreSQL and Redis are shared by both slots
 - changes to Directus schema, Directus seed content, `docker-compose.prod.yml`, `docker-compose.runtime-slot.yml`, and `scripts/directus-*` are classified as destructive
-- destructive production deploys are intentionally kept out of the automatic runtime-safe path
+- destructive production deploys run in place through `scripts/deploy-stack.sh`, not through slot-based blue-green cutover
 - the first bootstrap is manual
 
 Treat the production workflow as:
 
 - blue-green for runtime-safe releases
+- automatic in-place apply for destructive releases
 - manual for the first bootstrap
-- manual and effectively unavailable for destructive releases until a real staging target exists
 
 ## Runtime-Safe Deploy Flow
 
@@ -122,7 +123,7 @@ This path still owns:
 - Directus runtime/core upgrades
 - schema, seed, governance, and compose changes
 
-The destructive flow is not part of the normal automatic single-VM runtime-safe deploy path.
+The destructive flow is also used automatically by `.github/workflows/deploy-production-runtime.yml` whenever the change classifier marks a `main` deploy as destructive.
 
 ## What The VM Must Already Have
 
