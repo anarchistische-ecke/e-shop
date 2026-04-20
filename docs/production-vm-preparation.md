@@ -18,8 +18,8 @@ After this runbook is complete, continue with [single-vm-production-bringup.md](
 | Workflow | Trigger | What it does now | Current limit |
 | --- | --- | --- | --- |
 | `.github/workflows/backend-ci.yml` | pull requests to `main`, manual dispatch | Validates change classification, Directus schema snapshot, Directus runtime extensions, and the Java build/test path | CI only. No deploy. |
-| `.github/workflows/deploy-production-runtime.yml` | push to `main`, manual dispatch | Builds `ghcr.io/<repo-owner>/eshop-api:<sha>` and runs `scripts/deploy-runtime-bluegreen.sh` on the production VM | Only runs for runtime-safe changes. Destructive changes are blocked. |
-| `.github/workflows/deploy-production-destructive.yml` | manual dispatch | Runs the destructive/manual deploy path with `scripts/deploy-stack.sh` | Requires a successful staging deploy for the same SHA, so treat it as unavailable until a real staging target exists. |
+| `.github/workflows/deploy-production-runtime.yml` | push to `main`, manual dispatch | Builds `ghcr.io/<repo-owner>/eshop-api:<sha>` and deploys automatically on the production VM | Runtime-safe changes use blue-green cutover. Destructive changes print a warning and run the in-place destructive apply path. |
+| `.github/workflows/deploy-production-destructive.yml` | manual dispatch | Runs the destructive/manual deploy path with `scripts/deploy-stack.sh` | Manual in-place destructive apply with optional backup skip. Not blue-green. |
 | `.github/workflows/rollback-production.yml` | manual dispatch | Runs `scripts/rollback-runtime-release.sh` on the production VM | Can only roll back to the recorded previous live blue-green release. |
 | `.github/workflows/ops-health-check.yml` | every 15 minutes, manual dispatch | SSHes to the VM and runs `scripts/check-stack-health.sh` | `staging` should remain unused until a separate staging target exists. |
 
@@ -38,15 +38,15 @@ The current setup is suitable for blue-green deployment on a single VM only for 
 The current setup is not true full-stack blue-green for these reasons:
 
 - PostgreSQL and Redis are shared between the live slot and the candidate slot
-- destructive changes are intentionally excluded from `deploy-production-runtime.yml`
 - changes to `docker-compose.prod.yml`, `docker-compose.runtime-slot.yml`, Directus schema, Directus seeds, and `scripts/directus-*` are classified as destructive
+- destructive changes are applied in place with `scripts/deploy-stack.sh`, not through slot-based blue-green cutover
 - the first production bootstrap is manual because that initial CI/CD rewrite commit is itself destructive
 
 Treat the production model as:
 
 - blue-green for runtime-safe releases
 - manual/special-case for first bootstrap
-- manual/special-case for destructive releases
+- automatic in-place apply for destructive releases
 
 ## VM Contract
 
@@ -715,13 +715,13 @@ Exact meaning:
 
 Policy:
 
-- `production` should stay approval-free so runtime-safe pushes to `main` remain automatic
-- `production-destructive` should require reviewer approval
+- `production` should stay approval-free so pushes to `main` remain automatic for both runtime-safe and destructive deploys
+- `production-destructive` is optional and can remain approval-gated if you want a separate manual emergency path
 
 Current limitation:
 
-- `deploy-production-destructive.yml` also requires a successful `deploy-staging-runtime.yml` run for the same SHA
-- because there is no separate staging target yet, treat that destructive workflow as intentionally blocked for now
+- `deploy-staging-runtime.yml` still exists but should stay unused until a separate staging target exists
+- destructive deploys are automatic, but they are not blue-green and should be treated as in-place applies against shared infrastructure
 
 ## Validation Checklist Before First Bootstrap
 

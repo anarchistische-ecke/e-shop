@@ -3,7 +3,6 @@ name: deploy-production-destructive
 permissions:
   contents: read
   packages: write
-  actions: read
 
 on:
   workflow_dispatch:
@@ -43,45 +42,8 @@ jobs:
           owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
           echo "repository=ghcr.io/${owner_lc}/eshop-api" >> "$GITHUB_OUTPUT"
 
-  verify-staging:
-    needs: prepare
-    runs-on: ubuntu-latest
-    steps:
-      - name: Verify successful staging runtime deploy for the same SHA
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const workflow_id = 'deploy-staging-runtime.yml';
-            const targetSha = '${{ needs.prepare.outputs.sha }}';
-
-            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id,
-              per_page: 100,
-            });
-
-            const successRun = runs.find((run) =>
-              run.head_sha === targetSha &&
-              run.status === 'completed' &&
-              run.conclusion === 'success'
-            );
-
-            if (!successRun) {
-              core.setFailed(
-                `No successful deploy-staging-runtime run was found for commit ${targetSha}. ` +
-                `Run staging verification for this exact SHA before using the destructive production workflow. ` +
-                `For the current single-VM production-only setup, leave this workflow unused until a real isolated staging target exists.`
-              );
-              return;
-            }
-
-            core.notice(
-              `Found successful staging runtime verification for ${targetSha}: ${successRun.html_url}`
-            );
-
   build:
-    needs: [prepare, verify-staging]
+    needs: prepare
     runs-on: ubuntu-latest
     outputs:
       image_repository: ${{ needs.prepare.outputs.image_repository }}
@@ -142,7 +104,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: [prepare, verify-staging, build]
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     environment: production-destructive
     concurrency:
@@ -166,6 +128,11 @@ jobs:
         if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
         run: |
           echo "Skipping destructive production deploy because one or more VM deployment secrets are missing."
+
+      - name: Warn about direct destructive production apply
+        run: |
+          echo "::warning::This workflow applies destructive changes directly to production."
+          echo "::warning::No separate staging target is configured for this repository."
 
       - name: Run destructive production apply
         id: deploy_remote

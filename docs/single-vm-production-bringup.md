@@ -27,7 +27,7 @@ After you complete this runbook:
 - it does not install Docker, nginx, or Git
 - it does not create the deploy user or GitHub Actions SSH key
 - it does not configure the GitHub Environments
-- it does not make `deploy-production-destructive.yml` usable in the current production-only single-VM setup
+- it does not turn destructive deploys into blue-green deploys
 
 ## Prerequisites
 
@@ -240,7 +240,7 @@ After the bootstrap is verified:
 
 1. Merge the rewrite branch to `main`.
 2. Expect the merge commit itself to still be classified as `destructive`.
-3. Do not force `deploy-production-runtime.yml` for that bootstrap commit. The server is already on it.
-4. For later runtime-safe changes, merge to `main` and let `.github/workflows/deploy-production-runtime.yml` run automatically.
+3. `.github/workflows/deploy-production-runtime.yml` will print a warning and use the in-place destructive apply path for that merge.
+4. For later runtime-safe changes, merge to `main` and let `.github/workflows/deploy-production-runtime.yml` use the normal blue-green path automatically.
 5. Use `.github/workflows/rollback-production.yml` only after at least one later successful runtime-safe deploy exists.
-6. Leave `.github/workflows/deploy-production-destructive.yml` unused until you have a separate real staging target.
+6. Use `.github/workflows/deploy-production-destructive.yml` only when you want a manual operator-triggered destructive apply.
