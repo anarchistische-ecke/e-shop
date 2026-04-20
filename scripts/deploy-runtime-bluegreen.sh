@@ -9,6 +9,8 @@ DEPLOY_SHA="${DEPLOY_SHA:-}"
 DEPLOY_RUN_ID="${DEPLOY_RUN_ID:-manual}"
 API_IMAGE_REPOSITORY="${API_IMAGE_REPOSITORY:-}"
 API_IMAGE_TAG="${API_IMAGE_TAG:-}"
+STOREFRONT_IMAGE_REPOSITORY="${STOREFRONT_IMAGE_REPOSITORY:-}"
+STOREFRONT_IMAGE_TAG="${STOREFRONT_IMAGE_TAG:-}"
 WAIT_TIMEOUT_SECONDS="${WAIT_TIMEOUT_SECONDS:-180}"
 
 # shellcheck source=scripts/lib/env-file.sh
@@ -26,6 +28,8 @@ Usage:
     [--deploy-sha <git-sha>] \
     [--api-image-repository <image>] \
     [--api-image-tag <tag>] \
+    [--storefront-image-repository <image>] \
+    [--storefront-image-tag <tag>] \
     [--run-id <id>] \
     [--timeout-seconds <seconds>]
 EOF
@@ -55,6 +59,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --api-image-tag)
       API_IMAGE_TAG="$2"
+      shift 2
+      ;;
+    --storefront-image-repository)
+      STOREFRONT_IMAGE_REPOSITORY="$2"
+      shift 2
+      ;;
+    --storefront-image-tag)
+      STOREFRONT_IMAGE_TAG="$2"
       shift 2
       ;;
     --run-id)
@@ -93,6 +105,8 @@ runtime_prepare_dirs
 
 require_env API_IMAGE_REPOSITORY "runtime deploy arguments"
 require_env API_IMAGE_TAG "runtime deploy arguments"
+require_env STOREFRONT_IMAGE_REPOSITORY "runtime deploy arguments"
+require_env STOREFRONT_IMAGE_TAG "runtime deploy arguments"
 require_env DIRECTUS_PUBLIC_URL "$ENV_FILE"
 require_env PUBLIC_API_HEALTHCHECK_URL "$ENV_FILE"
 require_env PUBLIC_CONTENT_HEALTHCHECK_URL "$ENV_FILE"
@@ -111,10 +125,12 @@ CANDIDATE_PROJECT=""
 CANDIDATE_RELEASE_DIR=""
 CANDIDATE_API_PORT=""
 CANDIDATE_DIRECTUS_PORT=""
+CANDIDATE_STOREFRONT_PORT=""
 TARGET_SHA=""
 LOG_FILE=""
 API_INCLUDE_BACKUP=""
 CMS_INCLUDE_BACKUP=""
+STOREFRONT_INCLUDE_BACKUP=""
 
 legacy_compose() {
   if docker compose version >/dev/null 2>&1; then
@@ -130,7 +146,7 @@ legacy_compose() {
 candidate_compose() {
   local compose_file
 
-  compose_file="$(runtime_compose_file "$CANDIDATE_RELEASE_DIR")"
+  compose_file="$(runtime_resolved_compose_file "$CANDIDATE_RELEASE_DIR")"
 
   if docker compose version >/dev/null 2>&1; then
     docker compose \
@@ -148,6 +164,32 @@ candidate_compose() {
     echo "Docker Compose not found." >&2
     exit 1
   fi
+}
+
+ensure_storefront_image_available() {
+  local storefront_image
+
+  storefront_image="${STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG}"
+
+  if docker image inspect "$storefront_image" >/dev/null 2>&1; then
+    echo "Storefront image already present locally: $storefront_image"
+    return 0
+  fi
+
+  candidate_compose pull storefront
+}
+
+ensure_api_image_available() {
+  local api_image
+
+  api_image="${API_IMAGE_REPOSITORY}:${API_IMAGE_TAG}"
+
+  if docker image inspect "$api_image" >/dev/null 2>&1; then
+    echo "API image already present locally: $api_image"
+    return 0
+  fi
+
+  candidate_compose pull api
 }
 
 write_failure_summary() {
@@ -179,6 +221,10 @@ restore_previous_upstreams() {
     cp "$CMS_INCLUDE_BACKUP" "$DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE"
   fi
 
+  if [[ -n "$STOREFRONT_INCLUDE_BACKUP" && -f "$STOREFRONT_INCLUDE_BACKUP" ]]; then
+    cp "$STOREFRONT_INCLUDE_BACKUP" "$DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE"
+  fi
+
   runtime_reload_nginx
 }
 
@@ -190,7 +236,7 @@ on_error() {
 
   if [[ -n "$CANDIDATE_RELEASE_DIR" ]]; then
     candidate_compose ps || true
-    candidate_compose logs --tail=200 api directus || true
+    candidate_compose logs --tail=200 api directus storefront || true
   fi
 
   if [[ "$CUTOVER_APPLIED" == "true" ]]; then
@@ -205,12 +251,14 @@ on_error() {
     CURRENT_LIVE_PROJECT="${PRE_CUTOVER_CURRENT_LIVE_PROJECT:-}"
     CURRENT_LIVE_API_PORT="${PRE_CUTOVER_CURRENT_LIVE_API_PORT:-}"
     CURRENT_LIVE_DIRECTUS_PORT="${PRE_CUTOVER_CURRENT_LIVE_DIRECTUS_PORT:-}"
+    CURRENT_LIVE_STOREFRONT_PORT="${PRE_CUTOVER_CURRENT_LIVE_STOREFRONT_PORT:-}"
     PREVIOUS_LIVE_RELEASE_ID="${PRE_CUTOVER_PREVIOUS_LIVE_RELEASE_ID:-}"
     PREVIOUS_LIVE_RELEASE_DIR="${PRE_CUTOVER_PREVIOUS_LIVE_RELEASE_DIR:-}"
     PREVIOUS_LIVE_SLOT="${PRE_CUTOVER_PREVIOUS_LIVE_SLOT:-}"
     PREVIOUS_LIVE_PROJECT="${PRE_CUTOVER_PREVIOUS_LIVE_PROJECT:-}"
     PREVIOUS_LIVE_API_PORT="${PRE_CUTOVER_PREVIOUS_LIVE_API_PORT:-}"
     PREVIOUS_LIVE_DIRECTUS_PORT="${PRE_CUTOVER_PREVIOUS_LIVE_DIRECTUS_PORT:-}"
+    PREVIOUS_LIVE_STOREFRONT_PORT="${PRE_CUTOVER_PREVIOUS_LIVE_STOREFRONT_PORT:-}"
   else
     runtime_load_state || true
   fi
@@ -228,6 +276,17 @@ trap 'on_error $? $LINENO' ERR
 
 fetch_target_sha() {
   local fetched_sha
+
+  if [[ "$DEPLOY_REF" == "HEAD" ]]; then
+    if [[ -n "$DEPLOY_SHA" ]]; then
+      git rev-parse --verify "${DEPLOY_SHA}^{commit}" >/dev/null 2>&1
+      printf '%s\n' "$DEPLOY_SHA"
+      return 0
+    fi
+
+    git rev-parse HEAD
+    return 0
+  fi
 
   git fetch --prune origin "$DEPLOY_REF"
   fetched_sha="$(git rev-parse FETCH_HEAD)"
@@ -265,12 +324,15 @@ materialize_release_dir() {
 export_candidate_runtime_env() {
   export API_IMAGE_REPOSITORY
   export API_IMAGE_TAG
+  export STOREFRONT_IMAGE_REPOSITORY
+  export STOREFRONT_IMAGE_TAG
   export RUNTIME_ENV_FILE="$ENV_FILE"
   export RUNTIME_RELEASE_DIR="$CANDIDATE_RELEASE_DIR"
   export RUNTIME_RELEASE_ID="$TARGET_SHA"
   export RUNTIME_SLOT="$CANDIDATE_SLOT"
   export RUNTIME_API_HOST_PORT="$CANDIDATE_API_PORT"
   export RUNTIME_DIRECTUS_HOST_PORT="$CANDIDATE_DIRECTUS_PORT"
+  export RUNTIME_STOREFRONT_HOST_PORT="$CANDIDATE_STOREFRONT_PORT"
   export DEPLOY_SHARED_DOCKER_NETWORK
 }
 
@@ -321,6 +383,11 @@ ensure_nginx_cutover_contract() {
     echo "Missing CMS nginx upstream include: $DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE" >&2
     exit 1
   fi
+
+  if [[ ! -f "$DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE" ]]; then
+    echo "Missing storefront nginx upstream include: $DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE" >&2
+    exit 1
+  fi
 }
 
 CURRENT_PHASE="preflight"
@@ -331,12 +398,14 @@ PRE_CUTOVER_CURRENT_LIVE_SLOT="${CURRENT_LIVE_SLOT:-}"
 PRE_CUTOVER_CURRENT_LIVE_PROJECT="${CURRENT_LIVE_PROJECT:-}"
 PRE_CUTOVER_CURRENT_LIVE_API_PORT="${CURRENT_LIVE_API_PORT:-}"
 PRE_CUTOVER_CURRENT_LIVE_DIRECTUS_PORT="${CURRENT_LIVE_DIRECTUS_PORT:-}"
+PRE_CUTOVER_CURRENT_LIVE_STOREFRONT_PORT="${CURRENT_LIVE_STOREFRONT_PORT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_RELEASE_ID="${PREVIOUS_LIVE_RELEASE_ID:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_RELEASE_DIR="${PREVIOUS_LIVE_RELEASE_DIR:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_SLOT="${PREVIOUS_LIVE_SLOT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_PROJECT="${PREVIOUS_LIVE_PROJECT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_API_PORT="${PREVIOUS_LIVE_API_PORT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_DIRECTUS_PORT="${PREVIOUS_LIVE_DIRECTUS_PORT:-}"
+PRE_CUTOVER_PREVIOUS_LIVE_STOREFRONT_PORT="${PREVIOUS_LIVE_STOREFRONT_PORT:-}"
 ensure_host_capacity
 check_keycloak_dependency
 ensure_nginx_cutover_contract
@@ -350,6 +419,7 @@ echo "Starting runtime blue-green deploy."
 echo "Deploy ref: $DEPLOY_REF"
 echo "Requested SHA: ${DEPLOY_SHA:-auto}"
 echo "API image: ${API_IMAGE_REPOSITORY}:${API_IMAGE_TAG}"
+echo "Storefront image: ${STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG}"
 
 CURRENT_PHASE="materialize-release"
 CANDIDATE_RELEASE_DIR="$(runtime_release_dir "$TARGET_SHA")"
@@ -369,16 +439,20 @@ fi
 CANDIDATE_PROJECT="$(runtime_slot_project "$CANDIDATE_SLOT")"
 CANDIDATE_API_PORT="$(runtime_slot_api_port "$CANDIDATE_SLOT")"
 CANDIDATE_DIRECTUS_PORT="$(runtime_slot_directus_port "$CANDIDATE_SLOT")"
+CANDIDATE_STOREFRONT_PORT="$(runtime_slot_storefront_port "$CANDIDATE_SLOT")"
 export_candidate_runtime_env
 
 echo "Candidate slot: $CANDIDATE_SLOT"
 echo "Candidate project: $CANDIDATE_PROJECT"
 echo "Candidate API port: $CANDIDATE_API_PORT"
 echo "Candidate Directus port: $CANDIDATE_DIRECTUS_PORT"
+echo "Candidate storefront port: $CANDIDATE_STOREFRONT_PORT"
 
 CURRENT_PHASE="start-candidate"
 candidate_compose down --remove-orphans >/dev/null 2>&1 || true
-candidate_compose pull api directus
+ensure_api_image_available
+candidate_compose pull directus
+ensure_storefront_image_available
 candidate_compose up -d
 
 CURRENT_PHASE="candidate-internal-health"
@@ -387,6 +461,7 @@ bash "$ROOT_DIR/scripts/check-stack-health.sh" \
   --compose-file "$COMPOSE_FILE" \
   --api-url "$(runtime_internal_api_url "$CANDIDATE_API_PORT")" \
   --directus-url "$(runtime_internal_directus_url "$CANDIDATE_DIRECTUS_PORT")" \
+  --storefront-url "$(runtime_internal_storefront_url "$CANDIDATE_STOREFRONT_PORT")" \
   --content-url "$(runtime_internal_content_url "$CANDIDATE_API_PORT")" \
   --skip-public \
   --timeout-seconds "$WAIT_TIMEOUT_SECONDS"
@@ -394,10 +469,13 @@ bash "$ROOT_DIR/scripts/check-stack-health.sh" \
 CURRENT_PHASE="cutover"
 API_INCLUDE_BACKUP="$(mktemp "${DEPLOY_RUNTIME_STATE_DIR}/api-upstream.XXXXXX.bak")"
 CMS_INCLUDE_BACKUP="$(mktemp "${DEPLOY_RUNTIME_STATE_DIR}/cms-upstream.XXXXXX.bak")"
+STOREFRONT_INCLUDE_BACKUP="$(mktemp "${DEPLOY_RUNTIME_STATE_DIR}/storefront-upstream.XXXXXX.bak")"
 cp "$DEPLOY_NGINX_API_UPSTREAM_INCLUDE" "$API_INCLUDE_BACKUP"
 cp "$DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE" "$CMS_INCLUDE_BACKUP"
+cp "$DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE" "$STOREFRONT_INCLUDE_BACKUP"
 runtime_write_upstream_include "$DEPLOY_NGINX_API_UPSTREAM_INCLUDE" "$CANDIDATE_API_PORT"
 runtime_write_upstream_include "$DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE" "$CANDIDATE_DIRECTUS_PORT"
+runtime_write_upstream_include "$DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE" "$CANDIDATE_STOREFRONT_PORT"
 runtime_reload_nginx
 CUTOVER_APPLIED=true
 
@@ -407,9 +485,11 @@ bash "$ROOT_DIR/scripts/check-stack-health.sh" \
   --compose-file "$COMPOSE_FILE" \
   --api-url "$(runtime_internal_api_url "$CANDIDATE_API_PORT")" \
   --directus-url "$(runtime_internal_directus_url "$CANDIDATE_DIRECTUS_PORT")" \
+  --storefront-url "$(runtime_internal_storefront_url "$CANDIDATE_STOREFRONT_PORT")" \
   --content-url "$(runtime_internal_content_url "$CANDIDATE_API_PORT")" \
   --public-api-url "$PUBLIC_API_HEALTHCHECK_URL" \
   --public-directus-url "$(runtime_public_directus_url)" \
+  --public-storefront-url "$(runtime_public_storefront_url)" \
   --public-content-url "$PUBLIC_CONTENT_HEALTHCHECK_URL" \
   --timeout-seconds "$WAIT_TIMEOUT_SECONDS"
 
@@ -420,9 +500,11 @@ bash "$ROOT_DIR/scripts/check-stack-health.sh" \
   --compose-file "$COMPOSE_FILE" \
   --api-url "$(runtime_internal_api_url "$CANDIDATE_API_PORT")" \
   --directus-url "$(runtime_internal_directus_url "$CANDIDATE_DIRECTUS_PORT")" \
+  --storefront-url "$(runtime_internal_storefront_url "$CANDIDATE_STOREFRONT_PORT")" \
   --content-url "$(runtime_internal_content_url "$CANDIDATE_API_PORT")" \
   --public-api-url "$PUBLIC_API_HEALTHCHECK_URL" \
   --public-directus-url "$(runtime_public_directus_url)" \
+  --public-storefront-url "$(runtime_public_storefront_url)" \
   --public-content-url "$PUBLIC_CONTENT_HEALTHCHECK_URL" \
   --timeout-seconds "$WAIT_TIMEOUT_SECONDS"
 
@@ -432,6 +514,7 @@ CURRENT_LIVE_SLOT="${CURRENT_LIVE_SLOT:-}"
 CURRENT_LIVE_PROJECT="${CURRENT_LIVE_PROJECT:-}"
 CURRENT_LIVE_API_PORT="${CURRENT_LIVE_API_PORT:-}"
 CURRENT_LIVE_DIRECTUS_PORT="${CURRENT_LIVE_DIRECTUS_PORT:-}"
+CURRENT_LIVE_STOREFRONT_PORT="${CURRENT_LIVE_STOREFRONT_PORT:-}"
 
 PREVIOUS_LIVE_RELEASE_ID="$CURRENT_LIVE_RELEASE_ID"
 PREVIOUS_LIVE_RELEASE_DIR="$CURRENT_LIVE_RELEASE_DIR"
@@ -439,6 +522,7 @@ PREVIOUS_LIVE_SLOT="$CURRENT_LIVE_SLOT"
 PREVIOUS_LIVE_PROJECT="$CURRENT_LIVE_PROJECT"
 PREVIOUS_LIVE_API_PORT="$CURRENT_LIVE_API_PORT"
 PREVIOUS_LIVE_DIRECTUS_PORT="$CURRENT_LIVE_DIRECTUS_PORT"
+PREVIOUS_LIVE_STOREFRONT_PORT="$CURRENT_LIVE_STOREFRONT_PORT"
 
 CURRENT_LIVE_RELEASE_ID="$TARGET_SHA"
 CURRENT_LIVE_RELEASE_DIR="$CANDIDATE_RELEASE_DIR"
@@ -446,6 +530,7 @@ CURRENT_LIVE_SLOT="$CANDIDATE_SLOT"
 CURRENT_LIVE_PROJECT="$CANDIDATE_PROJECT"
 CURRENT_LIVE_API_PORT="$CANDIDATE_API_PORT"
 CURRENT_LIVE_DIRECTUS_PORT="$CANDIDATE_DIRECTUS_PORT"
+CURRENT_LIVE_STOREFRONT_PORT="$CANDIDATE_STOREFRONT_PORT"
 LAST_DEPLOYED_SHA="$TARGET_SHA"
 LAST_DEPLOYED_REF="$DEPLOY_REF"
 LAST_DEPLOY_STATUS="success"
@@ -467,13 +552,16 @@ if [[ -n "${PREVIOUS_LIVE_PROJECT:-}" && "$PREVIOUS_LIVE_PROJECT" != "$CANDIDATE
   if [[ -n "$PREVIOUS_RELEASE_DIR" && -f "$(runtime_compose_file "$PREVIOUS_RELEASE_DIR")" ]]; then
     CANDIDATE_PROJECT="$PREVIOUS_LIVE_PROJECT"
     CANDIDATE_RELEASE_DIR="$PREVIOUS_RELEASE_DIR"
+    CANDIDATE_API_PORT="$PREVIOUS_LIVE_API_PORT"
+    CANDIDATE_DIRECTUS_PORT="$PREVIOUS_LIVE_DIRECTUS_PORT"
+    CANDIDATE_STOREFRONT_PORT="$PREVIOUS_LIVE_STOREFRONT_PORT"
     export_candidate_runtime_env
     candidate_compose down --remove-orphans || true
   fi
 fi
 
 if [[ -z "${PREVIOUS_LIVE_SLOT:-}" ]]; then
-  legacy_compose stop api directus >/dev/null 2>&1 || true
+  legacy_compose stop api directus storefront >/dev/null 2>&1 || true
 fi
 
 CURRENT_PHASE="complete"
@@ -488,6 +576,7 @@ project=$CURRENT_LIVE_PROJECT
 release_dir=$CURRENT_LIVE_RELEASE_DIR
 api_port=$CURRENT_LIVE_API_PORT
 directus_port=$CURRENT_LIVE_DIRECTUS_PORT
+storefront_port=$CURRENT_LIVE_STOREFRONT_PORT
 log_file=$LOG_FILE
 EOF
 

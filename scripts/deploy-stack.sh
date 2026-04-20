@@ -70,6 +70,44 @@ compose() {
   fi
 }
 
+ensure_storefront_image_available() {
+  local storefront_image
+
+  storefront_image="${STOREFRONT_IMAGE_REPOSITORY:-}:${STOREFRONT_IMAGE_TAG:-}"
+  if [[ "$storefront_image" == ":" ]]; then
+    echo "Storefront image coordinates are not configured." >&2
+    exit 1
+  fi
+
+  storefront_image="${STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG}"
+
+  if docker image inspect "$storefront_image" >/dev/null 2>&1; then
+    echo "Storefront image already present locally: $storefront_image"
+    return 0
+  fi
+
+  compose pull storefront
+}
+
+ensure_api_image_available() {
+  local api_image
+
+  api_image="${API_IMAGE_REPOSITORY:-}:${API_IMAGE_TAG:-}"
+  if [[ "$api_image" == ":" ]]; then
+    echo "API image coordinates are not configured." >&2
+    exit 1
+  fi
+
+  api_image="${API_IMAGE_REPOSITORY}:${API_IMAGE_TAG}"
+
+  if docker image inspect "$api_image" >/dev/null 2>&1; then
+    echo "API image already present locally: $api_image"
+    return 0
+  fi
+
+  compose pull api
+}
+
 echo "Starting shared infrastructure services..."
 compose up -d postgres redis
 
@@ -86,13 +124,16 @@ bash "$ROOT_DIR/scripts/directus-db-init.sh" \
   --env-file "$ENV_FILE" \
   --compose-file "$COMPOSE_FILE"
 
-echo "Pulling pinned Directus image..."
-compose pull api directus
+echo "Pulling pinned runtime images..."
+ensure_api_image_available
+compose pull directus
+ensure_storefront_image_available
 
-echo "Deploying API and Directus containers..."
+echo "Deploying API, Directus, and storefront containers..."
 echo "API image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}"
+echo "Storefront image: ${STOREFRONT_IMAGE_REPOSITORY:-unset}:${STOREFRONT_IMAGE_TAG:-unset}"
 echo "This path is the destructive/manual production apply workflow. Runtime-safe auto deploys must use scripts/deploy-runtime-bluegreen.sh."
-compose up -d api directus
+compose up -d api directus storefront
 
 echo "Bootstrapping Directus schema automation token..."
 bash "$ROOT_DIR/scripts/directus-schema-token-bootstrap.sh" \
