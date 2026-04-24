@@ -9,6 +9,8 @@ SKIP_BACKUP=false
 
 # shellcheck source=scripts/lib/env-file.sh
 source "$ROOT_DIR/scripts/lib/env-file.sh"
+# shellcheck source=scripts/lib/runtime-release.sh
+source "$ROOT_DIR/scripts/lib/runtime-release.sh"
 
 usage() {
   cat <<'EOF'
@@ -81,7 +83,7 @@ ensure_storefront_image_available() {
 
   storefront_image="${STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG}"
 
-  if docker image inspect "$storefront_image" >/dev/null 2>&1; then
+  if runtime_image_tag_is_immutable "$STOREFRONT_IMAGE_TAG" && docker image inspect "$storefront_image" >/dev/null 2>&1; then
     echo "Storefront image already present locally: $storefront_image"
     return 0
   fi

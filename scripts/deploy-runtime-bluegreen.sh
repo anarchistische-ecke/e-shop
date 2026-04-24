@@ -89,6 +89,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+CLI_API_IMAGE_REPOSITORY="$API_IMAGE_REPOSITORY"
+CLI_API_IMAGE_TAG="$API_IMAGE_TAG"
+CLI_STOREFRONT_IMAGE_REPOSITORY="$STOREFRONT_IMAGE_REPOSITORY"
+CLI_STOREFRONT_IMAGE_TAG="$STOREFRONT_IMAGE_TAG"
+
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Missing env file: $ENV_FILE" >&2
   exit 1
@@ -100,6 +105,12 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
 fi
 
 load_env_file "$ENV_FILE"
+
+API_IMAGE_REPOSITORY="${CLI_API_IMAGE_REPOSITORY:-${API_IMAGE_REPOSITORY:-}}"
+API_IMAGE_TAG="${CLI_API_IMAGE_TAG:-${API_IMAGE_TAG:-}}"
+STOREFRONT_IMAGE_REPOSITORY="${CLI_STOREFRONT_IMAGE_REPOSITORY:-${STOREFRONT_IMAGE_REPOSITORY:-}}"
+STOREFRONT_IMAGE_TAG="${CLI_STOREFRONT_IMAGE_TAG:-${STOREFRONT_IMAGE_TAG:-}}"
+
 runtime_set_defaults
 runtime_prepare_dirs
 
@@ -171,7 +182,7 @@ ensure_storefront_image_available() {
 
   storefront_image="${STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG}"
 
-  if docker image inspect "$storefront_image" >/dev/null 2>&1; then
+  if runtime_image_tag_is_immutable "$STOREFRONT_IMAGE_TAG" && docker image inspect "$storefront_image" >/dev/null 2>&1; then
     echo "Storefront image already present locally: $storefront_image"
     return 0
   fi
