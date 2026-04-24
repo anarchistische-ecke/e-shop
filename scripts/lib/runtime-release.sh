@@ -73,6 +73,12 @@ runtime_log_file_for() {
     "$(runtime_current_timestamp)"
 }
 
+runtime_image_tag_is_immutable() {
+  local image_tag="$1"
+
+  [[ "$image_tag" =~ ^[0-9a-f]{40}$ ]]
+}
+
 runtime_slot_project() {
   printf 'eshop-%s\n' "$1"
 }
@@ -130,7 +136,7 @@ runtime_compose_file() {
 }
 
 runtime_root_compose_file() {
-  printf '%s\n' "${ROOT_DIR}/docker-compose.runtime-slot.yml"
+  printf '%s\n' "${RUNTIME_ROOT_COMPOSE_FILE:-${ROOT_DIR}/docker-compose.runtime-slot.yml}"
 }
 
 runtime_compose_has_service() {
