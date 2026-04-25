@@ -11,6 +11,10 @@ function parseCsv(value) {
     .filter(Boolean);
 }
 
+function normalizeRoleToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function canWrite(method) {
   return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method || '').toUpperCase());
 }
@@ -60,6 +64,35 @@ function accountabilityUserId(accountability) {
   return String(user);
 }
 
+function roleSetHas(roleSet, ...tokens) {
+  if (!roleSet || roleSet.size === 0) {
+    return false;
+  }
+
+  const normalizedRoleSet = new Set([...roleSet].map((entry) => normalizeRoleToken(entry)));
+  return tokens
+    .map((entry) => normalizeRoleToken(entry))
+    .filter(Boolean)
+    .some((entry) => normalizedRoleSet.has(entry));
+}
+
+function resolveAccountabilityRoleKind(accountability, roleSets, roleName = '') {
+  const roleId = accountability?.role ? String(accountability.role) : '';
+  if (accountability?.admin || roleSetHas(roleSets.admin, roleId, roleName)) {
+    return 'admin';
+  }
+  if (roleSetHas(roleSets.manager, roleId, roleName)) {
+    return 'manager';
+  }
+  if (roleSetHas(roleSets.picker, roleId, roleName)) {
+    return 'picker';
+  }
+  if (roleSetHas(roleSets.content, roleId, roleName)) {
+    return 'content';
+  }
+  return 'unknown';
+}
+
 function resolveAdminRoleSets(path, roleSets) {
   if (path === '/admin/promotions/active' || path.startsWith('/admin/promotions/active/')) {
     return [roleSets.admin, roleSets.manager, roleSets.picker, roleSets.content];
@@ -82,6 +115,26 @@ function resolveAdminRoleSets(path, roleSets) {
     return [roleSets.admin, roleSets.content];
   }
   return [roleSets.admin];
+}
+
+async function resolveDirectusRoleDetails(accountability, context) {
+  const roleId = accountability?.role ? String(accountability.role) : '';
+  if (!roleId || !context?.database) {
+    return { id: roleId, name: '' };
+  }
+
+  try {
+    const row = await context.database('directus_roles')
+      .select('id', 'name')
+      .where({ id: roleId })
+      .first();
+    return {
+      id: row?.id || roleId,
+      name: row?.name || '',
+    };
+  } catch {
+    return { id: roleId, name: '' };
+  }
 }
 
 async function resolveDirectusUserDetails(accountability, context) {
@@ -109,6 +162,32 @@ async function resolveDirectusUserDetails(accountability, context) {
   } catch {
     return { email: '', externalId: '' };
   }
+}
+
+async function sendAccessProfile(req, res, context, roleSets) {
+  if (!req.accountability?.user) {
+    res.status(401).json({ error: 'Требуется авторизация.' });
+    return;
+  }
+
+  const directusUser = await resolveDirectusUserDetails(req.accountability, context);
+  const directusRole = await resolveDirectusRoleDetails(req.accountability, context);
+  const roleKind = resolveAccountabilityRoleKind(req.accountability, roleSets, directusRole.name);
+
+  res.json({
+    data: {
+      id: accountabilityUserId(req.accountability),
+      email: directusUser.email,
+      external_identifier: directusUser.externalId,
+      roleKind,
+      role: {
+        id: directusRole.id,
+        name: directusRole.name,
+        admin_access: Boolean(req.accountability?.admin),
+        kind: roleKind,
+      },
+    },
+  });
 }
 
 async function forwardJson(req, res, context, targetPath, namespace = 'catalogue') {
@@ -196,6 +275,16 @@ export default {
 
   router.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
+  });
+
+  router.get('/access-profile', async (req, res) => {
+    try {
+      await sendAccessProfile(req, res, context, roleSets);
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Не удалось определить профиль доступа Directus.',
+      });
+    }
   });
 
   router.all('/*', async (req, res) => {
