@@ -3,7 +3,7 @@ package com.example.api.payment;
 import com.example.payment.domain.Payment;
 import com.example.payment.service.PaymentService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.example.api.notification.EmailService;
+import com.example.api.notification.NotificationOrchestrator;
 import com.example.order.domain.Order;
 import com.example.order.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,7 +24,7 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final OrderService orderService;
-    private final EmailService emailService;
+    private final NotificationOrchestrator notificationOrchestrator;
     private final YooKassaWebhookVerifier webhookVerifier;
 
     @Value("${yookassa.enabled:false}")
@@ -54,11 +54,11 @@ public class PaymentController {
     @Autowired
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
-                             EmailService emailService,
+                             NotificationOrchestrator notificationOrchestrator,
                              YooKassaWebhookVerifier webhookVerifier) {
         this.paymentService = paymentService;
         this.orderService = orderService;
-        this.emailService = emailService;
+        this.notificationOrchestrator = notificationOrchestrator;
         this.webhookVerifier = webhookVerifier;
     }
 
@@ -87,19 +87,13 @@ public class PaymentController {
 
     @PostMapping("/yookassa/refund")
     public ResponseEntity<Payment> refundYooKassaPayment(@Valid @RequestBody RefundRequest request) {
-        Order beforeUpdate = orderService.findById(request.getOrderId());
         Payment payment = paymentService.refundYooKassaPayment(request.getOrderId());
-        Order updated = orderService.findById(payment.getOrderId());
-        notifyStatusChangeIfNeeded(updated, beforeUpdate.getStatus());
         return ResponseEntity.ok(payment);
     }
 
     @PostMapping("/yookassa/cancel")
     public ResponseEntity<Payment> cancelYooKassaPayment(@Valid @RequestBody CancelRequest request) {
-        Order beforeUpdate = orderService.findById(request.getOrderId());
         Payment payment = paymentService.cancelYooKassaPayment(request.getOrderId());
-        Order updated = orderService.findById(payment.getOrderId());
-        notifyStatusChangeIfNeeded(updated, beforeUpdate.getStatus());
         return ResponseEntity.ok(payment);
     }
 
@@ -158,27 +152,19 @@ public class PaymentController {
                 return ResponseEntity.ok().build();
             }
             if (event.startsWith("refund")) {
-                String previousStatus = resolveOrderStatusByProviderPaymentId(notification.object.paymentId);
-                Payment payment = paymentService.handleYooKassaRefundWebhook(
+                paymentService.handleYooKassaRefundWebhook(
                         notification.object.id,
                         notification.object.paymentId
                 );
-                Order order = orderService.findById(payment.getOrderId());
-                notifyStatusChangeIfNeeded(order, previousStatus);
                 return ResponseEntity.ok().build();
             }
             if (event.startsWith("payment")) {
-                String previousStatus = resolveOrderStatusByProviderPaymentId(notification.object.id);
                 PaymentService.PaymentUpdateResult result =
                         paymentService.refreshYooKassaPaymentWithResult(notification.object.id);
                 Payment payment = result.payment();
                 Order order = orderService.findById(payment.getOrderId());
-                notifyStatusChangeIfNeeded(order, previousStatus);
                 if (result.completedNow()) {
-                    String email = order.getReceiptEmail();
-                    if (StringUtils.hasText(email)) {
-                        emailService.sendPaymentReceipt(order, payment, email);
-                    }
+                    notificationOrchestrator.orderPaid(order, payment);
                 }
                 return ResponseEntity.ok().build();
             }
@@ -186,29 +172,6 @@ public class PaymentController {
             return ResponseEntity.badRequest().build();
         }
         return ResponseEntity.badRequest().build();
-    }
-
-    private String resolveOrderStatusByProviderPaymentId(String providerPaymentId) {
-        Payment payment = paymentService.findByProviderPaymentId(providerPaymentId);
-        if (payment == null) {
-            return null;
-        }
-        Order order = orderService.findById(payment.getOrderId());
-        return order.getStatus();
-    }
-
-    private void notifyStatusChangeIfNeeded(Order order, String previousStatus) {
-        if (order == null || !StringUtils.hasText(order.getReceiptEmail())) {
-            return;
-        }
-        String nextStatus = order.getStatus();
-        if (!StringUtils.hasText(previousStatus) || !StringUtils.hasText(nextStatus)) {
-            return;
-        }
-        if (previousStatus.equalsIgnoreCase(nextStatus)) {
-            return;
-        }
-        emailService.sendOrderStatusUpdatedEmail(order, order.getReceiptEmail(), previousStatus);
     }
 
     private String safeValue(String value, String fallback) {

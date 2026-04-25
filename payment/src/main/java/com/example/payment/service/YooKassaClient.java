@@ -111,6 +111,10 @@ public class YooKassaClient {
         public Metadata metadata;
         @JsonProperty("payment_method")
         public PaymentMethod paymentMethod;
+        @JsonProperty("receipt_registration")
+        public String receiptRegistration;
+        @JsonProperty("receipt_url")
+        public String receiptUrl;
     }
 
     public PaymentMethod getPaymentMethod(String paymentMethodId) {

@@ -30,6 +30,10 @@ public class DirectusAdminRoleGuard {
         requireAny(principal, "orders", adminTokens(), managerTokens(), pickerTokens());
     }
 
+    public void requireRma(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        requireAny(principal, "RMA requests", adminTokens(), managerTokens());
+    }
+
     public void requireContent(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         requireAny(principal, "content operations", adminTokens(), contentManagerTokens());
     }

@@ -127,6 +127,7 @@ public class PaymentService {
         Payment payment = new Payment(order.getId(), order.getTotalAmount(), "YOOKASSA", PaymentStatus.PENDING);
         payment.setProviderPaymentId(response.id);
         applyConfirmationDetails(payment, response.confirmation, request.confirmation);
+        applyReceiptDetails(payment, response);
         payment.setStatus(mapYooKassaStatus(response.status));
         payment = paymentRepository.save(payment);
 
@@ -176,6 +177,7 @@ public class PaymentService {
                 payment.setStatus(nextStatus);
             }
             applyConfirmationDetails(payment, response.confirmation, null);
+            applyReceiptDetails(payment, response);
             payment = paymentRepository.save(payment);
             persistSavedPaymentMethod(order, response);
 
@@ -235,6 +237,7 @@ public class PaymentService {
             throw new PaymentProcessingException("YooKassa payment cancel did not complete (status: " + response.status + ")");
         }
         payment.setStatus(PaymentStatus.CANCELLED);
+        applyReceiptDetails(payment, response);
         paymentRepository.save(payment);
 
         Order order = orderRepository.findById(orderId)
@@ -469,6 +472,18 @@ public class PaymentService {
             if (StringUtils.hasText(responseConfirmation.confirmationToken)) {
                 payment.setConfirmationToken(responseConfirmation.confirmationToken.trim());
             }
+        }
+    }
+
+    private void applyReceiptDetails(Payment payment, YooKassaClient.CreatePaymentResponse response) {
+        if (payment == null || response == null) {
+            return;
+        }
+        if (StringUtils.hasText(response.receiptRegistration)) {
+            payment.setReceiptRegistration(response.receiptRegistration.trim());
+        }
+        if (StringUtils.hasText(response.receiptUrl)) {
+            payment.setReceiptUrl(response.receiptUrl.trim());
         }
     }
 

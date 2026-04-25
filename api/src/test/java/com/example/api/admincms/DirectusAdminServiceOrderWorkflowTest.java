@@ -249,6 +249,24 @@ class DirectusAdminServiceOrderWorkflowTest {
     }
 
     @Test
+    void updateOrderStatus_acceptsCompletedAsReceivedAlias() {
+        UUID orderId = UUID.randomUUID();
+        Order before = order(orderId, "SHIPPED", "manager@example.test", "manager-user-1", "manager@example.test");
+        Order updated = order(orderId, "RECEIVED", "manager@example.test", "manager-user-1", "manager@example.test");
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = managerPrincipal("manager-user-1", "manager@example.test");
+
+        when(orderService.findById(orderId)).thenReturn(before);
+        when(roleGuard.isManager(principal)).thenReturn(true);
+        when(orderService.updateOrderStatus(orderId, "RECEIVED")).thenReturn(updated);
+        when(orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of());
+
+        DirectusAdminModels.OrderDetail detail = service.updateOrderStatus(orderId, "completed", null, principal);
+
+        assertThat(detail.order().getStatus()).isEqualTo("RECEIVED");
+        verify(orderService).updateOrderStatus(orderId, "RECEIVED");
+    }
+
+    @Test
     void clearOrderClaim_isAdminOnlyAndClearsAssignment() {
         UUID orderId = UUID.randomUUID();
         Order order = order(orderId, "PENDING", "manager@example.test", "manager-user-1", "manager@example.test");

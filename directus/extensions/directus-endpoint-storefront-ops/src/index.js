@@ -100,6 +100,9 @@ function resolveAdminRoleSets(path, roleSets) {
   if (path.startsWith('/admin/orders')) {
     return [roleSets.admin, roleSets.manager, roleSets.picker];
   }
+  if (path.startsWith('/admin/rma-requests')) {
+    return [roleSets.admin, roleSets.manager];
+  }
   if (path.startsWith('/admin/analytics')) {
     return [roleSets.admin, roleSets.manager];
   }

@@ -26,6 +26,24 @@ public class ShipmentService {
     public Shipment shipOrder(UUID orderId, String carrier, String trackingNumber) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        Shipment existing = shipmentRepository
+                .findTopByOrderIdAndCarrierIgnoreCaseAndTrackingNumberOrderByShippedAtDesc(orderId, carrier, trackingNumber)
+                .orElse(null);
+        if (existing != null) {
+            boolean changed = false;
+            if (order.getShipmentId() == null || !order.getShipmentId().equals(existing.getId())) {
+                order.setShipmentId(existing.getId());
+                changed = true;
+            }
+            if (!"SHIPPED".equalsIgnoreCase(order.getStatus())) {
+                order.setStatus("SHIPPED");
+                changed = true;
+            }
+            if (changed) {
+                orderRepository.save(order);
+            }
+            return existing;
+        }
         Shipment shipment = new Shipment(orderId, carrier, trackingNumber);
         shipment = shipmentRepository.save(shipment);
         // update order

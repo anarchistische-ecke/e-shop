@@ -339,7 +339,7 @@
             >
               <div class="list-card-head">
                 <strong>{{ order.receiptEmail || order.id }}</strong>
-                <span class="pill pill-neutral">{{ order.status }}</span>
+                <span class="pill pill-neutral">{{ orderStatusLabel(order.status) }}</span>
               </div>
               <p class="list-card-slug">{{ order.id }}</p>
               <div class="list-card-meta">
@@ -1301,7 +1301,7 @@
             <div class="metrics-row">
               <article class="metric-card">
                 <span>Статус</span>
-                <strong>{{ orderState.detail.order.status }}</strong>
+                <strong>{{ orderStatusLabel(orderState.detail.order.status) }}</strong>
               </article>
               <article class="metric-card">
                 <span>Сумма</span>
@@ -1326,7 +1326,7 @@
                     <span>Новый статус</span>
                     <select v-model="orderState.nextStatus">
                       <option v-for="status in orderStatusOptions" :key="status" :value="status">
-                        {{ status }}
+                        {{ orderStatusLabel(status) }}
                       </option>
                     </select>
                   </label>
@@ -1344,6 +1344,89 @@
                   Для текущей роли изменение статуса этого заказа недоступно.
                 </p>
               </form>
+            </section>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>Уведомления</h3>
+                  <p>{{ orderState.detail.order.receiptEmail || 'Email не указан' }}</p>
+                </div>
+              </div>
+              <dl class="definition-list">
+                <div>
+                  <dt>Email</dt>
+                  <dd>{{ orderState.detail.order.receiptEmail || 'Не указан' }}</dd>
+                </div>
+                <div>
+                  <dt>Отправление</dt>
+                  <dd v-if="orderState.detail.shipment">
+                    {{ orderState.detail.shipment.carrier }} · {{ orderState.detail.shipment.trackingNumber }}
+                  </dd>
+                  <dd v-else>Не создано</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section v-if="canManageSelectedOrderRma" class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>RMA</h3>
+                  <p>{{ selectedOrderRmaRequests.length }} запросов</p>
+                </div>
+              </div>
+
+              <form class="editor-form" @submit.prevent="createRmaRequest">
+                <div class="form-grid">
+                  <label class="ops-field">
+                    <span>Причина</span>
+                    <input v-model.trim="orderState.rmaReason" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Решение клиента</span>
+                    <input v-model.trim="orderState.rmaDesiredResolution" type="text" />
+                  </label>
+                </div>
+                <div class="sticky-actions sticky-actions-inline">
+                  <button class="button button-secondary" type="submit" :disabled="isSubmitting">
+                    Создать RMA
+                  </button>
+                </div>
+              </form>
+
+              <div v-if="selectedOrderRmaRequests.length" class="card-list card-list-compact">
+                <article v-for="rma in selectedOrderRmaRequests" :key="rma.id" class="list-card">
+                  <div class="list-card-head">
+                    <strong>{{ rma.rmaNumber }}</strong>
+                    <span class="pill pill-neutral">{{ rmaStatusLabel(rma.status) }}</span>
+                  </div>
+                  <div class="list-card-meta">
+                    <span>{{ rma.reason || 'Причина не указана' }}</span>
+                    <span>{{ rma.managerComment || 'Комментарий менеджера не указан' }}</span>
+                  </div>
+                  <form v-if="canDecideSelectedOrderRma" class="editor-form rma-decision-form" @submit.prevent="decideRmaRequest(rma)">
+                    <div class="form-grid">
+                      <label class="ops-field ops-field-required">
+                        <span>Решение</span>
+                        <select v-model="orderState.rmaDecisionForms[rma.id].status">
+                          <option value="APPROVED">Одобрить</option>
+                          <option value="REJECTED">Отклонить</option>
+                        </select>
+                      </label>
+                      <label class="ops-field">
+                        <span>Комментарий</span>
+                        <input v-model.trim="orderState.rmaDecisionForms[rma.id].comment" type="text" />
+                      </label>
+                    </div>
+                    <div class="sticky-actions sticky-actions-inline">
+                      <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                        Записать решение
+                      </button>
+                    </div>
+                  </form>
+                </article>
+              </div>
+              <div v-else class="empty-inline">RMA запросов по заказу нет.</div>
             </section>
 
             <section class="section-block">
@@ -1377,7 +1460,7 @@
               <div v-if="orderState.detail.history?.length" class="card-list">
                 <article v-for="event in orderState.detail.history" :key="event.id" class="list-card">
                   <div class="list-card-head">
-                    <strong>{{ event.previousStatus || 'Создан' }} → {{ event.nextStatus }}</strong>
+                    <strong>{{ orderStatusLabel(event.previousStatus) || 'Создан' }} → {{ orderStatusLabel(event.nextStatus) }}</strong>
                     <span class="pill pill-neutral">{{ formatDateTime(event.createdAt) }}</span>
                   </div>
                   <div class="list-card-meta">
@@ -1859,7 +1942,8 @@ const ORDER_STATUS_OPTIONS = [
   'PROCESSING',
   'READY_FOR_PICKUP',
   'SHIPPED',
-  'COMPLETED',
+  'DELIVERED',
+  'RECEIVED',
   'CANCELLED',
   'REFUNDED',
 ];
@@ -2023,6 +2107,9 @@ const orderState = reactive({
   detail: null,
   nextStatus: '',
   note: '',
+  rmaReason: '',
+  rmaDesiredResolution: '',
+  rmaDecisionForms: {},
 });
 
 const importState = reactive({
@@ -2137,6 +2224,7 @@ const canViewActivePromotions = computed(() => ['admin', 'manager', 'picker', 'c
 const visibleTabs = computed(() => tabs.filter((tab) => canAccessTab(tab.id)));
 const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
 const selectedOrder = computed(() => orderState.detail?.order || null);
+const selectedOrderRmaRequests = computed(() => orderState.detail?.rmaRequests || []);
 const orderStatusOptions = computed(() => (
   roleKind.value === 'picker'
     ? PICKER_TARGET_STATUS_OPTIONS
@@ -2164,6 +2252,23 @@ const canSubmitSelectedOrderStatus = computed(() => {
     return PICKER_TARGET_STATUS_OPTIONS.includes(orderState.nextStatus);
   }
   return false;
+});
+const canManageSelectedOrderRma = computed(() => {
+  const order = selectedOrder.value;
+  if (!order) {
+    return false;
+  }
+  if (roleKind.value === 'admin') {
+    return true;
+  }
+  return roleKind.value === 'manager' && (!isOrderAssigned(order) || isOrderAssignedToCurrentUser(order));
+});
+const canDecideSelectedOrderRma = computed(() => {
+  const order = selectedOrder.value;
+  if (!order) {
+    return false;
+  }
+  return roleKind.value === 'admin' || (roleKind.value === 'manager' && isOrderAssignedToCurrentUser(order));
 });
 const accessRoleLabel = computed(() => {
   if (accessState.roleName) {
@@ -2294,6 +2399,32 @@ function normalizeRoleToken(value) {
 
 function orderManagerLabel(order) {
   return order?.managerEmail || order?.managerSubject || 'Не назначен';
+}
+
+function orderStatusLabel(status) {
+  const value = String(status || '').trim().toUpperCase();
+  if (!value) return '';
+  const labels = {
+    PENDING: 'Ожидает оплаты',
+    PAID: 'Оплачен',
+    PROCESSING: 'В обработке',
+    READY_FOR_PICKUP: 'Готов к выдаче',
+    SHIPPED: 'Отгружен',
+    DELIVERED: 'Доставлен',
+    RECEIVED: 'Получен',
+    COMPLETED: 'Получен',
+    CANCELLED: 'Отменен',
+    REFUNDED: 'Возвращен',
+  };
+  return labels[value] || value;
+}
+
+function rmaStatusLabel(status) {
+  const value = String(status || '').trim().toUpperCase();
+  if (value === 'REQUESTED') return 'Запрошен';
+  if (value === 'APPROVED') return 'Одобрен';
+  if (value === 'REJECTED') return 'Отклонен';
+  return value || 'Не указан';
 }
 
 function isOrderAssigned(order) {
@@ -2665,6 +2796,7 @@ async function loadOrderDetail(id, { silent = false } = {}) {
     orderState.selectedId = id;
     orderState.nextStatus = nextAllowedOrderStatus(response?.order?.status || '');
     orderState.note = '';
+    hydrateOrderRmaForms(response);
   } catch (error) {
     setError(error);
   } finally {
@@ -2964,6 +3096,18 @@ function resetInventoryEditor() {
   inventoryForm.delta = 0;
   inventoryForm.reason = '';
   inventoryForm.idempotencyKey = nextIdempotencyKey();
+}
+
+function hydrateOrderRmaForms(detail) {
+  const nextForms = {};
+  for (const rma of detail?.rmaRequests || []) {
+    const existing = orderState.rmaDecisionForms[rma.id] || {};
+    nextForms[rma.id] = {
+      status: existing.status || (rma.status === 'REJECTED' ? 'REJECTED' : 'APPROVED'),
+      comment: existing.comment ?? rma.managerComment ?? '',
+    };
+  }
+  orderState.rmaDecisionForms = nextForms;
 }
 
 function startCreateProduct() {
@@ -3463,6 +3607,62 @@ async function selectOrder(id) {
   await loadOrderDetail(id);
 }
 
+async function createRmaRequest() {
+  if (!orderState.selectedId || !canManageSelectedOrderRma.value) {
+    pageError.value = 'RMA для этого заказа недоступен.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest('/admin/rma-requests', {
+      method: 'POST',
+      data: {
+        orderId: orderState.selectedId,
+        reason: normalizeNullableText(orderState.rmaReason),
+        desiredResolution: normalizeNullableText(orderState.rmaDesiredResolution),
+      },
+    });
+    orderState.rmaReason = '';
+    orderState.rmaDesiredResolution = '';
+    await loadOrderDetail(orderState.selectedId, { silent: true });
+    setSuccess('RMA запрос создан.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function decideRmaRequest(rma) {
+  const form = orderState.rmaDecisionForms[rma?.id];
+  if (!rma?.id || !form?.status) {
+    pageError.value = 'Выберите решение по RMA.';
+    return;
+  }
+  if (!canDecideSelectedOrderRma.value) {
+    pageError.value = 'Решение по RMA недоступно для текущей роли.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest(`/admin/rma-requests/${rma.id}/decision`, {
+      method: 'POST',
+      data: {
+        status: form.status,
+        comment: normalizeNullableText(form.comment),
+      },
+    });
+    await loadOrderDetail(orderState.selectedId, { silent: true });
+    setSuccess('Решение по RMA сохранено.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
 async function submitOrderStatus() {
   if (!orderState.selectedId || !orderState.nextStatus) {
     pageError.value = 'Выберите заказ и статус.';
@@ -3484,6 +3684,7 @@ async function submitOrderStatus() {
     });
     orderState.detail = response;
     orderState.note = '';
+    hydrateOrderRmaForms(response);
     await loadOrders();
     setSuccess('Статус заказа обновлён.');
   } catch (error) {
@@ -3505,6 +3706,7 @@ async function claimOrder() {
   clearMessages();
   try {
     orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/claim`, { method: 'POST' });
+    hydrateOrderRmaForms(orderState.detail);
     await loadOrders();
     setSuccess('Заказ отмечен как взятый в работу.');
   } catch (error) {
@@ -3522,6 +3724,7 @@ async function clearOrderClaim() {
   clearMessages();
   try {
     orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/unclaim`, { method: 'POST' });
+    hydrateOrderRmaForms(orderState.detail);
     await loadOrders();
     setSuccess('Менеджер снят с заказа.');
   } catch (error) {
@@ -4809,6 +5012,12 @@ onBeforeUnmount(() => {
 
 .definition-list dd {
   margin: 0;
+}
+
+.rma-decision-form {
+  border-top: 1px solid var(--theme--border-color-subdued);
+  margin-top: 10px;
+  padding-top: 10px;
 }
 
 .spec-section-list,
