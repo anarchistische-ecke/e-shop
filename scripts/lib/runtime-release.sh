@@ -250,9 +250,19 @@ EOF
 runtime_write_upstream_include() {
   local target_file="$1"
   local target_port="$2"
+  local target_dir payload
 
-  mkdir -p "$(dirname "$target_file")"
-  printf 'proxy_pass http://127.0.0.1:%s;\n' "$target_port" >"$target_file"
+  target_dir="$(dirname "$target_file")"
+  payload="$(printf 'proxy_pass http://127.0.0.1:%s;\n' "$target_port")"
+
+  if [[ -w "$target_dir" && ( ! -e "$target_file" || -w "$target_file" ) ]]; then
+    mkdir -p "$target_dir"
+    printf '%s' "$payload" >"$target_file"
+    return 0
+  fi
+
+  sudo mkdir -p "$target_dir"
+  printf '%s' "$payload" | sudo tee "$target_file" >/dev/null
 }
 
 runtime_read_upstream_port() {

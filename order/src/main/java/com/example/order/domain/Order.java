@@ -102,6 +102,15 @@ public class Order extends BaseEntity {
     @Column(name = "manager_subject")
     private String managerSubject;
 
+    @Column(name = "manager_directus_user_id")
+    private String managerDirectusUserId;
+
+    @Column(name = "manager_email")
+    private String managerEmail;
+
+    @Column(name = "manager_claimed_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime managerClaimedAt;
+
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<OrderItem> items = new HashSet<>();
@@ -298,6 +307,30 @@ public class Order extends BaseEntity {
 
     public void setManagerSubject(String managerSubject) {
         this.managerSubject = managerSubject;
+    }
+
+    public String getManagerDirectusUserId() {
+        return managerDirectusUserId;
+    }
+
+    public void setManagerDirectusUserId(String managerDirectusUserId) {
+        this.managerDirectusUserId = managerDirectusUserId;
+    }
+
+    public String getManagerEmail() {
+        return managerEmail;
+    }
+
+    public void setManagerEmail(String managerEmail) {
+        this.managerEmail = managerEmail;
+    }
+
+    public OffsetDateTime getManagerClaimedAt() {
+        return managerClaimedAt;
+    }
+
+    public void setManagerClaimedAt(OffsetDateTime managerClaimedAt) {
+        this.managerClaimedAt = managerClaimedAt;
     }
 
     public UUID getShipmentId() {
