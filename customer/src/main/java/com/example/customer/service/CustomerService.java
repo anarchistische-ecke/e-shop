@@ -162,6 +162,37 @@ public class CustomerService {
         return customerRepository.save(customer);
     }
 
+    public Customer applyCheckoutContact(Customer customer, String customerName, String phone) {
+        if (customer == null) {
+            throw new IllegalArgumentException("Customer is required");
+        }
+        String[] nameParts = splitName(customerName);
+        boolean changed = false;
+
+        if (StringUtils.hasText(nameParts[0]) && shouldReplaceCheckoutName(customer.getFirstName())) {
+            customer.setFirstName(nameParts[0]);
+            changed = true;
+        }
+        if (StringUtils.hasText(nameParts[1]) && shouldReplaceCheckoutName(customer.getLastName())) {
+            customer.setLastName(nameParts[1]);
+            changed = true;
+        }
+        String normalizedPhone = normalizePhone(phone);
+        if (StringUtils.hasText(normalizedPhone)
+                && !normalizedPhone.equals(customer.getPhone())
+                && !StringUtils.hasText(customer.getPhone())) {
+            customerRepository.findByPhone(normalizedPhone)
+                    .filter(existing -> !existing.getId().equals(customer.getId()))
+                    .ifPresent(existing -> {
+                        throw new IllegalArgumentException("Phone already in use");
+                    });
+            customer.setPhone(normalizedPhone);
+            changed = true;
+        }
+
+        return changed ? customerRepository.save(customer) : customer;
+    }
+
     public Customer updateCustomerProfile(Customer customer,
                                           String email,
                                           String firstName,
@@ -262,6 +293,36 @@ public class CustomerService {
 
     private Address emptyAddress() {
         return new Address("Not provided", "Not provided", "", "000000", "Unknown");
+    }
+
+    private String[] splitName(String customerName) {
+        String value = StringUtils.hasText(customerName) ? customerName.trim().replaceAll("\\s+", " ") : "";
+        if (!StringUtils.hasText(value)) {
+            return new String[] {"", ""};
+        }
+        String[] parts = value.split(" ", 2);
+        return new String[] {parts[0], parts.length > 1 ? parts[1] : ""};
+    }
+
+    private boolean shouldReplaceCheckoutName(String value) {
+        if (!StringUtils.hasText(value)) {
+            return true;
+        }
+        String normalized = value.trim();
+        return "Customer".equalsIgnoreCase(normalized)
+                || "Online".equalsIgnoreCase(normalized)
+                || "Guest".equalsIgnoreCase(normalized);
+    }
+
+    private String normalizePhone(String phone) {
+        if (!StringUtils.hasText(phone)) {
+            return null;
+        }
+        String trimmed = phone.trim();
+        String prefix = trimmed.startsWith("+") ? "+" : "";
+        String digits = trimmed.replaceAll("\\D", "");
+        String normalized = prefix + digits;
+        return normalized.matches("^\\+?\\d{11,15}$") ? normalized : null;
     }
 
     private String defaultIfBlank(String value, String fallback) {

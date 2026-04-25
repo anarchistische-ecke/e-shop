@@ -85,7 +85,6 @@ public class SecurityConfig {
                 .requestMatchers("/carts/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/orders").permitAll()
                 .requestMatchers(HttpMethod.POST, "/orders/checkout").permitAll()
-                .requestMatchers(HttpMethod.POST, "/deliveries/yandex/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/public/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/orders/public/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/payments/public-config").permitAll()
@@ -108,7 +107,6 @@ public class SecurityConfig {
                 .requestMatchers("/admin/**").access(adminAccess)
                 // Only admins can view orders, customers and shipments
                 .requestMatchers(HttpMethod.GET, "/orders", "/orders/*", "/customers/**", "/shipments/**").access(adminAccess)
-                .requestMatchers(HttpMethod.POST, "/orders/*/delivery/**").access(adminAccess)
                 // All other API calls require authentication
                 .anyRequest().authenticated()
         );

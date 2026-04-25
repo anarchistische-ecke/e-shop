@@ -23,6 +23,10 @@ import java.util.Locale;
 @Service
 public class EmailService {
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
+    private static final String MANAGER_DELIVERY_NOTICE =
+            "Финальную стоимость и варианты доставки согласует менеджер после оформления заказа.";
+    private static final String PAID_MANAGER_CONTACT_NOTICE =
+            "Наш менеджер свяжется с вами в ближайшее время.";
 
     private final JavaMailSender mailSender;
 
@@ -38,7 +42,7 @@ public class EmailService {
             return;
         }
         String subject = "Заказ создан";
-        String subtitle = "Спасибо за заказ в магазине Постельное Белье-ЮГ.";
+        String subtitle = "Спасибо за заказ в магазине Постельное Белье-ЮГ. " + MANAGER_DELIVERY_NOTICE;
         String html = buildEmailLayout(
                 subject,
                 subtitle,
@@ -61,17 +65,22 @@ public class EmailService {
             return;
         }
         String subject = "Ваш чек по заказу";
-        String subtitle = "Заказ успешно оплачен. Спасибо за покупку!";
+        String subtitle = "Заказ успешно оплачен. " + PAID_MANAGER_CONTACT_NOTICE;
         String extra = null;
         if (payment != null && StringUtils.hasText(payment.getProviderPaymentId())) {
             extra = "<p style=\"margin:0 0 16px;color:#4f4a46;font-size:14px;\">ID платежа: "
                     + escapeHtml(payment.getProviderPaymentId())
                     + "</p>";
         }
+        String paidNoticeHtml = "<p style=\"margin:0 0 16px;color:#4f4a46;font-size:14px;\">"
+                + escapeHtml(MANAGER_DELIVERY_NOTICE)
+                + "</p>";
+        extra = StringUtils.hasText(extra) ? extra + paidNoticeHtml : paidNoticeHtml;
         String html = buildEmailLayout(subject, subtitle, order, extra, null, null);
         StringBuilder text = new StringBuilder();
         text.append(subtitle).append('\n').append('\n');
         text.append(buildOrderSummaryText(order));
+        text.append('\n').append(MANAGER_DELIVERY_NOTICE).append('\n');
         if (payment != null && StringUtils.hasText(payment.getProviderPaymentId())) {
             text.append('\n').append("ID платежа: ").append(payment.getProviderPaymentId()).append('\n');
         }
@@ -143,6 +152,16 @@ public class EmailService {
         body.append("Номер заказа: ").append(order.getId()).append('\n');
         body.append("Статус заказа: ").append(statusLabel(order.getStatus())).append('\n');
         body.append("Сумма: ").append(formatMoney(order.getTotalAmount())).append(" ").append(order.getTotalAmount().getCurrency()).append('\n');
+        if (StringUtils.hasText(order.getContactName())) {
+            body.append("Имя: ").append(order.getContactName()).append('\n');
+        }
+        if (StringUtils.hasText(order.getContactPhone())) {
+            body.append("Телефон: ").append(order.getContactPhone()).append('\n');
+        }
+        if (StringUtils.hasText(order.getHomeAddress())) {
+            body.append("Адрес: ").append(order.getHomeAddress()).append('\n');
+        }
+        body.append("Доставка: ").append(MANAGER_DELIVERY_NOTICE).append('\n');
         body.append("Товары:\n");
         for (OrderItem item : order.getItems()) {
             body.append("- ")
@@ -222,7 +241,38 @@ public class EmailService {
                 .append(escapeHtml(String.valueOf(order.getId())))
                 .append("&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Статус:</strong> ")
                 .append(escapeHtml(statusLabel(order.getStatus())))
-                .append("</div>")
+                .append("</div>");
+
+        if (StringUtils.hasText(order.getContactName())
+                || StringUtils.hasText(order.getContactPhone())
+                || StringUtils.hasText(order.getHomeAddress())) {
+            html.append("<div style=\"padding:12px 16px;border-top:1px solid #f0ebe7;color:#5d5753;font-size:13px;line-height:1.45;\">");
+            if (StringUtils.hasText(order.getContactName())) {
+                html.append("<div><strong>Имя:</strong> ")
+                        .append(escapeHtml(order.getContactName()))
+                        .append("</div>");
+            }
+            if (StringUtils.hasText(order.getContactPhone())) {
+                html.append("<div><strong>Телефон:</strong> ")
+                        .append(escapeHtml(order.getContactPhone()))
+                        .append("</div>");
+            }
+            if (StringUtils.hasText(order.getHomeAddress())) {
+                html.append("<div><strong>Адрес:</strong> ")
+                        .append(escapeHtml(order.getHomeAddress()))
+                        .append("</div>");
+            }
+            html.append("<div><strong>Доставка:</strong> ")
+                    .append(escapeHtml(MANAGER_DELIVERY_NOTICE))
+                    .append("</div></div>");
+        } else {
+            html.append("<div style=\"padding:12px 16px;border-top:1px solid #f0ebe7;color:#5d5753;font-size:13px;line-height:1.45;\">")
+                    .append("<strong>Доставка:</strong> ")
+                    .append(escapeHtml(MANAGER_DELIVERY_NOTICE))
+                    .append("</div>");
+        }
+
+        html
                 .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" ")
                 .append("style=\"border-collapse:collapse;font-size:14px;\">");
 
