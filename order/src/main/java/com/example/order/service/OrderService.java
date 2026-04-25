@@ -19,7 +19,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -68,7 +67,7 @@ public class OrderService {
                                      UUID customerIdOverride,
                                      String receiptEmail,
                                      String managerSubject,
-                                     DeliverySpec deliverySpec) {
+                                     ContactSpec contactSpec) {
         Cart cart = cartService.getCartById(cartId);
         if (cart.getItems() == null || cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
@@ -80,16 +79,7 @@ public class OrderService {
                 .map(Money::getCurrency)
                 .findFirst()
                 .orElse("RUB");
-        long deliveryAmount = deliverySpec != null && deliverySpec.amount() != null
-                ? deliverySpec.amount().getAmount()
-                : 0L;
-        if (deliverySpec != null && deliverySpec.amount() != null) {
-            String deliveryCurrency = deliverySpec.amount().getCurrency();
-            if (deliveryCurrency != null && !deliveryCurrency.isBlank() && !deliveryCurrency.equalsIgnoreCase(currency)) {
-                throw new IllegalArgumentException("Delivery currency mismatch");
-            }
-        }
-        Money totalMoney = Money.of(itemsTotal + deliveryAmount, currency);
+        Money totalMoney = Money.of(itemsTotal, currency);
         String baseKey = "order-cart-" + cartId;
 
         UUID customerId = customerIdOverride != null
@@ -99,20 +89,12 @@ public class OrderService {
             throw new IllegalArgumentException("Customer is required to create an order");
         }
         Order order = new Order(customerId, "PENDING", totalMoney);
-        if (deliverySpec != null) {
-            order.setDeliveryAmount(deliverySpec.amount());
-            order.setDeliveryProvider(deliverySpec.provider());
-            order.setDeliveryMethod(deliverySpec.method());
-            order.setDeliveryAddress(deliverySpec.address());
-            order.setDeliveryPickupPointId(deliverySpec.pickupPointId());
-            order.setDeliveryPickupPointName(deliverySpec.pickupPointName());
-            order.setDeliveryIntervalFrom(deliverySpec.intervalFrom());
-            order.setDeliveryIntervalTo(deliverySpec.intervalTo());
-            order.setDeliveryOfferId(deliverySpec.offerId());
-            order.setDeliveryRequestId(deliverySpec.requestId());
-            order.setDeliveryStatus(deliverySpec.status());
-        }
         order.setReceiptEmail(receiptEmail);
+        if (contactSpec != null) {
+            order.setContactName(contactSpec.customerName());
+            order.setContactPhone(contactSpec.phone());
+            order.setHomeAddress(contactSpec.homeAddress());
+        }
         order.setPublicToken(generatePublicToken());
         order.setManagerSubject(managerSubject);
 
@@ -203,24 +185,6 @@ public class OrderService {
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
     }
 
-    public Order updateDeliveryStatus(UUID orderId,
-                                      String status,
-                                      OffsetDateTime intervalFrom,
-                                      OffsetDateTime intervalTo) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
-        if (status != null && !status.isBlank()) {
-            order.setDeliveryStatus(status);
-        }
-        if (intervalFrom != null) {
-            order.setDeliveryIntervalFrom(intervalFrom);
-        }
-        if (intervalTo != null) {
-            order.setDeliveryIntervalTo(intervalTo);
-        }
-        return orderRepository.save(order);
-    }
-
     public CheckoutAttemptState acquireCheckoutAttempt(String keyValue, String requestHash) {
         validateCheckoutAttemptInput(keyValue, requestHash);
         OrderCheckoutAttempt existing = checkoutAttemptRepository.findByKeyValue(keyValue).orElse(null);
@@ -306,17 +270,7 @@ public class OrderService {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
-    public record DeliverySpec(Money amount,
-                               String provider,
-                               String method,
-                               String address,
-                               String pickupPointId,
-                               String pickupPointName,
-                               OffsetDateTime intervalFrom,
-                               OffsetDateTime intervalTo,
-                               String offerId,
-                               String requestId,
-                               String status) {}
+    public record ContactSpec(String customerName, String phone, String homeAddress) {}
 
     public record CheckoutAttemptState(CheckoutAttemptStatus status, UUID orderId) {
         public static CheckoutAttemptState reserved() {

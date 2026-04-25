@@ -57,7 +57,7 @@ Before the first deploy, the VM must satisfy all of the following:
 - outbound connectivity:
   - `github.com` for `git fetch origin`
   - `ghcr.io` for Docker image pulls
-  - the public API and CMS hostnames used by `PUBLIC_API_HEALTHCHECK_URL` and `PUBLIC_CONTENT_HEALTHCHECK_URL`
+  - the public API, CMS, and storefront hostnames used by `PUBLIC_API_HEALTHCHECK_URL`, `PUBLIC_CONTENT_HEALTHCHECK_URL`, and `PUBLIC_STOREFRONT_HEALTHCHECK_URL`
   - the Keycloak issuer URL configured in `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL`
 - deploy user:
   - owns or can write the deploy checkout
@@ -71,6 +71,7 @@ Before the first deploy, the VM must satisfy all of the following:
 - nginx:
   - API vhost includes `/etc/nginx/includes/eshop-api-upstream.conf`
   - CMS vhost includes `/etc/nginx/includes/eshop-cms-upstream.conf`
+  - storefront origin vhost includes `/etc/nginx/includes/eshop-storefront-upstream.conf`
 - runtime layout:
   - `<deploy-path>/releases`
   - `<deploy-path>/.deploy-state`
@@ -85,9 +86,9 @@ Before the first deploy, the VM must satisfy all of the following:
 
 Important networking note:
 
-- `docker-compose.prod.yml` publishes `5432`, `6379`, `8080`, and `8055` on the host
+- `docker-compose.prod.yml` publishes `5432`, `6379`, `8080`, and `8055` on the host, and binds the storefront origin only on `127.0.0.1:${STOREFRONT_HOST_PORT:-3000}`
 - `docker-compose.runtime-slot.yml` binds blue/green candidate ports to `127.0.0.1`
-- do not expose `5432`, `6379`, `8080`, `8055`, `18080`, `18055`, `28080`, or `28055` publicly
+- do not expose `5432`, `6379`, `8080`, `8055`, `3000`, `18080`, `18055`, `13000`, `28080`, `28055`, or `23000` publicly
 - enforce that restriction at the cloud firewall or equivalent perimeter layer; do not assume Docker-published ports are hidden automatically
 
 ## Fresh Debian 11 VM Preparation
@@ -366,6 +367,7 @@ Create the include directory and initial files:
 sudo mkdir -p /etc/nginx/includes
 printf 'proxy_pass http://127.0.0.1:8080;\n' | sudo tee /etc/nginx/includes/eshop-api-upstream.conf >/dev/null
 printf 'proxy_pass http://127.0.0.1:8055;\n' | sudo tee /etc/nginx/includes/eshop-cms-upstream.conf >/dev/null
+printf 'proxy_pass http://127.0.0.1:3000;\n' | sudo tee /etc/nginx/includes/eshop-storefront-upstream.conf >/dev/null
 ```
 
 Required contents before the first bootstrap:
@@ -373,9 +375,10 @@ Required contents before the first bootstrap:
 ```nginx
 proxy_pass http://127.0.0.1:8080;
 proxy_pass http://127.0.0.1:8055;
+proxy_pass http://127.0.0.1:3000;
 ```
 
-### Step 10: Update The API And CMS Nginx Vhosts
+### Step 10: Update The API, CMS, And Storefront Nginx Vhosts
 
 The HTTPS API server block must include:
 
@@ -411,6 +414,7 @@ Repo examples:
 
 - [ops/nginx/api.yug-postel.ru.conf.example](./../ops/nginx/api.yug-postel.ru.conf.example)
 - [ops/nginx/cms.yug-postel.ru.conf.example](./../ops/nginx/cms.yug-postel.ru.conf.example)
+- [ops/nginx/yug-postel.ru.conf.example](./../ops/nginx/yug-postel.ru.conf.example)
 
 Validate nginx:
 
@@ -499,16 +503,30 @@ DIRECTUS_DATA_CACHE_STATUS_HEADER=X-Directus-Cache
 PUBLIC_API_HEALTHCHECK_URL=https://api.yug-postel.ru/health/redis
 PUBLIC_DIRECTUS_HEALTHCHECK_URL=https://cms.yug-postel.ru/server/health
 PUBLIC_CONTENT_HEALTHCHECK_URL=https://api.yug-postel.ru/content/navigation?placement=header
+PUBLIC_STOREFRONT_HEALTHCHECK_URL=https://yug-postel.ru/healthz
+STOREFRONT_PUBLIC_URL=https://yug-postel.ru
+STOREFRONT_HOST_PORT=3000
+STOREFRONT_SERVER_API_BASE=http://api:8080
+STOREFRONT_IMAGE_REPOSITORY=ghcr.io/anarchistische-ecke/cozyhome-storefront
+STOREFRONT_IMAGE_TAG=main
+REACT_APP_SITE_URL=https://yug-postel.ru
+REACT_APP_API_BASE=https://api.yug-postel.ru
+REACT_APP_KEYCLOAK_URL=https://yug-postel.ru/auth
+REACT_APP_KEYCLOAK_REALM=cozyhome
+REACT_APP_KEYCLOAK_CLIENT_ID=cozyhome-web
 
 DEPLOY_RUNTIME_RELEASES_DIR=/srv/eshop/releases
 DEPLOY_RUNTIME_STATE_DIR=/srv/eshop/.deploy-state
 DEPLOY_RUNTIME_BLUE_API_PORT=18080
 DEPLOY_RUNTIME_BLUE_DIRECTUS_PORT=18055
+DEPLOY_RUNTIME_BLUE_STOREFRONT_PORT=13000
 DEPLOY_RUNTIME_GREEN_API_PORT=28080
 DEPLOY_RUNTIME_GREEN_DIRECTUS_PORT=28055
+DEPLOY_RUNTIME_GREEN_STOREFRONT_PORT=23000
 DEPLOY_SHARED_DOCKER_NETWORK=eshop-shared
 DEPLOY_NGINX_API_UPSTREAM_INCLUDE=/etc/nginx/includes/eshop-api-upstream.conf
 DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE=/etc/nginx/includes/eshop-cms-upstream.conf
+DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE=/etc/nginx/includes/eshop-storefront-upstream.conf
 DEPLOY_RUNTIME_MIN_AVAILABLE_MEMORY_MB=1024
 DEPLOY_RUNTIME_MIN_AVAILABLE_DISK_MB=1024
 DEPLOY_RUNTIME_OBSERVATION_SECONDS=15
@@ -525,13 +543,15 @@ Important `.env` requirements:
 - `DIRECTUS_SCHEMA_ADMIN_TOKEN` is required in practice when `DIRECTUS_AUTH_DISABLE_DEFAULT=true`
 - `DIRECTUS_CMS_CONTENT_COLLECTIONS` must be present if you want `scripts/directus-published-at-bootstrap.sh` to run successfully during bootstrap or destructive maintenance
 - `DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL` must be reachable from the VM
-- `PUBLIC_API_HEALTHCHECK_URL`, `PUBLIC_DIRECTUS_HEALTHCHECK_URL`, and `PUBLIC_CONTENT_HEALTHCHECK_URL` must resolve from the VM itself
+- `PUBLIC_API_HEALTHCHECK_URL`, `PUBLIC_DIRECTUS_HEALTHCHECK_URL`, `PUBLIC_CONTENT_HEALTHCHECK_URL`, and `PUBLIC_STOREFRONT_HEALTHCHECK_URL` must resolve from the VM itself
+- `STOREFRONT_IMAGE_REPOSITORY` and `STOREFRONT_IMAGE_TAG` must point at a published storefront container image
 - do not set `API_IMAGE_REPOSITORY` or `API_IMAGE_TAG` for normal GitHub-driven runtime deploys; workflows inject them
 
 Optional values you may also set if you use them operationally:
 
 - `API_HEALTHCHECK_URL`
 - `DIRECTUS_HEALTHCHECK_URL`
+- `STOREFRONT_HEALTHCHECK_URL`
 - `CONTENT_HEALTHCHECK_URL`
 - `APP_OBSERVABILITY_PROMETHEUS_TOKEN`
 - `DIRECTUS_AUTH_KEYCLOAK_ROLE_MAPPING`
@@ -652,16 +672,30 @@ DIRECTUS_IP_TRUST_PROXY=true
 PUBLIC_API_HEALTHCHECK_URL=https://api.yug-postel.ru/health/redis
 PUBLIC_DIRECTUS_HEALTHCHECK_URL=https://cms.yug-postel.ru/server/health
 PUBLIC_CONTENT_HEALTHCHECK_URL=https://api.yug-postel.ru/content/navigation?placement=header
+PUBLIC_STOREFRONT_HEALTHCHECK_URL=https://yug-postel.ru/healthz
+STOREFRONT_PUBLIC_URL=https://yug-postel.ru
+STOREFRONT_HOST_PORT=3000
+STOREFRONT_SERVER_API_BASE=http://api:8080
+STOREFRONT_IMAGE_REPOSITORY=ghcr.io/anarchistische-ecke/cozyhome-storefront
+STOREFRONT_IMAGE_TAG=main
+REACT_APP_SITE_URL=https://yug-postel.ru
+REACT_APP_API_BASE=https://api.yug-postel.ru
+REACT_APP_KEYCLOAK_URL=https://yug-postel.ru/auth
+REACT_APP_KEYCLOAK_REALM=cozyhome
+REACT_APP_KEYCLOAK_CLIENT_ID=cozyhome-web
 DIRECTUS_CMS_CONTENT_COLLECTIONS=site_settings,navigation,navigation_items,page,page_sections,page_section_items,faq,legal_documents,banner,post,product_overlay,category_overlay,catalogue_overlay_block,catalogue_overlay_block_item,storefront_collection,storefront_collection_item
 DEPLOY_RUNTIME_RELEASES_DIR=/home/dingus/eshop/releases
 DEPLOY_RUNTIME_STATE_DIR=/home/dingus/eshop/.deploy-state
 DEPLOY_RUNTIME_BLUE_API_PORT=18080
 DEPLOY_RUNTIME_BLUE_DIRECTUS_PORT=18055
+DEPLOY_RUNTIME_BLUE_STOREFRONT_PORT=13000
 DEPLOY_RUNTIME_GREEN_API_PORT=28080
 DEPLOY_RUNTIME_GREEN_DIRECTUS_PORT=28055
+DEPLOY_RUNTIME_GREEN_STOREFRONT_PORT=23000
 DEPLOY_SHARED_DOCKER_NETWORK=eshop-shared
 DEPLOY_NGINX_API_UPSTREAM_INCLUDE=/etc/nginx/includes/eshop-api-upstream.conf
 DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE=/etc/nginx/includes/eshop-cms-upstream.conf
+DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE=/etc/nginx/includes/eshop-storefront-upstream.conf
 DEPLOY_RUNTIME_MIN_AVAILABLE_MEMORY_MB=1024
 DEPLOY_RUNTIME_MIN_AVAILABLE_DISK_MB=1024
 DEPLOY_RUNTIME_OBSERVATION_SECONDS=15
@@ -744,8 +778,9 @@ git ls-remote origin HEAD
 test -f .env
 test -f /etc/nginx/includes/eshop-api-upstream.conf
 test -f /etc/nginx/includes/eshop-cms-upstream.conf
+test -f /etc/nginx/includes/eshop-storefront-upstream.conf
 ls -ld releases .deploy-state .deploy-state/logs backups/directus
-grep -E '^(DIRECTUS_PUBLIC_URL|PUBLIC_API_HEALTHCHECK_URL|PUBLIC_DIRECTUS_HEALTHCHECK_URL|PUBLIC_CONTENT_HEALTHCHECK_URL|DEPLOY_RUNTIME_RELEASES_DIR|DEPLOY_RUNTIME_STATE_DIR|DEPLOY_RUNTIME_BLUE_API_PORT|DEPLOY_RUNTIME_BLUE_DIRECTUS_PORT|DEPLOY_RUNTIME_GREEN_API_PORT|DEPLOY_RUNTIME_GREEN_DIRECTUS_PORT|DEPLOY_SHARED_DOCKER_NETWORK|DEPLOY_NGINX_API_UPSTREAM_INCLUDE|DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE|DEPLOY_RUNTIME_MIN_AVAILABLE_MEMORY_MB|DEPLOY_RUNTIME_MIN_AVAILABLE_DISK_MB|DEPLOY_RUNTIME_OBSERVATION_SECONDS)=' .env
+grep -E '^(DIRECTUS_PUBLIC_URL|PUBLIC_API_HEALTHCHECK_URL|PUBLIC_DIRECTUS_HEALTHCHECK_URL|PUBLIC_CONTENT_HEALTHCHECK_URL|PUBLIC_STOREFRONT_HEALTHCHECK_URL|STOREFRONT_PUBLIC_URL|STOREFRONT_HOST_PORT|STOREFRONT_SERVER_API_BASE|STOREFRONT_IMAGE_REPOSITORY|STOREFRONT_IMAGE_TAG|REACT_APP_SITE_URL|REACT_APP_API_BASE|REACT_APP_KEYCLOAK_URL|REACT_APP_KEYCLOAK_REALM|REACT_APP_KEYCLOAK_CLIENT_ID|DEPLOY_RUNTIME_RELEASES_DIR|DEPLOY_RUNTIME_STATE_DIR|DEPLOY_RUNTIME_BLUE_API_PORT|DEPLOY_RUNTIME_BLUE_DIRECTUS_PORT|DEPLOY_RUNTIME_BLUE_STOREFRONT_PORT|DEPLOY_RUNTIME_GREEN_API_PORT|DEPLOY_RUNTIME_GREEN_DIRECTUS_PORT|DEPLOY_RUNTIME_GREEN_STOREFRONT_PORT|DEPLOY_SHARED_DOCKER_NETWORK|DEPLOY_NGINX_API_UPSTREAM_INCLUDE|DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE|DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE|DEPLOY_RUNTIME_MIN_AVAILABLE_MEMORY_MB|DEPLOY_RUNTIME_MIN_AVAILABLE_DISK_MB|DEPLOY_RUNTIME_OBSERVATION_SECONDS)=' .env
 git status --short
 ```
 
@@ -764,6 +799,8 @@ If the VM is an existing production host, also re-run:
 curl -i https://api.yug-postel.ru/health/redis
 curl -i https://cms.yug-postel.ru/server/health
 curl -i 'https://api.yug-postel.ru/content/navigation?placement=header'
+curl -i https://yug-postel.ru/healthz
+curl -i https://yug-postel.ru/robots.txt
 ```
 
 ## Next Step

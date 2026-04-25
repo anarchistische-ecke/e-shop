@@ -1,14 +1,13 @@
 package com.example.api.order;
 
-import com.example.api.delivery.YandexDeliveryService;
 import com.example.api.admincms.DirectusAdminService;
-import com.example.order.domain.Order;
+import com.example.api.notification.EmailService;
 import com.example.customer.domain.Customer;
 import com.example.customer.service.CustomerService;
+import com.example.order.domain.Order;
 import com.example.order.service.OrderService;
 import com.example.payment.domain.Payment;
 import com.example.payment.service.PaymentService;
-import com.example.api.notification.EmailService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -20,9 +19,16 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.OffsetDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -39,7 +45,6 @@ public class OrderController {
     private final CustomerService customerService;
     private final PaymentService paymentService;
     private final EmailService emailService;
-    private final YandexDeliveryService deliveryService;
     private final DirectusAdminService directusAdminService;
 
     @Value("${app.public-base-url:}")
@@ -53,13 +58,11 @@ public class OrderController {
                            CustomerService customerService,
                            PaymentService paymentService,
                            EmailService emailService,
-                           YandexDeliveryService deliveryService,
                            DirectusAdminService directusAdminService) {
         this.orderService = orderService;
         this.customerService = customerService;
         this.paymentService = paymentService;
         this.emailService = emailService;
-        this.deliveryService = deliveryService;
         this.directusAdminService = directusAdminService;
     }
 
@@ -73,16 +76,9 @@ public class OrderController {
     public ResponseEntity<OrderCheckoutResponse> checkout(@Valid @RequestBody CheckoutRequest request,
                                                           @AuthenticationPrincipal Jwt jwt,
                                                           @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
-        UUID customerId = null;
-        boolean savePaymentMethod = Boolean.TRUE.equals(request.savePaymentMethod());
-        if (jwt != null) {
-            Customer customer = resolveCustomer(jwt);
-            customerId = customer.getId();
-        } else {
-            Customer customer = customerService.findOrCreateByEmail(request.receiptEmail, null, null);
-            customerId = customer.getId();
-            savePaymentMethod = false;
-        }
+        Customer customer = resolveCheckoutCustomer(request, jwt);
+        UUID customerId = customer.getId();
+        boolean savePaymentMethod = jwt != null && Boolean.TRUE.equals(request.savePaymentMethod());
         if (!StringUtils.hasText(idempotencyKey)) {
             throw new IllegalArgumentException("Idempotency-Key header is required");
         }
@@ -104,59 +100,20 @@ public class OrderController {
                     replayReturnUrl,
                     "order-" + existingOrder.getId(),
                     savePaymentMethod,
-                    customerId != null ? customerId.toString() : null,
+                    customerId.toString(),
                     resolvePaymentConfirmationMode(request.confirmationMode)
             );
             return ResponseEntity.ok(new OrderCheckoutResponse(existingOrder, toPaymentResponse(existingPayment)));
         }
 
-        OrderService.DeliverySpec deliverySpec = null;
-        YandexDeliveryService.DeliveryConfirmResult confirmResult = null;
         boolean checkoutAttemptBound = false;
         try {
-            if (request.delivery != null) {
-                DeliveryRequest delivery = request.delivery;
-                validateDeliveryRequest(delivery);
-                YandexDeliveryService.DeliveryOffersRequest offersRequest = new YandexDeliveryService.DeliveryOffersRequest();
-                offersRequest.cartId = request.cartId;
-                offersRequest.deliveryType = delivery.deliveryType;
-                offersRequest.address = delivery.address;
-                offersRequest.pickupPointId = delivery.pickupPointId;
-                offersRequest.pickupPointName = delivery.pickupPointName;
-                offersRequest.intervalFrom = delivery.intervalFrom;
-                offersRequest.intervalTo = delivery.intervalTo;
-                offersRequest.firstName = delivery.firstName;
-                offersRequest.lastName = delivery.lastName;
-                offersRequest.phone = delivery.phone;
-                offersRequest.email = StringUtils.hasText(delivery.email) ? delivery.email : request.receiptEmail;
-                offersRequest.comment = delivery.comment;
-                YandexDeliveryService.DeliveryOffer offer = deliveryService.resolveOffer(offersRequest, delivery.offerId);
-                var deliveryAmount = offer.pricingTotal() != null ? offer.pricingTotal() : offer.pricing();
-                if (deliveryAmount == null) {
-                    throw new IllegalArgumentException("Delivery price is required");
-                }
-                confirmResult = deliveryService.confirmOffer(offer.offerId());
-                deliverySpec = new OrderService.DeliverySpec(
-                        deliveryAmount,
-                        "YANDEX",
-                        delivery.deliveryType.name(),
-                        delivery.address,
-                        delivery.pickupPointId,
-                        delivery.pickupPointName,
-                        offer.intervalFrom(),
-                        offer.intervalTo(),
-                        offer.offerId(),
-                        confirmResult.requestId(),
-                        "REQUESTED"
-                );
-            }
-
             Order order = orderService.createOrderFromCart(
                     request.cartId,
                     customerId,
                     request.receiptEmail,
                     null,
-                    deliverySpec
+                    new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
             );
             orderService.completeCheckoutAttempt(idempotencyKey, requestHash, order.getId());
             checkoutAttemptBound = true;
@@ -171,19 +128,13 @@ public class OrderController {
                     returnUrl,
                     "order-" + order.getId(),
                     savePaymentMethod,
-                    customerId != null ? customerId.toString() : null,
+                    customerId.toString(),
                     resolvePaymentConfirmationMode(request.confirmationMode)
             );
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new OrderCheckoutResponse(order, toPaymentResponse(payment)));
         } catch (RuntimeException ex) {
-            if (confirmResult != null && !checkoutAttemptBound) {
-                try {
-                    deliveryService.cancelRequest(confirmResult.requestId());
-                } catch (Exception cancelEx) {
-                }
-            }
             if (!checkoutAttemptBound) {
                 orderService.releaseCheckoutAttemptIfUnbound(idempotencyKey, requestHash);
             }
@@ -197,12 +148,14 @@ public class OrderController {
         if (jwt == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        UUID customerId = customerService.findOrCreateByEmail(request.receiptEmail, null, null)
-                .getId();
+        Customer customer = customerService.findOrCreateByEmail(request.receiptEmail, null, null);
+        customer = customerService.applyCheckoutContact(customer, request.customerName, request.phone);
         Order order = orderService.createOrderFromCart(
                 request.cartId,
-                customerId,
-                request.receiptEmail
+                customer.getId(),
+                request.receiptEmail,
+                null,
+                new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
         );
         emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -216,16 +169,14 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         String managerSubject = resolveManagerSubject(jwt);
-        if (request.receiptEmail == null || request.receiptEmail.isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-        UUID customerId = customerService.findOrCreateByEmail(request.receiptEmail, null, null)
-                .getId();
+        Customer customer = customerService.findOrCreateByEmail(request.receiptEmail, null, null);
+        customer = customerService.applyCheckoutContact(customer, request.customerName, request.phone);
         Order order = orderService.createOrderFromCart(
                 request.cartId,
-                customerId,
+                customer.getId(),
                 request.receiptEmail,
-                managerSubject
+                managerSubject,
+                new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
         );
         boolean shouldSend = request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail);
         if (shouldSend) {
@@ -246,33 +197,6 @@ public class OrderController {
             emailService.sendOrderStatusUpdatedEmail(updated, updated.getReceiptEmail(), previousStatus);
         }
         return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/{id}/delivery/refresh")
-    public ResponseEntity<Order> refreshDelivery(@PathVariable UUID id) {
-        Order order = orderService.findById(id);
-        if (order.getDeliveryRequestId() == null || order.getDeliveryRequestId().isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-        YandexDeliveryService.DeliveryRequestInfo info = deliveryService.getRequestInfo(order.getDeliveryRequestId());
-        Order updated = orderService.updateDeliveryStatus(
-                order.getId(),
-                info.status(),
-                info.intervalFrom(),
-                info.intervalTo()
-        );
-        return ResponseEntity.ok(updated);
-    }
-
-    @PostMapping("/{id}/delivery/cancel")
-    public ResponseEntity<Order> cancelDelivery(@PathVariable UUID id) {
-        Order order = orderService.findById(id);
-        if (order.getDeliveryRequestId() == null || order.getDeliveryRequestId().isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-        deliveryService.cancelRequest(order.getDeliveryRequestId());
-        Order updated = orderService.updateDeliveryStatus(order.getId(), "CANCELLED", null, null);
-        return ResponseEntity.ok(updated);
     }
 
     @GetMapping("/me")
@@ -327,6 +251,13 @@ public class OrderController {
         return ResponseEntity.ok(updated);
     }
 
+    private Customer resolveCheckoutCustomer(CheckoutRequest request, Jwt jwt) {
+        Customer customer = jwt != null
+                ? resolveCustomer(jwt)
+                : customerService.findOrCreateByEmail(request.receiptEmail, null, null);
+        return customerService.applyCheckoutContact(customer, request.customerName, request.phone);
+    }
+
     private Customer resolveCustomer(Jwt jwt) {
         if (jwt == null) {
             throw new IllegalArgumentException("Missing authentication token");
@@ -377,67 +308,33 @@ public class OrderController {
         throw new IllegalArgumentException("Manager subject is required");
     }
 
-    private void validateDeliveryRequest(DeliveryRequest delivery) {
-        if (delivery == null) {
-            return;
-        }
-        if (delivery.deliveryType == null) {
-            throw new IllegalArgumentException("Delivery type is required");
-        }
-        if (!StringUtils.hasText(delivery.offerId)) {
-            throw new IllegalArgumentException("Delivery offer is required");
-        }
-        if (!StringUtils.hasText(delivery.firstName)) {
-            throw new IllegalArgumentException("Recipient first name is required");
-        }
-        if (!StringUtils.hasText(delivery.phone)) {
-            throw new IllegalArgumentException("Recipient phone is required");
-        }
-        if (delivery.deliveryType == YandexDeliveryService.DeliveryType.COURIER) {
-            if (!StringUtils.hasText(delivery.address)) {
-                throw new IllegalArgumentException("Delivery address is required");
-            }
-        } else if (delivery.deliveryType == YandexDeliveryService.DeliveryType.PICKUP) {
-            if (!StringUtils.hasText(delivery.pickupPointId)) {
-                throw new IllegalArgumentException("Pickup point is required");
-            }
-        }
-    }
-
-    public record DeliveryRequest(
-            YandexDeliveryService.DeliveryType deliveryType,
-            String offerId,
-            String address,
-            String pickupPointId,
-            String pickupPointName,
-            OffsetDateTime intervalFrom,
-            OffsetDateTime intervalTo,
-            String firstName,
-            String lastName,
-            String phone,
-            String email,
-            String comment
-    ) {}
-
     public record CheckoutRequest(
             @NotNull UUID cartId,
             @Email @NotBlank String receiptEmail,
+            @NotBlank String customerName,
+            @NotBlank String phone,
+            @NotBlank String homeAddress,
             String returnUrl,
             String orderPageUrl,
             String confirmationMode,
-            Boolean savePaymentMethod,
-            DeliveryRequest delivery
+            Boolean savePaymentMethod
     ) {}
 
     public record AdminLinkRequest(
             @NotNull UUID cartId,
             @Email @NotBlank String receiptEmail,
+            @NotBlank String customerName,
+            @NotBlank String phone,
+            @NotBlank String homeAddress,
             String orderPageUrl
     ) {}
 
     public record ManagerLinkRequest(
             @NotNull UUID cartId,
-            @Email String receiptEmail,
+            @Email @NotBlank String receiptEmail,
+            @NotBlank String customerName,
+            @NotBlank String phone,
+            @NotBlank String homeAddress,
             String orderPageUrl,
             Boolean sendEmail
     ) {}
@@ -468,22 +365,9 @@ public class OrderController {
         joiner.add(normalizeValue(request.orderPageUrl));
         joiner.add(normalizeValue(resolvePaymentConfirmationMode(request.confirmationMode)));
         joiner.add(Boolean.TRUE.equals(request.savePaymentMethod) ? "1" : "0");
-
-        DeliveryRequest delivery = request.delivery;
-        if (delivery != null) {
-            joiner.add(delivery.deliveryType != null ? delivery.deliveryType.name() : "");
-            joiner.add(normalizeValue(delivery.offerId));
-            joiner.add(normalizeValue(delivery.address));
-            joiner.add(normalizeValue(delivery.pickupPointId));
-            joiner.add(normalizeValue(delivery.pickupPointName));
-            joiner.add(delivery.intervalFrom != null ? delivery.intervalFrom.toString() : "");
-            joiner.add(delivery.intervalTo != null ? delivery.intervalTo.toString() : "");
-            joiner.add(normalizeValue(delivery.firstName));
-            joiner.add(normalizeValue(delivery.lastName));
-            joiner.add(normalizeValue(delivery.phone));
-            joiner.add(normalizeValue(delivery.email));
-            joiner.add(normalizeValue(delivery.comment));
-        }
+        joiner.add(normalizeValue(request.customerName));
+        joiner.add(normalizeValue(request.phone));
+        joiner.add(normalizeValue(request.homeAddress));
 
         return sha256(joiner.toString());
     }

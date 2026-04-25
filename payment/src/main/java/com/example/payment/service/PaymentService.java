@@ -1,7 +1,6 @@
 package com.example.payment.service;
 
 import com.example.common.domain.Money;
-import com.example.delivery.YandexDeliveryClient;
 import com.example.customer.domain.Customer;
 import com.example.customer.repository.CustomerRepository;
 import com.example.order.domain.Order;
@@ -18,8 +17,6 @@ import com.example.payment.repository.SavedPaymentMethodRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -33,8 +30,6 @@ import java.util.UUID;
 @Service
 @Transactional
 public class PaymentService {
-    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
-
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
     private final SavedPaymentMethodRepository savedPaymentMethodRepository;
@@ -42,7 +37,6 @@ public class PaymentService {
     private final CustomerRepository customerRepository;
     private final YooKassaClient yooKassaClient;
     private final OrderService orderService;
-    private final YandexDeliveryClient yandexDeliveryClient;
     private final FiscalConfigurationProvider fiscalConfigurationProvider;
 
     @Autowired
@@ -53,7 +47,6 @@ public class PaymentService {
                           ObjectProvider<CustomerRepository> customerRepositoryProvider,
                           ObjectProvider<YooKassaClient> yooKassaClientProvider,
                           ObjectProvider<OrderService> orderServiceProvider,
-                          ObjectProvider<YandexDeliveryClient> yandexDeliveryClientProvider,
                           ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProviderProvider) {
         this.paymentRepository = paymentRepository;
         this.paymentRefundRepository = paymentRefundRepository;
@@ -62,7 +55,6 @@ public class PaymentService {
         this.customerRepository = customerRepositoryProvider.getIfAvailable();
         this.yooKassaClient = yooKassaClientProvider.getIfAvailable();
         this.orderService = orderServiceProvider.getIfAvailable();
-        this.yandexDeliveryClient = yandexDeliveryClientProvider.getIfAvailable();
         this.fiscalConfigurationProvider = fiscalConfigurationProviderProvider.getIfAvailable();
     }
 
@@ -355,7 +347,6 @@ public class PaymentService {
             order.setStatus("REFUNDED");
             orderRepository.save(order);
             restockOrder(order.getId(), "PAYMENT_REFUNDED", "restock-refund-" + order.getId());
-            cancelYandexDeliveryIfNeeded(order);
         }
         return payment;
     }
@@ -580,7 +571,6 @@ public class PaymentService {
         }
         if (changed && isCancelledStatus(order.getStatus()) && !isCancelledStatus(previousStatus)) {
             restockOrder(order.getId(), "PAYMENT_CANCELLED", "restock-cancel-" + order.getId());
-            cancelYandexDeliveryIfNeeded(order);
         }
     }
 
@@ -604,6 +594,12 @@ public class PaymentService {
     }
 
     private String resolveReceiptPhone(Order order, String email) {
+        if (order != null && StringUtils.hasText(order.getContactPhone())) {
+            String normalizedOrderPhone = normalizeReceiptPhone(order.getContactPhone());
+            if (StringUtils.hasText(normalizedOrderPhone)) {
+                return normalizedOrderPhone;
+            }
+        }
         if (customerRepository == null) {
             return null;
         }
@@ -615,7 +611,18 @@ public class PaymentService {
             customer = customerRepository.findByEmail(email).orElse(null);
         }
         String phone = customer != null ? customer.getPhone() : null;
-        return StringUtils.hasText(phone) ? phone : null;
+        return normalizeReceiptPhone(phone);
+    }
+
+    private String normalizeReceiptPhone(String phone) {
+        if (!StringUtils.hasText(phone)) {
+            return null;
+        }
+        String trimmed = phone.trim();
+        String prefix = trimmed.startsWith("+") ? "+" : "";
+        String digits = trimmed.replaceAll("\\D", "");
+        String normalized = prefix + digits;
+        return normalized.matches("^\\+?\\d{11,15}$") ? normalized : null;
     }
 
     private void restockOrder(UUID orderId, String reason, String idempotencyPrefix) {
@@ -623,25 +630,6 @@ public class PaymentService {
             return;
         }
         orderService.restockOrderItems(orderId, reason, idempotencyPrefix);
-    }
-
-    private void cancelYandexDeliveryIfNeeded(Order order) {
-        if (order == null || yandexDeliveryClient == null) {
-            return;
-        }
-        String requestId = order.getDeliveryRequestId();
-        if (!StringUtils.hasText(requestId)) {
-            return;
-        }
-        try {
-            yandexDeliveryClient.cancelRequest(requestId);
-            if (!"CANCELLED".equalsIgnoreCase(order.getDeliveryStatus())) {
-                order.setDeliveryStatus("CANCELLED");
-                orderRepository.save(order);
-            }
-        } catch (Exception ex) {
-            log.warn("Failed to cancel Yandex delivery request {}", requestId, ex);
-        }
     }
 
     private PaymentRefund upsertRefundRecord(Payment payment, YooKassaClient.RefundResponse response) {

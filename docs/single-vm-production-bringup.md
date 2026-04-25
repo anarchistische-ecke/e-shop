@@ -39,6 +39,7 @@ Before touching production, require all of these:
 4. Current production API, Directus, and Keycloak are healthy.
 5. You can SSH into the production VM as the deploy user.
 6. You have a temporary GitHub token that can read and write the `ghcr.io/<repo-owner>/eshop-api` package for the one-time bootstrap image push.
+7. You have a published storefront image available at `ghcr.io/<repo-owner>/cozyhome-storefront:<tag>` and know the exact tag you want to cut over.
 
 ## Step 1: Confirm The Prepared VM Baseline
 
@@ -69,6 +70,7 @@ git ls-remote origin HEAD
 test -f .env
 test -f /etc/nginx/includes/eshop-api-upstream.conf
 test -f /etc/nginx/includes/eshop-cms-upstream.conf
+test -f /etc/nginx/includes/eshop-storefront-upstream.conf
 ls -ld releases .deploy-state .deploy-state/logs backups/directus
 git status --short
 ```
@@ -108,12 +110,13 @@ Run:
 cp "$PROD_DIR/.env" "$PROD_DIR/.env.backup.$(date +%Y%m%d%H%M%S)"
 sudo cp /etc/nginx/sites-available/api.conf /etc/nginx/sites-available/api.conf.backup.$(date +%Y%m%d%H%M%S)
 sudo cp /etc/nginx/sites-available/cms.yug-postel.ru.conf /etc/nginx/sites-available/cms.yug-postel.ru.conf.backup.$(date +%Y%m%d%H%M%S)
+sudo cp /etc/nginx/sites-available/yug-postel.conf /etc/nginx/sites-available/yug-postel.conf.backup.$(date +%Y%m%d%H%M%S)
 ```
 
 If those nginx paths differ on the VM, find the real ones first:
 
 ```bash
-sudo nginx -T | rg -n "server_name api\\.yug-postel\\.ru|server_name cms\\.yug-postel\\.ru"
+sudo nginx -T | rg -n "server_name api\\.yug-postel\\.ru|server_name cms\\.yug-postel\\.ru|server_name yug-postel\\.ru"
 ```
 
 ## Step 4: Check Out The Bootstrap Ref And Record The SHA
@@ -137,9 +140,9 @@ Required result:
 - the working tree stays clean
 - you have one exact commit SHA recorded in `SHA`
 
-## Step 5: Log In To GHCR For The One-Time Bootstrap Image Push
+## Step 5: Log In To GHCR For The One-Time Bootstrap Image Pull/Push
 
-Create a temporary GitHub token that can read and write `ghcr.io/<repo-owner>/eshop-api`.
+Create a temporary GitHub token that can read and write `ghcr.io/<repo-owner>/eshop-api` and read `ghcr.io/<repo-owner>/cozyhome-storefront`.
 
 Log in on the VM:
 
@@ -149,7 +152,7 @@ docker login ghcr.io -u <YOUR_GITHUB_USERNAME>
 
 When prompted for the password, paste the temporary token.
 
-## Step 6: Build And Push The Bootstrap API Image
+## Step 6: Build The Bootstrap API Image And Choose The Storefront Image Tag
 
 Run:
 
@@ -162,6 +165,7 @@ docker push ghcr.io/anarchistische-ecke/eshop-api:"$SHA"
 Required result:
 
 - the image is pushed successfully as `ghcr.io/anarchistische-ecke/eshop-api:$SHA`
+- you have one storefront image tag ready to deploy, for example `main` or an immutable SHA tag published from the `cozyhome` repo
 
 ## Step 7: Run The Manual Blue-Green Bootstrap
 
@@ -176,6 +180,8 @@ bash ./scripts/deploy-runtime-bluegreen.sh \
   --deploy-sha "$SHA" \
   --api-image-repository ghcr.io/anarchistische-ecke/eshop-api \
   --api-image-tag "$SHA" \
+  --storefront-image-repository ghcr.io/anarchistische-ecke/cozyhome-storefront \
+  --storefront-image-tag <YOUR_STOREFRONT_TAG> \
   --run-id bootstrap-$(date +%Y%m%d%H%M%S)
 ```
 
@@ -184,7 +190,7 @@ Expected behavior:
 - shared infrastructure stays on `docker-compose.prod.yml`
 - one runtime slot starts on either blue or green loopback ports
 - candidate internal health checks succeed
-- nginx upstream include files switch from `8080/8055` to one runtime slot
+- nginx upstream include files switch from `8080/8055/3000` to one runtime slot
 - public post-cutover health checks succeed
 - `.deploy-state/runtime-live.env` is created
 
@@ -198,9 +204,14 @@ cat .deploy-state/runtime-live.env
 cat .deploy-state/latest-runtime-summary.txt
 cat /etc/nginx/includes/eshop-api-upstream.conf
 cat /etc/nginx/includes/eshop-cms-upstream.conf
+cat /etc/nginx/includes/eshop-storefront-upstream.conf
 curl -i https://api.yug-postel.ru/health/redis
 curl -i https://cms.yug-postel.ru/server/health
 curl -i 'https://api.yug-postel.ru/content/navigation?placement=header'
+curl -i https://yug-postel.ru/healthz
+curl -i https://yug-postel.ru/
+curl -i https://yug-postel.ru/robots.txt
+curl -i https://yug-postel.ru/home/catalog
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 ```
 
@@ -208,10 +219,13 @@ Required result:
 
 - `.deploy-state/runtime-live.env` exists
 - `.deploy-state/latest-runtime-summary.txt` reports success
-- the upstream include files now point to either `18080/18055` or `28080/28055`
+- the upstream include files now point to either `18080/18055/13000` or `28080/28055/23000`
 - public API health is `200`
 - public CMS health is `200`
 - public content health is `200`
+- storefront `/healthz` is `200`
+- the apex storefront returns `200`
+- `/home/...` redirects to the equivalent root path
 
 ## Step 9: Understand The First-Bootstrap Rollback Boundary
 
@@ -226,10 +240,11 @@ Emergency fallback for the first bootstrap only:
 ```bash
 printf 'proxy_pass http://127.0.0.1:8080;\n' | sudo tee /etc/nginx/includes/eshop-api-upstream.conf >/dev/null
 printf 'proxy_pass http://127.0.0.1:8055;\n' | sudo tee /etc/nginx/includes/eshop-cms-upstream.conf >/dev/null
+printf 'proxy_pass http://127.0.0.1:3000;\n' | sudo tee /etc/nginx/includes/eshop-storefront-upstream.conf >/dev/null
 sudo nginx -t
 sudo systemctl reload nginx
 cd "$PROD_DIR"
-docker compose --env-file .env -f docker-compose.prod.yml up -d api directus
+docker compose --env-file .env -f docker-compose.prod.yml up -d api directus storefront
 ```
 
 Use that fallback only if the very first bootstrap must be undone before any later blue-green release exists.
