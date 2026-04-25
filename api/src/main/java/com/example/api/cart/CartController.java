@@ -3,6 +3,7 @@ package com.example.api.cart;
 import com.example.api.admincms.DirectusAdminService;
 import com.example.cart.domain.Cart;
 import com.example.cart.domain.CartItem;
+import com.example.cart.service.CartPricingSummary;
 import com.example.cart.service.CartService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -78,13 +79,22 @@ public class CartController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{cartId}/pricing")
+    public ResponseEntity<CartPricingSummary> getCartPricing(@PathVariable UUID cartId) {
+        return ResponseEntity.ok(cartService.calculateCartPricing(cartId));
+    }
+
     @PutMapping("/{cartId}/promo-code")
-    public ResponseEntity<Cart> applyPromoCode(@PathVariable UUID cartId,
-                                               @Valid @RequestBody PromoCodeRequest request) {
-        long subtotal = cartService.calculateItemsTotal(cartId);
-        directusAdminService.validatePromoCode(request.getCode(), subtotal);
-        Cart cart = cartService.applyPromoCode(cartId, request.getCode());
-        return ResponseEntity.ok(cart);
+    public ResponseEntity<?> applyPromoCode(@PathVariable UUID cartId,
+                                            @Valid @RequestBody PromoCodeRequest request) {
+        try {
+            long subtotal = cartService.calculateCartPricing(cartId).saleSubtotal().getAmount();
+            directusAdminService.validatePromoCode(request.getCode(), subtotal);
+            Cart cart = cartService.applyPromoCode(cartId, request.getCode());
+            return ResponseEntity.ok(cart);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
+        }
     }
 
     @DeleteMapping("/{cartId}/promo-code")

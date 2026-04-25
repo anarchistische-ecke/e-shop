@@ -13,8 +13,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -99,6 +101,7 @@ public class CartService {
 
     public Cart getCartById(UUID cartId) {
         Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
         persistCart(cart, false);
         return cart;
     }
@@ -129,17 +132,30 @@ public class CartService {
             throw new IllegalStateException("Недостаточно запаса на складе. Доступно: " + available);
         }
         item.setQuantity(quantity);
+        Money price = pricingService.resolveUnitPrice(variant);
+        item.setUnitPrice(price);
         stampBaseEntity(item, false);
         persistCart(cart, false);
     }
 
     public long calculateCartTotal(UUID cartId) {
         Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
+        persistCart(cart, false);
         return pricingService.calculateCartTotal(cart);
+    }
+
+    public CartPricingSummary calculateCartPricing(UUID cartId) {
+        Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
+        persistCart(cart, false);
+        return pricingService.calculateCartPricing(cart);
     }
 
     public long calculateItemsTotal(UUID cartId) {
         Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
+        persistCart(cart, false);
         return cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
     }
 
@@ -160,5 +176,25 @@ public class CartService {
 
     public void clearCart(UUID cartId) {
         cartRedisTemplate.delete(key(cartId));
+    }
+
+    private void refreshCartItemPrices(Cart cart) {
+        if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
+            return;
+        }
+        CartPricingSummary pricing = pricingService.calculateCartPricing(cart);
+        Map<UUID, CartPricingSummary.CartPricingLine> linesByVariant = pricing.items().stream()
+                .collect(Collectors.toMap(
+                        CartPricingSummary.CartPricingLine::variantId,
+                        line -> line,
+                        (left, right) -> left
+                ));
+        for (CartItem item : cart.getItems()) {
+            CartPricingSummary.CartPricingLine line = linesByVariant.get(item.getVariantId());
+            if (line != null && line.unitPrice() != null) {
+                item.setUnitPrice(line.unitPrice());
+                stampBaseEntity(item, false);
+            }
+        }
     }
 }

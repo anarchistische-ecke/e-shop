@@ -38,6 +38,7 @@ public class PaymentService {
     private final YooKassaClient yooKassaClient;
     private final OrderService orderService;
     private final FiscalConfigurationProvider fiscalConfigurationProvider;
+    private final PromoCodeRedemptionRecorder promoCodeRedemptionRecorder;
 
     @Autowired
     public PaymentService(PaymentRepository paymentRepository,
@@ -47,7 +48,8 @@ public class PaymentService {
                           ObjectProvider<CustomerRepository> customerRepositoryProvider,
                           ObjectProvider<YooKassaClient> yooKassaClientProvider,
                           ObjectProvider<OrderService> orderServiceProvider,
-                          ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProviderProvider) {
+                          ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProviderProvider,
+                          ObjectProvider<PromoCodeRedemptionRecorder> promoCodeRedemptionRecorderProvider) {
         this.paymentRepository = paymentRepository;
         this.paymentRefundRepository = paymentRefundRepository;
         this.savedPaymentMethodRepository = savedPaymentMethodRepository;
@@ -56,6 +58,7 @@ public class PaymentService {
         this.yooKassaClient = yooKassaClientProvider.getIfAvailable();
         this.orderService = orderServiceProvider.getIfAvailable();
         this.fiscalConfigurationProvider = fiscalConfigurationProviderProvider.getIfAvailable();
+        this.promoCodeRedemptionRecorder = promoCodeRedemptionRecorderProvider.getIfAvailable();
     }
 
     public Payment createYooKassaPayment(UUID orderId,
@@ -366,18 +369,7 @@ public class PaymentService {
             receipt.customer.phone = phone;
         }
         List<YooKassaClient.ReceiptItem> receiptItems = new ArrayList<>();
-        receiptItems.addAll(order.getItems().stream()
-                .map(item -> {
-                    YooKassaClient.ReceiptItem receiptItem = new YooKassaClient.ReceiptItem();
-                    receiptItem.description = buildItemDescription(item);
-                    receiptItem.quantity = BigDecimal.valueOf(item.getQuantity());
-                    receiptItem.amount = YooKassaClient.Amount.of(formatAmount(item.getUnitPrice()), item.getUnitPrice().getCurrency());
-                    receiptItem.vatCode = resolveVatCode();
-                    receiptItem.paymentMode = "full_payment";
-                    receiptItem.paymentSubject = "commodity";
-                    return receiptItem;
-                })
-                .toList());
+        order.getItems().forEach(item -> receiptItems.addAll(buildReceiptItemsForOrderItem(item)));
         if (order.getDeliveryAmount() != null && order.getDeliveryAmount().getAmount() > 0) {
             YooKassaClient.ReceiptItem deliveryItem = new YooKassaClient.ReceiptItem();
             deliveryItem.description = "Доставка";
@@ -391,6 +383,42 @@ public class PaymentService {
         receipt.items = receiptItems;
         receipt.taxSystemCode = resolveTaxSystemCode();
         return receipt;
+    }
+
+    private List<YooKassaClient.ReceiptItem> buildReceiptItemsForOrderItem(OrderItem item) {
+        if (item == null || item.getQuantity() <= 0 || item.getUnitPrice() == null) {
+            return List.of();
+        }
+        long payableTotal = Math.max(0L, item.getPayableTotalAmount());
+        if (payableTotal <= 0L) {
+            return List.of();
+        }
+        int quantity = item.getQuantity();
+        String currency = item.getUnitPrice().getCurrency();
+        long unitAmount = payableTotal / quantity;
+        int remainder = (int) (payableTotal % quantity);
+        if (remainder == 0) {
+            return List.of(buildReceiptItem(item, quantity, Money.of(unitAmount, currency), null));
+        }
+
+        List<YooKassaClient.ReceiptItem> items = new ArrayList<>();
+        items.add(buildReceiptItem(item, remainder, Money.of(unitAmount + 1, currency), " / часть 1"));
+        int remainingQuantity = quantity - remainder;
+        if (remainingQuantity > 0 && unitAmount > 0L) {
+            items.add(buildReceiptItem(item, remainingQuantity, Money.of(unitAmount, currency), " / часть 2"));
+        }
+        return items;
+    }
+
+    private YooKassaClient.ReceiptItem buildReceiptItem(OrderItem item, int quantity, Money unitPrice, String suffix) {
+        YooKassaClient.ReceiptItem receiptItem = new YooKassaClient.ReceiptItem();
+        receiptItem.description = buildItemDescription(item) + (suffix != null ? suffix : "");
+        receiptItem.quantity = BigDecimal.valueOf(quantity);
+        receiptItem.amount = YooKassaClient.Amount.of(formatAmount(unitPrice), unitPrice.getCurrency());
+        receiptItem.vatCode = resolveVatCode();
+        receiptItem.paymentMode = "full_payment";
+        receiptItem.paymentSubject = "commodity";
+        return receiptItem;
     }
 
     private int resolveVatCode() {
@@ -565,6 +593,7 @@ public class PaymentService {
             }
             return;
         }
+        boolean completedNow = status == PaymentStatus.COMPLETED && !isOrderPaid(order);
         if (status == PaymentStatus.COMPLETED) {
             if (!isOrderPaid(order)) {
                 order.setStatus("PAID");
@@ -586,6 +615,9 @@ public class PaymentService {
         }
         if (changed && isCancelledStatus(order.getStatus()) && !isCancelledStatus(previousStatus)) {
             restockOrder(order.getId(), "PAYMENT_CANCELLED", "restock-cancel-" + order.getId());
+        }
+        if (completedNow && promoCodeRedemptionRecorder != null) {
+            promoCodeRedemptionRecorder.recordPaidOrder(order);
         }
     }
 

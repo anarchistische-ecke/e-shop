@@ -675,7 +675,11 @@ public class DirectusAdminService {
                 ? promotionRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Promotion not found: " + id))
                 : new Promotion();
         promotion.setName(requireText(request.name(), "name"));
-        promotion.setType(defaultText(request.type(), "PRODUCT_SALE").toUpperCase(Locale.ROOT));
+        String promotionType = defaultText(request.type(), "PRODUCT_SALE").toUpperCase(Locale.ROOT);
+        if (!"PRODUCT_SALE".equals(promotionType)) {
+            throw new IllegalArgumentException("Only PRODUCT_SALE promotions are editable; cart thresholds are fixed by DSC-01");
+        }
+        promotion.setType(promotionType);
         promotion.setStatus(defaultText(request.status(), "ACTIVE").toUpperCase(Locale.ROOT));
         promotion.setStartsAt(request.startsAt());
         promotion.setEndsAt(request.endsAt());
@@ -722,7 +726,7 @@ public class DirectusAdminService {
         promoCode.setThresholdAmount(nonNegative(request.thresholdAmount()));
         promoCode.setStartsAt(request.startsAt());
         promoCode.setEndsAt(request.endsAt());
-        promoCode.setMaxRedemptions(request.maxRedemptions());
+        promoCode.setMaxRedemptions(request.maxRedemptions() != null && request.maxRedemptions() > 0 ? request.maxRedemptions() : null);
         promoCode.setDescription(normalize(request.description()));
         return toPromoCodeView(promoCodeRepository.save(promoCode));
     }

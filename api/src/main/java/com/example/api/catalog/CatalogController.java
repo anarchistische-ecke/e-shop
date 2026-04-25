@@ -472,6 +472,10 @@ public class CatalogController {
         private List<CategorySummary> categories;
         private String brand;
         private boolean isActive;
+        private com.example.common.domain.Money price;
+        private com.example.common.domain.Money oldPrice;
+        private boolean onSale;
+        private Integer discountPercent;
         private List<ImageResponse> images;
         private OffsetDateTime createdAt;
         private OffsetDateTime updatedAt;
@@ -543,6 +547,38 @@ public class CatalogController {
             this.isActive = isActive;
         }
 
+        public com.example.common.domain.Money getPrice() {
+            return price;
+        }
+
+        public void setPrice(com.example.common.domain.Money price) {
+            this.price = price;
+        }
+
+        public com.example.common.domain.Money getOldPrice() {
+            return oldPrice;
+        }
+
+        public void setOldPrice(com.example.common.domain.Money oldPrice) {
+            this.oldPrice = oldPrice;
+        }
+
+        public boolean isOnSale() {
+            return onSale;
+        }
+
+        public void setOnSale(boolean onSale) {
+            this.onSale = onSale;
+        }
+
+        public Integer getDiscountPercent() {
+            return discountPercent;
+        }
+
+        public void setDiscountPercent(Integer discountPercent) {
+            this.discountPercent = discountPercent;
+        }
+
         public OffsetDateTime getCreatedAt() {
             return createdAt;
         }
@@ -597,6 +633,10 @@ public class CatalogController {
         private String sku;
         private String name;
         private com.example.common.domain.Money price;
+        private com.example.common.domain.Money oldPrice;
+        private boolean onSale;
+        private Integer discountPercent;
+        private String salePromotionName;
         private int stock;
         private Integer weightGrossG;
         private Integer lengthMm;
@@ -633,6 +673,38 @@ public class CatalogController {
 
         public void setPrice(com.example.common.domain.Money price) {
             this.price = price;
+        }
+
+        public com.example.common.domain.Money getOldPrice() {
+            return oldPrice;
+        }
+
+        public void setOldPrice(com.example.common.domain.Money oldPrice) {
+            this.oldPrice = oldPrice;
+        }
+
+        public boolean isOnSale() {
+            return onSale;
+        }
+
+        public void setOnSale(boolean onSale) {
+            this.onSale = onSale;
+        }
+
+        public Integer getDiscountPercent() {
+            return discountPercent;
+        }
+
+        public void setDiscountPercent(Integer discountPercent) {
+            this.discountPercent = discountPercent;
+        }
+
+        public String getSalePromotionName() {
+            return salePromotionName;
+        }
+
+        public void setSalePromotionName(String salePromotionName) {
+            this.salePromotionName = salePromotionName;
         }
 
         public int getStock() {

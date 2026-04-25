@@ -40,6 +40,70 @@ public class Order extends BaseEntity {
 
     @Embedded
     @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "original_subtotal_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "original_subtotal_currency", length = 3))
+    })
+    private Money originalSubtotal;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "sale_subtotal_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "sale_subtotal_currency", length = 3))
+    })
+    private Money saleSubtotal;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "eligible_discount_subtotal_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "eligible_discount_subtotal_currency", length = 3))
+    })
+    private Money eligibleDiscountSubtotal;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "product_sale_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "product_sale_discount_currency", length = 3))
+    })
+    private Money productSaleDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "cart_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "cart_discount_currency", length = 3))
+    })
+    private Money cartDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "promo_code_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "promo_code_discount_currency", length = 3))
+    })
+    private Money promoCodeDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "total_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "total_discount_currency", length = 3))
+    })
+    private Money totalDiscount;
+
+    @Column(name = "promo_code")
+    private String promoCode;
+
+    @Column(name = "promo_code_redemption_recorded", nullable = false)
+    private boolean promoCodeRedemptionRecorded;
+
+    @Column(name = "applied_cart_discount_type")
+    private String appliedCartDiscountType;
+
+    @Column(name = "applied_cart_discount_label")
+    private String appliedCartDiscountLabel;
+
+    @Column(name = "discount_summary", columnDefinition = "TEXT")
+    private String discountSummary;
+
+    @Embedded
+    @AttributeOverrides({
             @AttributeOverride(name = "amount", column = @Column(name = "delivery_amount")),
             @AttributeOverride(name = "currency", column = @Column(name = "delivery_currency", length = 3))
     })
@@ -155,6 +219,102 @@ public class Order extends BaseEntity {
 
     public void setTotalAmount(Money totalAmount) {
         this.totalAmount = totalAmount;
+    }
+
+    public Money getOriginalSubtotal() {
+        return originalSubtotal;
+    }
+
+    public void setOriginalSubtotal(Money originalSubtotal) {
+        this.originalSubtotal = originalSubtotal;
+    }
+
+    public Money getSaleSubtotal() {
+        return saleSubtotal;
+    }
+
+    public void setSaleSubtotal(Money saleSubtotal) {
+        this.saleSubtotal = saleSubtotal;
+    }
+
+    public Money getEligibleDiscountSubtotal() {
+        return eligibleDiscountSubtotal;
+    }
+
+    public void setEligibleDiscountSubtotal(Money eligibleDiscountSubtotal) {
+        this.eligibleDiscountSubtotal = eligibleDiscountSubtotal;
+    }
+
+    public Money getProductSaleDiscount() {
+        return productSaleDiscount;
+    }
+
+    public void setProductSaleDiscount(Money productSaleDiscount) {
+        this.productSaleDiscount = productSaleDiscount;
+    }
+
+    public Money getCartDiscount() {
+        return cartDiscount;
+    }
+
+    public void setCartDiscount(Money cartDiscount) {
+        this.cartDiscount = cartDiscount;
+    }
+
+    public Money getPromoCodeDiscount() {
+        return promoCodeDiscount;
+    }
+
+    public void setPromoCodeDiscount(Money promoCodeDiscount) {
+        this.promoCodeDiscount = promoCodeDiscount;
+    }
+
+    public Money getTotalDiscount() {
+        return totalDiscount;
+    }
+
+    public void setTotalDiscount(Money totalDiscount) {
+        this.totalDiscount = totalDiscount;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
+    }
+
+    public boolean isPromoCodeRedemptionRecorded() {
+        return promoCodeRedemptionRecorded;
+    }
+
+    public void setPromoCodeRedemptionRecorded(boolean promoCodeRedemptionRecorded) {
+        this.promoCodeRedemptionRecorded = promoCodeRedemptionRecorded;
+    }
+
+    public String getAppliedCartDiscountType() {
+        return appliedCartDiscountType;
+    }
+
+    public void setAppliedCartDiscountType(String appliedCartDiscountType) {
+        this.appliedCartDiscountType = appliedCartDiscountType;
+    }
+
+    public String getAppliedCartDiscountLabel() {
+        return appliedCartDiscountLabel;
+    }
+
+    public void setAppliedCartDiscountLabel(String appliedCartDiscountLabel) {
+        this.appliedCartDiscountLabel = appliedCartDiscountLabel;
+    }
+
+    public String getDiscountSummary() {
+        return discountSummary;
+    }
+
+    public void setDiscountSummary(String discountSummary) {
+        this.discountSummary = discountSummary;
     }
 
     public Money getDeliveryAmount() {
