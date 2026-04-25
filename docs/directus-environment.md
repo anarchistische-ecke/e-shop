@@ -247,7 +247,7 @@ The production compose file also reads:
 | `PUBLIC_API_HEALTHCHECK_URL` | deployment-specific | Public post-cutover API probe used by blue-green deploys and scheduled ops checks. Example: `https://api.example.com/health/redis`. |
 | `PUBLIC_DIRECTUS_HEALTHCHECK_URL` | deployment-specific | Optional public Directus override used after nginx cutover. Defaults to `${DIRECTUS_PUBLIC_URL}/server/health`. |
 | `PUBLIC_CONTENT_HEALTHCHECK_URL` | deployment-specific | Public CMS facade smoke check used after nginx cutover. Example: `https://api.example.com/content/navigation?placement=header`. |
-| `PUBLIC_STOREFRONT_HEALTHCHECK_URL` | deployment-specific | Public storefront probe used after nginx cutover. Defaults to `${STOREFRONT_PUBLIC_URL}/healthz`. |
+| `PUBLIC_STOREFRONT_HEALTHCHECK_URL` | deployment-specific | Public storefront probe used after nginx cutover. Defaults to `${STOREFRONT_PUBLIC_URL}/healthz`. Use the public edge URL, not a blue/green loopback slot; when this is accidentally set to `127.0.0.1` and `STOREFRONT_PUBLIC_URL` is available, deployment health checks fall back to the public URL. |
 | `STOREFRONT_PUBLIC_URL` | deployment-specific | Canonical storefront origin. Example: `https://yug-postel.ru`. |
 | `STOREFRONT_HOST_PORT` | `3000` | Loopback host port used by the destructive/in-place storefront container in `docker-compose.prod.yml`. |
 | `STOREFRONT_SERVER_API_BASE` | `http://api:8080` | Internal API base URL injected into the Node SSR storefront container. |

@@ -330,19 +330,51 @@ runtime_public_directus_url() {
   printf '\n'
 }
 
+runtime_url_is_loopback() {
+  local url="$1"
+
+  case "$url" in
+    http://localhost|http://localhost/*|http://localhost:*|\
+    https://localhost|https://localhost/*|https://localhost:*|\
+    http://127.*|https://127.*|\
+    http://0.0.0.0*|https://0.0.0.0*|\
+    http://[[]::1[]]*|https://[[]::1[]]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+runtime_canonical_storefront_health_url() {
+  local storefront_public_url
+
+  storefront_public_url="${STOREFRONT_PUBLIC_URL:-${REACT_APP_SITE_URL:-}}"
+  if [[ -n "$storefront_public_url" ]]; then
+    printf '%s\n' "${storefront_public_url%/}/healthz"
+    return 0
+  fi
+
+  printf '\n'
+}
+
 runtime_public_storefront_url() {
+  local canonical_url
+
+  canonical_url="$(runtime_canonical_storefront_health_url)"
+
   if [[ -n "${PUBLIC_STOREFRONT_HEALTHCHECK_URL:-}" ]]; then
+    if runtime_url_is_loopback "$PUBLIC_STOREFRONT_HEALTHCHECK_URL" && \
+       [[ -n "$canonical_url" ]] && \
+       ! runtime_url_is_loopback "$canonical_url"; then
+      echo "Warning: PUBLIC_STOREFRONT_HEALTHCHECK_URL points at a loopback address; using public storefront URL for edge health: $canonical_url" >&2
+      printf '%s\n' "$canonical_url"
+      return 0
+    fi
+
     printf '%s\n' "$PUBLIC_STOREFRONT_HEALTHCHECK_URL"
     return 0
   fi
 
-  if [[ -n "${STOREFRONT_PUBLIC_URL:-}" ]]; then
-    printf '%s\n' "${STOREFRONT_PUBLIC_URL%/}/healthz"
-    return 0
-  fi
-
-  if [[ -n "${REACT_APP_SITE_URL:-}" ]]; then
-    printf '%s\n' "${REACT_APP_SITE_URL%/}/healthz"
+  if [[ -n "$canonical_url" ]]; then
+    printf '%s\n' "$canonical_url"
     return 0
   fi
 
