@@ -8,6 +8,7 @@ import com.example.api.admincms.DirectusAdminModels.ImportMapping;
 import com.example.api.admincms.DirectusAdminModels.LowStockAlertResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
+import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderSearchResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderStatusRequest;
 import com.example.api.admincms.DirectusAdminModels.PaymentLinkAnalyticsResponse;
@@ -121,6 +122,19 @@ public class DirectusAdminBridgeController {
         roleGuard.requireOrders(principal);
         OrderDetail response = adminService.clearOrderClaim(id, principal);
         audit(principal, "admin.order.unclaim", Map.of("orderId", id));
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/orders/{id}/refunds")
+    public ResponseEntity<OrderDetail> refundOrder(
+            @PathVariable UUID id,
+            @RequestBody(required = false) OrderRefundRequest requestBody,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireAdmin(principal, "payment refunds");
+        OrderDetail response = adminService.refundOrder(id, requestBody, principal);
+        audit(principal, "admin.order.refund", Map.of("orderId", id));
         return ResponseEntity.ok(response);
     }
 

@@ -42,6 +42,10 @@ public class DirectusAdminRoleGuard {
         requireAny(principal, "tax settings", adminTokens());
     }
 
+    public void requireAdmin(DirectusBridgeSecurity.DirectusBridgePrincipal principal, String scope) {
+        requireAny(principal, scope, adminTokens());
+    }
+
     public void requireAnalytics(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         requireAny(principal, "analytics", adminTokens(), managerTokens());
     }

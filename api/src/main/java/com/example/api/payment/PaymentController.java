@@ -1,5 +1,7 @@
 package com.example.api.payment;
 
+import com.example.api.admincms.DirectusAdminService;
+import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.payment.domain.Payment;
 import com.example.payment.service.PaymentService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -9,6 +11,7 @@ import com.example.order.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -16,6 +19,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -26,6 +31,7 @@ public class PaymentController {
     private final OrderService orderService;
     private final NotificationOrchestrator notificationOrchestrator;
     private final YooKassaWebhookVerifier webhookVerifier;
+    private final DirectusAdminService directusAdminService;
 
     @Value("${yookassa.enabled:false}")
     private boolean yooKassaEnabled;
@@ -36,7 +42,7 @@ public class PaymentController {
     @Value("${payment.public.provider-name:YooKassa}")
     private String publicProviderName;
 
-    @Value("${payment.public.method-summary:карта / SberPay}")
+    @Value("${payment.public.method-summary:карта / СБП}")
     private String publicMethodSummary;
 
     @Value("${payment.public.checkout-description:}")
@@ -55,11 +61,13 @@ public class PaymentController {
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
                              NotificationOrchestrator notificationOrchestrator,
-                             YooKassaWebhookVerifier webhookVerifier) {
+                             YooKassaWebhookVerifier webhookVerifier,
+                             ObjectProvider<DirectusAdminService> directusAdminServiceProvider) {
         this.paymentService = paymentService;
         this.orderService = orderService;
         this.notificationOrchestrator = notificationOrchestrator;
         this.webhookVerifier = webhookVerifier;
+        this.directusAdminService = directusAdminServiceProvider.getIfAvailable();
     }
 
     @GetMapping("/public-config")
@@ -70,12 +78,17 @@ public class PaymentController {
                 yooKassaEnabled,
                 safeValue(publicProviderCode, "YOOKASSA"),
                 providerName,
-                safeValue(publicMethodSummary, "карта / SberPay"),
+                safeValue(publicMethodSummary, "карта / СБП"),
                 resolveCheckoutDescription(providerName, confirmationMode),
                 resolveResumePaymentLabel(providerName, confirmationMode),
                 confirmationMode,
                 yooKassaEnabled,
-                safeValue(publicWidgetScriptUrl, "https://yookassa.ru/checkout-widget/v1/checkout-widget.js")
+                safeValue(publicWidgetScriptUrl, "https://yookassa.ru/checkout-widget/v1/checkout-widget.js"),
+                List.of("CARD", "SBP"),
+                true,
+                false,
+                false,
+                activeFiscalConfig()
         ));
     }
 
@@ -87,7 +100,7 @@ public class PaymentController {
 
     @PostMapping("/yookassa/refund")
     public ResponseEntity<Payment> refundYooKassaPayment(@Valid @RequestBody RefundRequest request) {
-        Payment payment = paymentService.refundYooKassaPayment(request.getOrderId());
+        Payment payment = paymentService.refundYooKassaPayment(request.getOrderId(), request.toPaymentRefundLines());
         return ResponseEntity.ok(payment);
     }
 
@@ -100,6 +113,7 @@ public class PaymentController {
     public static class RefundRequest {
         @NotNull
         private UUID orderId;
+        private List<RefundLineRequest> items;
 
         public UUID getOrderId() {
             return orderId;
@@ -108,6 +122,33 @@ public class PaymentController {
         public void setOrderId(UUID orderId) {
             this.orderId = orderId;
         }
+
+        public List<RefundLineRequest> getItems() {
+            return items;
+        }
+
+        public void setItems(List<RefundLineRequest> items) {
+            this.items = items;
+        }
+
+        private List<PaymentService.RefundLineRequest> toPaymentRefundLines() {
+            if (items == null || items.isEmpty()) {
+                return List.of();
+            }
+            return items.stream()
+                    .map(item -> new PaymentService.RefundLineRequest(
+                            item.orderItemId,
+                            item.quantity,
+                            item.amount
+                    ))
+                    .toList();
+        }
+    }
+
+    public static class RefundLineRequest {
+        public UUID orderItemId;
+        public Integer quantity;
+        public Long amount;
     }
 
     public static class CancelRequest {
@@ -202,6 +243,27 @@ public class PaymentController {
         return "Продолжить оплату через " + providerName;
     }
 
+    private FiscalConfig activeFiscalConfig() {
+        if (directusAdminService == null) {
+            return null;
+        }
+        return directusAdminService.activeTaxConfigurationView()
+                .map(this::toFiscalConfig)
+                .orElse(null);
+    }
+
+    private FiscalConfig toFiscalConfig(TaxConfigurationView view) {
+        return new FiscalConfig(
+                view.id(),
+                view.name(),
+                view.status(),
+                view.taxSystemCode(),
+                view.vatCode(),
+                view.vatRatePercent(),
+                view.active()
+        );
+    }
+
     public record PublicPaymentConfig(
             boolean enabled,
             String providerCode,
@@ -211,6 +273,21 @@ public class PaymentController {
             String resumePaymentLabel,
             String confirmationMode,
             boolean supportsEmbedded,
-            String widgetScriptUrl
+            String widgetScriptUrl,
+            List<String> methods,
+            boolean fullPrepayment,
+            boolean splitPaymentsEnabled,
+            boolean cashOnDeliveryEnabled,
+            FiscalConfig fiscalConfig
+    ) {}
+
+    public record FiscalConfig(
+            UUID id,
+            String name,
+            String status,
+            int taxSystemCode,
+            int vatCode,
+            BigDecimal vatRatePercent,
+            boolean active
     ) {}
 }

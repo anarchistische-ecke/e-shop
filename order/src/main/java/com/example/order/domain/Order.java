@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.OffsetDateTime;
@@ -178,6 +179,9 @@ public class Order extends BaseEntity {
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<OrderItem> items = new HashSet<>();
+
+    @Transient
+    private Object paymentSummary;
 
     public Order() {
     }
@@ -491,6 +495,14 @@ public class Order extends BaseEntity {
 
     public void setManagerClaimedAt(OffsetDateTime managerClaimedAt) {
         this.managerClaimedAt = managerClaimedAt;
+    }
+
+    public Object getPaymentSummary() {
+        return paymentSummary;
+    }
+
+    public void setPaymentSummary(Object paymentSummary) {
+        this.paymentSummary = paymentSummary;
     }
 
     public UUID getShipmentId() {
