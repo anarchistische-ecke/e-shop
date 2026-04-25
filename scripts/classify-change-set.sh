@@ -58,6 +58,11 @@ is_non_runtime_path() {
     docs/*) return 0 ;;
     README|README.*) return 0 ;;
     ops/nginx/*) return 0 ;;
+    scripts/check-stack-health.sh) return 0 ;;
+    scripts/classify-change-set.sh) return 0 ;;
+    scripts/deploy-*) return 0 ;;
+    scripts/rollback-*) return 0 ;;
+    scripts/lib/*) return 0 ;;
     .gitignore|.dockerignore) return 0 ;;
     *) return 1 ;;
   esac

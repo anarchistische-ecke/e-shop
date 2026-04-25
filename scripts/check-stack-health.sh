@@ -8,9 +8,11 @@ WAIT_TIMEOUT_SECONDS=120
 WAIT_INTERVAL_SECONDS=5
 API_URL=""
 DIRECTUS_URL=""
+STOREFRONT_URL=""
 CONTENT_URL=""
 PUBLIC_API_URL=""
 PUBLIC_DIRECTUS_URL=""
+PUBLIC_STOREFRONT_URL=""
 PUBLIC_CONTENT_URL=""
 SKIP_PUBLIC=false
 VERIFY_RUNTIME_STATE=false
@@ -28,9 +30,11 @@ Usage:
     [--compose-file <path>] \
     [--api-url <url>] \
     [--directus-url <url>] \
+    [--storefront-url <url>] \
     [--content-url <url>] \
     [--public-api-url <url>] \
     [--public-directus-url <url>] \
+    [--public-storefront-url <url>] \
     [--public-content-url <url>] \
     [--skip-public] \
     [--verify-runtime-state] \
@@ -60,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       DIRECTUS_URL="$2"
       shift 2
       ;;
+    --storefront-url)
+      STOREFRONT_URL="$2"
+      shift 2
+      ;;
     --content-url)
       CONTENT_URL="$2"
       shift 2
@@ -70,6 +78,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --public-directus-url)
       PUBLIC_DIRECTUS_URL="$2"
+      shift 2
+      ;;
+    --public-storefront-url)
+      PUBLIC_STOREFRONT_URL="$2"
       shift 2
       ;;
     --public-content-url)
@@ -139,15 +151,16 @@ check_url() {
 }
 
 verify_runtime_state() {
-  local upstream_api_port upstream_directus_port
+  local upstream_api_port upstream_directus_port upstream_storefront_port
 
-  if [[ -z "${CURRENT_LIVE_API_PORT:-}" || -z "${CURRENT_LIVE_DIRECTUS_PORT:-}" ]]; then
+  if [[ -z "${CURRENT_LIVE_API_PORT:-}" || -z "${CURRENT_LIVE_DIRECTUS_PORT:-}" || -z "${CURRENT_LIVE_STOREFRONT_PORT:-}" ]]; then
     echo "Runtime state is incomplete; cannot verify nginx upstreams." >&2
     return 1
   fi
 
   upstream_api_port="$(runtime_read_upstream_port "$DEPLOY_NGINX_API_UPSTREAM_INCLUDE" || true)"
   upstream_directus_port="$(runtime_read_upstream_port "$DEPLOY_NGINX_CMS_UPSTREAM_INCLUDE" || true)"
+  upstream_storefront_port="$(runtime_read_upstream_port "$DEPLOY_NGINX_STOREFRONT_UPSTREAM_INCLUDE" || true)"
 
   if [[ "$upstream_api_port" != "$CURRENT_LIVE_API_PORT" ]]; then
     echo "API upstream drift detected: nginx points to ${upstream_api_port:-unset}, state expects ${CURRENT_LIVE_API_PORT}." >&2
@@ -159,26 +172,44 @@ verify_runtime_state() {
     return 1
   fi
 
+  if [[ "$upstream_storefront_port" != "$CURRENT_LIVE_STOREFRONT_PORT" ]]; then
+    echo "Storefront upstream drift detected: nginx points to ${upstream_storefront_port:-unset}, state expects ${CURRENT_LIVE_STOREFRONT_PORT}." >&2
+    return 1
+  fi
+
   echo "[ok] Runtime state matches nginx upstream includes."
 }
 
-if [[ -n "${CURRENT_LIVE_API_PORT:-}" ]]; then
+if [[ -n "${CURRENT_LIVE_API_PORT:-}" && -n "${CURRENT_LIVE_DIRECTUS_PORT:-}" && -n "${CURRENT_LIVE_STOREFRONT_PORT:-}" ]]; then
   API_URL="${API_URL:-$(runtime_internal_api_url "$CURRENT_LIVE_API_PORT")}"
   DIRECTUS_URL="${DIRECTUS_URL:-$(runtime_internal_directus_url "$CURRENT_LIVE_DIRECTUS_PORT")}"
+  STOREFRONT_URL="${STOREFRONT_URL:-$(runtime_internal_storefront_url "$CURRENT_LIVE_STOREFRONT_PORT")}"
   CONTENT_URL="${CONTENT_URL:-$(runtime_internal_content_url "$CURRENT_LIVE_API_PORT")}"
 else
   API_URL="${API_URL:-${API_HEALTHCHECK_URL:-http://127.0.0.1:8080/health/redis}}"
   DIRECTUS_URL="${DIRECTUS_URL:-${DIRECTUS_HEALTHCHECK_URL:-http://127.0.0.1:8055/server/health}}"
+  if [[ -n "${STOREFRONT_HEALTHCHECK_URL:-}" ]]; then
+    STOREFRONT_URL="${STOREFRONT_URL:-$STOREFRONT_HEALTHCHECK_URL}"
+  elif [[ -n "${STOREFRONT_HOST_PORT:-}" || -n "${STOREFRONT_IMAGE_REPOSITORY:-}" ]]; then
+    STOREFRONT_URL="${STOREFRONT_URL:-http://127.0.0.1:${STOREFRONT_HOST_PORT:-3000}/healthz}"
+  fi
   CONTENT_URL="${CONTENT_URL:-${CONTENT_HEALTHCHECK_URL:-}}"
 fi
 
 PUBLIC_API_URL="${PUBLIC_API_URL:-${PUBLIC_API_HEALTHCHECK_URL:-}}"
 PUBLIC_DIRECTUS_URL="${PUBLIC_DIRECTUS_URL:-$(runtime_public_directus_url)}"
+PUBLIC_STOREFRONT_URL="${PUBLIC_STOREFRONT_URL:-$(runtime_public_storefront_url)}"
 PUBLIC_CONTENT_URL="${PUBLIC_CONTENT_URL:-${PUBLIC_CONTENT_HEALTHCHECK_URL:-}}"
 
 echo "Checking internal runtime health..."
 check_url "Backend health" "$API_URL"
 check_url "Directus health" "$DIRECTUS_URL"
+
+if [[ -n "$STOREFRONT_URL" ]]; then
+  check_url "Storefront health" "$STOREFRONT_URL"
+else
+  echo "[skip] Storefront health URL is not configured."
+fi
 
 if [[ -n "$CONTENT_URL" ]]; then
   check_url "CMS facade health" "$CONTENT_URL"
@@ -201,6 +232,12 @@ if [[ "$SKIP_PUBLIC" != "true" ]]; then
     check_url "Public Directus health" "$PUBLIC_DIRECTUS_URL"
   else
     echo "[skip] Public Directus health URL is not configured."
+  fi
+
+  if [[ -n "$PUBLIC_STOREFRONT_URL" ]]; then
+    check_url "Public storefront health" "$PUBLIC_STOREFRONT_URL"
+  else
+    echo "[skip] Public storefront health URL is not configured."
   fi
 
   if [[ -n "$PUBLIC_CONTENT_URL" ]]; then
