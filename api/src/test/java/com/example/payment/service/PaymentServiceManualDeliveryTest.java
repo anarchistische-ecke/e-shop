@@ -8,6 +8,7 @@ import com.example.order.service.OrderService;
 import com.example.payment.domain.Payment;
 import com.example.payment.domain.PaymentStatus;
 import com.example.payment.repository.PaymentRefundRepository;
+import com.example.payment.repository.PaymentRefundItemRepository;
 import com.example.payment.repository.PaymentRepository;
 import com.example.payment.repository.SavedPaymentMethodRepository;
 import org.junit.jupiter.api.Test;
@@ -37,17 +38,23 @@ class PaymentServiceManualDeliveryTest {
         ObjectProvider<com.example.customer.repository.CustomerRepository> customerRepositoryProvider = mock(ObjectProvider.class);
         ObjectProvider<YooKassaClient> yooKassaClientProvider = mock(ObjectProvider.class);
         ObjectProvider<OrderService> orderServiceProvider = mock(ObjectProvider.class);
+        ObjectProvider<PaymentRefundItemRepository> paymentRefundItemRepositoryProvider = mock(ObjectProvider.class);
         ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProvider = mock(ObjectProvider.class);
+        FiscalConfigurationProvider fiscalConfiguration = mock(FiscalConfigurationProvider.class);
         ObjectProvider<PromoCodeRedemptionRecorder> promoCodeRedemptionRecorderProvider = mock(ObjectProvider.class);
         when(customerRepositoryProvider.getIfAvailable()).thenReturn(null);
         when(yooKassaClientProvider.getIfAvailable()).thenReturn(yooKassaClient);
         when(orderServiceProvider.getIfAvailable()).thenReturn(null);
-        when(fiscalConfigurationProvider.getIfAvailable()).thenReturn(null);
+        when(paymentRefundItemRepositoryProvider.getIfAvailable()).thenReturn(null);
+        when(fiscalConfigurationProvider.getIfAvailable()).thenReturn(fiscalConfiguration);
+        when(fiscalConfiguration.getActiveFiscalConfiguration())
+                .thenReturn(new FiscalConfigurationProvider.FiscalConfiguration(6, 2));
         when(promoCodeRedemptionRecorderProvider.getIfAvailable()).thenReturn(null);
 
         PaymentService service = new PaymentService(
                 paymentRepository,
                 paymentRefundRepository,
+                paymentRefundItemRepositoryProvider,
                 savedPaymentMethodRepository,
                 orderRepository,
                 customerRepositoryProvider,
@@ -99,8 +106,12 @@ class PaymentServiceManualDeliveryTest {
 
         assertEquals("4200.00", request.amount.value);
         assertEquals("RUB", request.amount.currency);
+        assertEquals(6, request.receipt.taxSystemCode);
         assertEquals(1, request.receipt.items.size());
         assertEquals("Сатиновый комплект Sand (200x220)", request.receipt.items.getFirst().description);
+        assertEquals(2, request.receipt.items.getFirst().vatCode);
+        assertEquals("full_prepayment", request.receipt.items.getFirst().paymentMode);
+        assertEquals("commodity", request.receipt.items.getFirst().paymentSubject);
         assertEquals("+79990000000", request.receipt.customer.phone);
         assertEquals(420000, payment.getAmount().getAmount());
         assertNull(order.getDeliveryAmount());

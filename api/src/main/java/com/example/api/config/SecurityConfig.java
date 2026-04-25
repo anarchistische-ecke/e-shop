@@ -92,6 +92,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/payments/yookassa/webhook").permitAll()
                 .requestMatchers(HttpMethod.POST, "/payments/yookassa/refund").access(adminAccess)
                 .requestMatchers(HttpMethod.POST, "/payments/yookassa/cancel").access(adminAccess)
+                .requestMatchers(HttpMethod.GET, "/promotions/active").permitAll()
                 // Allow anyone to view products, categories and brands via GET
                 .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/brands/**").permitAll()
                 // Inventory adjustments require admin privileges

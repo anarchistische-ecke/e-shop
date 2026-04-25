@@ -1349,6 +1349,99 @@
             <section class="section-block">
               <div class="section-head">
                 <div>
+                  <h3>Оплата и возвраты</h3>
+                  <p>{{ orderState.detail.order.paymentSummary ? 'YooKassa · полная предоплата' : 'Платёж ещё не создан' }}</p>
+                </div>
+                <button
+                  v-if="canRefundSelectedOrder"
+                  class="button button-danger"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="refundSelectedOrder({ full: true })"
+                >
+                  Вернуть остаток
+                </button>
+              </div>
+
+              <dl v-if="orderState.detail.order.paymentSummary" class="definition-list">
+                <div>
+                  <dt>Статус</dt>
+                  <dd>{{ orderState.detail.order.paymentSummary.status }}</dd>
+                </div>
+                <div>
+                  <dt>ID платежа</dt>
+                  <dd>{{ orderState.detail.order.paymentSummary.providerPaymentId || 'Не указан' }}</dd>
+                </div>
+                <div>
+                  <dt>Сумма платежа</dt>
+                  <dd>{{ formatMinorMoney(orderState.detail.order.paymentSummary.amount?.amount, orderState.detail.order.paymentSummary.amount?.currency) }}</dd>
+                </div>
+                <div>
+                  <dt>Доступно к возврату</dt>
+                  <dd>{{ formatMinorMoney(orderState.detail.order.paymentSummary.refundableAmount?.amount, orderState.detail.order.paymentSummary.refundableAmount?.currency) }}</dd>
+                </div>
+                <div>
+                  <dt>Чек 54-ФЗ</dt>
+                  <dd v-if="orderState.detail.order.paymentSummary.receiptUrl">
+                    <a :href="orderState.detail.order.paymentSummary.receiptUrl" target="_blank" rel="noreferrer">Открыть чек</a>
+                  </dd>
+                  <dd v-else>{{ orderState.detail.order.paymentSummary.receiptRegistration || 'Формируется в YooKassa' }}</dd>
+                </div>
+              </dl>
+              <div v-else class="empty-inline">Заказ ожидает создания платёжной сессии.</div>
+
+              <div v-if="orderState.detail.order.paymentSummary?.refunds?.length" class="card-list card-list-compact">
+                <article v-for="refund in orderState.detail.order.paymentSummary.refunds" :key="refund.id || refund.refundId" class="list-card">
+                  <div class="list-card-head">
+                    <strong>{{ formatMinorMoney(refund.amount?.amount, refund.amount?.currency) }}</strong>
+                    <span class="pill pill-neutral">{{ refund.status }}</span>
+                  </div>
+                  <p class="list-card-slug">{{ refund.refundId }}</p>
+                  <div class="list-card-meta">
+                    <span>{{ formatDateTime(refund.refundDate) }}</span>
+                    <span>{{ refund.items?.length || 0 }} строк</span>
+                  </div>
+                </article>
+              </div>
+
+              <form v-if="canRefundSelectedOrder" class="editor-form" @submit.prevent="refundSelectedOrder({ full: false })">
+                <div class="section-head section-head-compact">
+                  <div>
+                    <h3>Частичный возврат</h3>
+                    <p>Укажите количество по строкам заказа. Сумма необязательна: если оставить пустой, API рассчитает её по оплаченной цене строки.</p>
+                  </div>
+                </div>
+                <div class="card-list card-list-compact">
+                  <template v-for="item in orderState.detail.order.items || []" :key="`refund-${item.id}`">
+                    <article v-if="item.id && orderState.refundForms[item.id]" class="list-card">
+                      <div class="list-card-head">
+                        <strong>{{ item.productName || item.variantName || item.variantId }}</strong>
+                        <span class="pill pill-neutral">{{ item.quantity }} шт.</span>
+                      </div>
+                      <div class="form-grid">
+                        <label class="ops-field">
+                          <span>Количество к возврату</span>
+                          <input v-model.number="orderState.refundForms[item.id].quantity" type="number" min="0" :max="item.quantity" step="1" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Сумма, ₽</span>
+                          <input v-model.number="orderState.refundForms[item.id].amount" type="number" min="0" step="0.01" />
+                        </label>
+                      </div>
+                    </article>
+                  </template>
+                </div>
+                <div class="sticky-actions sticky-actions-inline">
+                  <button class="button button-danger" type="submit" :disabled="isSubmitting">
+                    Создать частичный возврат
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
                   <h3>Уведомления</h3>
                   <p>{{ orderState.detail.order.receiptEmail || 'Email не указан' }}</p>
                 </div>
@@ -2126,6 +2219,7 @@ const orderState = reactive({
   rmaReason: '',
   rmaDesiredResolution: '',
   rmaDecisionForms: {},
+  refundForms: {},
 });
 
 const importState = reactive({
@@ -2284,6 +2378,19 @@ const canDecideSelectedOrderRma = computed(() => {
     return false;
   }
   return roleKind.value === 'admin' || (roleKind.value === 'manager' && isOrderAssignedToCurrentUser(order));
+});
+const canRefundSelectedOrder = computed(() => {
+  const summary = selectedOrder.value?.paymentSummary;
+  const hasPendingRefund = Array.isArray(summary?.refunds)
+    ? summary.refunds.some((refund) => refund?.status === 'PENDING')
+    : false;
+  return Boolean(
+    roleKind.value === 'admin' &&
+    summary &&
+    summary.status === 'COMPLETED' &&
+    !hasPendingRefund &&
+    moneyMinorAmount(summary.refundableAmount) > 0
+  );
 });
 const accessRoleLabel = computed(() => {
   if (accessState.roleName) {
@@ -2812,6 +2919,7 @@ async function loadOrderDetail(id, { silent = false } = {}) {
     orderState.nextStatus = nextAllowedOrderStatus(response?.order?.status || '');
     orderState.note = '';
     hydrateOrderRmaForms(response);
+    hydrateOrderRefundForms(response);
   } catch (error) {
     setError(error);
   } finally {
@@ -3123,6 +3231,18 @@ function hydrateOrderRmaForms(detail) {
     };
   }
   orderState.rmaDecisionForms = nextForms;
+}
+
+function hydrateOrderRefundForms(detail) {
+  const nextForms = {};
+  for (const item of detail?.order?.items || []) {
+    const existing = orderState.refundForms[item.id] || {};
+    nextForms[item.id] = {
+      quantity: existing.quantity ?? 0,
+      amount: existing.amount ?? null,
+    };
+  }
+  orderState.refundForms = nextForms;
 }
 
 function startCreateProduct() {
@@ -3622,6 +3742,52 @@ async function selectOrder(id) {
   await loadOrderDetail(id);
 }
 
+async function refundSelectedOrder({ full = false } = {}) {
+  if (!orderState.selectedId || !canRefundSelectedOrder.value) {
+    pageError.value = 'Возврат оплаты недоступен для этого заказа.';
+    return;
+  }
+  const items = full ? [] : selectedRefundLines();
+  if (!full && !items.length) {
+    pageError.value = 'Укажите хотя бы одну строку и количество для частичного возврата.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    const response = await bridgeRequest(`/admin/orders/${orderState.selectedId}/refunds`, {
+      method: 'POST',
+      data: { items },
+    });
+    orderState.detail = response;
+    hydrateOrderRmaForms(response);
+    hydrateOrderRefundForms(response);
+    await loadOrders();
+    setSuccess(full ? 'Создан возврат оставшейся суммы.' : 'Создан частичный возврат.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function selectedRefundLines() {
+  return Object.entries(orderState.refundForms || {})
+    .map(([orderItemId, form]) => {
+      const quantity = normalizeNullableNumber(form?.quantity);
+      const amount = majorToMinor(form?.amount);
+      if (!quantity || quantity <= 0) {
+        return null;
+      }
+      return {
+        orderItemId,
+        quantity,
+        amount,
+      };
+    })
+    .filter(Boolean);
+}
+
 async function createRmaRequest() {
   if (!orderState.selectedId || !canManageSelectedOrderRma.value) {
     pageError.value = 'RMA для этого заказа недоступен.';
@@ -3700,6 +3866,7 @@ async function submitOrderStatus() {
     orderState.detail = response;
     orderState.note = '';
     hydrateOrderRmaForms(response);
+    hydrateOrderRefundForms(response);
     await loadOrders();
     setSuccess('Статус заказа обновлён.');
   } catch (error) {
@@ -3722,6 +3889,7 @@ async function claimOrder() {
   try {
     orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/claim`, { method: 'POST' });
     hydrateOrderRmaForms(orderState.detail);
+    hydrateOrderRefundForms(orderState.detail);
     await loadOrders();
     setSuccess('Заказ отмечен как взятый в работу.');
   } catch (error) {
@@ -3740,6 +3908,7 @@ async function clearOrderClaim() {
   try {
     orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/unclaim`, { method: 'POST' });
     hydrateOrderRmaForms(orderState.detail);
+    hydrateOrderRefundForms(orderState.detail);
     await loadOrders();
     setSuccess('Менеджер снят с заказа.');
   } catch (error) {
@@ -4308,6 +4477,11 @@ function formatMoney(price) {
   }
   const currency = price.currency || 'RUB';
   return `${price.amount} ${currency}`;
+}
+
+function moneyMinorAmount(price) {
+  const amount = Number(price?.amount ?? 0);
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 function formatMinorMoney(amount, currency = 'RUB') {

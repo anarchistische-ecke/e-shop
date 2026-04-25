@@ -77,6 +77,12 @@ public final class DirectusAdminModels {
     public record OrderStatusRequest(String status, String note) {
     }
 
+    public record OrderRefundRequest(List<OrderRefundLineRequest> items) {
+    }
+
+    public record OrderRefundLineRequest(UUID orderItemId, Integer quantity, Long amount) {
+    }
+
     public record ShipmentView(
             UUID id,
             UUID orderId,

@@ -8,9 +8,11 @@ import com.example.order.domain.OrderItem;
 import com.example.order.repository.OrderRepository;
 import com.example.order.service.OrderService;
 import com.example.payment.domain.Payment;
-import com.example.payment.domain.PaymentStatus;
 import com.example.payment.domain.PaymentRefund;
+import com.example.payment.domain.PaymentRefundItem;
+import com.example.payment.domain.PaymentStatus;
 import com.example.payment.domain.SavedPaymentMethod;
+import com.example.payment.repository.PaymentRefundItemRepository;
 import com.example.payment.repository.PaymentRefundRepository;
 import com.example.payment.repository.PaymentRepository;
 import com.example.payment.repository.SavedPaymentMethodRepository;
@@ -25,13 +27,17 @@ import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
 public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
+    private final PaymentRefundItemRepository paymentRefundItemRepository;
     private final SavedPaymentMethodRepository savedPaymentMethodRepository;
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
@@ -43,6 +49,7 @@ public class PaymentService {
     @Autowired
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentRefundRepository paymentRefundRepository,
+                          ObjectProvider<PaymentRefundItemRepository> paymentRefundItemRepositoryProvider,
                           SavedPaymentMethodRepository savedPaymentMethodRepository,
                           OrderRepository orderRepository,
                           ObjectProvider<CustomerRepository> customerRepositoryProvider,
@@ -52,6 +59,7 @@ public class PaymentService {
                           ObjectProvider<PromoCodeRedemptionRecorder> promoCodeRedemptionRecorderProvider) {
         this.paymentRepository = paymentRepository;
         this.paymentRefundRepository = paymentRefundRepository;
+        this.paymentRefundItemRepository = paymentRefundItemRepositoryProvider.getIfAvailable();
         this.savedPaymentMethodRepository = savedPaymentMethodRepository;
         this.orderRepository = orderRepository;
         this.customerRepository = customerRepositoryProvider.getIfAvailable();
@@ -148,6 +156,57 @@ public class PaymentService {
             return null;
         }
         return paymentRepository.findByProviderPaymentId(providerPaymentId).orElse(null);
+    }
+
+    public PaymentSummary getPaymentSummary(UUID orderId) {
+        if (orderId == null) {
+            return null;
+        }
+        Payment payment = paymentRepository.findTopByOrderIdOrderByPaymentDateDesc(orderId).orElse(null);
+        if (payment == null) {
+            return null;
+        }
+        long refunded = Math.max(0L, valueOrZero(
+                paymentRefundRepository.sumAmountByPaymentIdAndStatus(payment.getId(), "SUCCEEDED")
+        ));
+        String currency = payment.getAmount() != null ? payment.getAmount().getCurrency() : "RUB";
+        long paidAmount = payment.getAmount() != null ? payment.getAmount().getAmount() : 0L;
+        long refundable = Math.max(0L, paidAmount - refunded);
+        Map<String, List<PaymentRefundItem>> itemsByRefundId = paymentRefundItemRepository != null
+                ? paymentRefundItemRepository.findByPaymentIdOrderByCreatedAtDesc(payment.getId()).stream()
+                    .filter(item -> StringUtils.hasText(item.getRefundId()))
+                    .collect(Collectors.groupingBy(PaymentRefundItem::getRefundId))
+                : Map.of();
+        List<PaymentSummary.RefundSummary> refunds = paymentRefundRepository
+                .findByPaymentIdOrderByCreatedAtDesc(payment.getId()).stream()
+                .map(refund -> new PaymentSummary.RefundSummary(
+                        refund.getId(),
+                        refund.getRefundId(),
+                        refund.getRefundStatus(),
+                        refund.getRefundAmount(),
+                        refund.getRefundDate(),
+                        itemsByRefundId.getOrDefault(refund.getRefundId(), List.of()).stream()
+                                .map(item -> new PaymentSummary.RefundItemSummary(
+                                        item.getOrderItemId(),
+                                        item.getQuantity(),
+                                        item.getRefundAmount(),
+                                        item.getRefundStatus()
+                                ))
+                                .toList()
+                ))
+                .toList();
+        return new PaymentSummary(
+                payment.getId(),
+                payment.getProviderPaymentId(),
+                payment.getMethod(),
+                payment.getStatus(),
+                payment.getAmount(),
+                payment.getReceiptRegistration(),
+                payment.getReceiptUrl(),
+                Money.of(refunded, currency),
+                Money.of(refundable, currency),
+                refunds
+        );
     }
 
     public PaymentUpdateResult refreshYooKassaPaymentWithResult(String providerPaymentId) {
@@ -297,7 +356,15 @@ public class PaymentService {
         savedPaymentMethodRepository.save(existing);
     }
 
+    public record RefundLineRequest(UUID orderItemId, Integer quantity, Long amount) {}
+
+    private record PreparedRefundLine(OrderItem item, int quantity, Money amount) {}
+
     public Payment refundYooKassaPayment(UUID orderId) {
+        return refundYooKassaPayment(orderId, List.of());
+    }
+
+    public Payment refundYooKassaPayment(UUID orderId, List<RefundLineRequest> refundLines) {
         if (yooKassaClient == null) {
             throw new IllegalStateException("YooKassa integration is disabled (set yookassa.enabled=true to enable).");
         }
@@ -309,26 +376,61 @@ public class PaymentService {
         if (payment.getStatus() != PaymentStatus.COMPLETED) {
             throw new IllegalStateException("Only completed payments can be refunded");
         }
+        if (paymentRefundRepository.existsByPaymentIdAndRefundStatus(payment.getId(), "PENDING")) {
+            throw new IllegalStateException("A refund is already pending for this payment");
+        }
         Order order = orderRepository.findWithItemsById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        long totalRefunded = Math.max(0L, valueOrZero(
+                paymentRefundRepository.sumAmountByPaymentIdAndStatus(payment.getId(), "SUCCEEDED")
+        ));
+        long remainingAmount = Math.max(0L, payment.getAmount().getAmount() - totalRefunded);
+        if (remainingAmount <= 0L) {
+            throw new IllegalStateException("Payment has no refundable amount remaining");
+        }
+        boolean fullRemainingRequest = refundLines == null || refundLines.isEmpty();
+        List<PreparedRefundLine> preparedLines = fullRemainingRequest
+                ? prepareRemainingRefundLines(payment, order)
+                : prepareRequestedRefundLines(payment, order, refundLines);
+        long requestedAmount = preparedLines.stream()
+                .map(PreparedRefundLine::amount)
+                .filter(Objects::nonNull)
+                .mapToLong(Money::getAmount)
+                .sum();
+        boolean useOriginalReceiptForFullRefund = fullRemainingRequest
+                && totalRefunded == 0L
+                && requestedAmount < remainingAmount;
+        if (useOriginalReceiptForFullRefund) {
+            requestedAmount = remainingAmount;
+        }
+        if (requestedAmount <= 0L) {
+            throw new IllegalArgumentException("Refund amount must be greater than zero");
+        }
+        if (requestedAmount > remainingAmount) {
+            throw new IllegalArgumentException("Refund amount exceeds remaining refundable payment amount");
+        }
 
         YooKassaClient.CreateRefundRequest request = new YooKassaClient.CreateRefundRequest();
         request.paymentId = payment.getProviderPaymentId();
-        request.amount = YooKassaClient.Amount.of(formatAmount(payment.getAmount()), payment.getAmount().getCurrency());
-        request.metadata = YooKassaClient.Metadata.of(orderId.toString(), null);
+        request.amount = YooKassaClient.Amount.of(formatAmount(Money.of(requestedAmount, payment.getAmount().getCurrency())), payment.getAmount().getCurrency());
+        request.metadata = YooKassaClient.Metadata.of(orderId.toString(), order.getPublicToken());
         if (order.getReceiptEmail() != null && !order.getReceiptEmail().isBlank()) {
-            request.receipt = buildReceipt(order, order.getReceiptEmail());
+            request.receipt = useOriginalReceiptForFullRefund
+                    ? buildReceipt(order, order.getReceiptEmail())
+                    : buildRefundReceipt(order, order.getReceiptEmail(), preparedLines);
         }
 
         YooKassaClient.RefundResponse response = yooKassaClient.createRefund(
                 request,
-                buildRefundIdempotencyKey(payment)
+                buildRefundIdempotencyKey(payment, requestedAmount)
         );
         if (response == null || response.id == null) {
             throw new PaymentProcessingException("Failed to create YooKassa refund");
         }
         assertRefundMetadataMatches(response, order);
-        return applyRefundResponse(payment, order, response);
+        Payment updated = applyRefundResponse(payment, order, response);
+        saveRefundItems(updated, response, preparedLines);
+        return updated;
     }
 
     private Payment applyRefundResponse(Payment payment, Order order, YooKassaClient.RefundResponse response) {
@@ -339,6 +441,9 @@ public class PaymentService {
         payment = paymentRepository.save(payment);
 
         upsertRefundRecord(payment, response);
+        if (paymentRefundItemRepository != null) {
+            paymentRefundItemRepository.updateRefundStatusByRefundId(response.id, normalizeRefundStatus(response.status));
+        }
 
         long totalRefunded = Math.max(0L, valueOrZero(
                 paymentRefundRepository.sumAmountByPaymentIdAndStatus(payment.getId(), "SUCCEEDED")
@@ -355,6 +460,176 @@ public class PaymentService {
             restockOrder(order.getId(), "PAYMENT_REFUNDED", "restock-refund-" + order.getId());
         }
         return payment;
+    }
+
+    private List<PreparedRefundLine> prepareRequestedRefundLines(Payment payment,
+                                                                 Order order,
+                                                                 List<RefundLineRequest> refundLines) {
+        if (refundLines == null || refundLines.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, OrderItem> itemsById = order.getItems().stream()
+                .filter(item -> item.getId() != null)
+                .collect(Collectors.toMap(OrderItem::getId, item -> item));
+        List<PreparedRefundLine> prepared = new ArrayList<>();
+        List<UUID> seenOrderItems = new ArrayList<>();
+        for (RefundLineRequest line : refundLines) {
+            if (line == null || line.orderItemId() == null) {
+                throw new IllegalArgumentException("Refund line orderItemId is required");
+            }
+            if (seenOrderItems.contains(line.orderItemId())) {
+                throw new IllegalArgumentException("Duplicate refund line for order item: " + line.orderItemId());
+            }
+            seenOrderItems.add(line.orderItemId());
+            OrderItem item = itemsById.get(line.orderItemId());
+            if (item == null) {
+                throw new IllegalArgumentException("Order item not found for refund: " + line.orderItemId());
+            }
+            int quantity = line.quantity() != null ? line.quantity() : 1;
+            if (quantity <= 0) {
+                throw new IllegalArgumentException("Refund line quantity must be greater than zero");
+            }
+            long refundedQuantity = refundedItemQuantity(payment.getId(), item.getId());
+            int remainingQuantity = Math.max(0, item.getQuantity() - (int) refundedQuantity);
+            if (quantity > remainingQuantity) {
+                throw new IllegalArgumentException("Refund quantity exceeds remaining quantity for order item: " + item.getId());
+            }
+            long itemRemainingAmount = Math.max(0L, item.getPayableTotalAmount() - refundedItemAmount(payment.getId(), item.getId()));
+            long requestedAmount = line.amount() != null
+                    ? line.amount()
+                    : proratedRefundAmount(item, quantity, remainingQuantity, itemRemainingAmount);
+            if (requestedAmount <= 0L) {
+                throw new IllegalArgumentException("Refund line amount must be greater than zero");
+            }
+            if (requestedAmount > itemRemainingAmount) {
+                throw new IllegalArgumentException("Refund line amount exceeds remaining amount for order item: " + item.getId());
+            }
+            String currency = item.getPayableAmount() != null
+                    ? item.getPayableAmount().getCurrency()
+                    : item.getUnitPrice().getCurrency();
+            prepared.add(new PreparedRefundLine(item, quantity, Money.of(requestedAmount, currency)));
+        }
+        return prepared;
+    }
+
+    private List<PreparedRefundLine> prepareRemainingRefundLines(Payment payment, Order order) {
+        if (order.getItems() == null || order.getItems().isEmpty()) {
+            return List.of();
+        }
+        return order.getItems().stream()
+                .filter(item -> item.getId() != null && item.getQuantity() > 0)
+                .map(item -> {
+                    long refundedQuantity = refundedItemQuantity(payment.getId(), item.getId());
+                    int remainingQuantity = Math.max(0, item.getQuantity() - (int) refundedQuantity);
+                    long remainingAmount = Math.max(0L, item.getPayableTotalAmount() - refundedItemAmount(payment.getId(), item.getId()));
+                    if (remainingQuantity <= 0 || remainingAmount <= 0L) {
+                        return null;
+                    }
+                    String currency = item.getPayableAmount() != null
+                            ? item.getPayableAmount().getCurrency()
+                            : item.getUnitPrice().getCurrency();
+                    return new PreparedRefundLine(item, remainingQuantity, Money.of(remainingAmount, currency));
+                })
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private long proratedRefundAmount(OrderItem item, int quantity, int remainingQuantity, long itemRemainingAmount) {
+        if (quantity == remainingQuantity) {
+            return itemRemainingAmount;
+        }
+        long payableTotal = item.getPayableTotalAmount();
+        long prorated = Math.round((double) payableTotal * quantity / item.getQuantity());
+        return Math.min(Math.max(0L, prorated), itemRemainingAmount);
+    }
+
+    private long refundedItemQuantity(UUID paymentId, UUID orderItemId) {
+        if (paymentRefundItemRepository == null || paymentId == null || orderItemId == null) {
+            return 0L;
+        }
+        return valueOrZero(paymentRefundItemRepository.sumQuantityByPaymentIdAndOrderItemIdAndStatus(
+                paymentId,
+                orderItemId,
+                "SUCCEEDED"
+        ));
+    }
+
+    private long refundedItemAmount(UUID paymentId, UUID orderItemId) {
+        if (paymentRefundItemRepository == null || paymentId == null || orderItemId == null) {
+            return 0L;
+        }
+        return valueOrZero(paymentRefundItemRepository.sumAmountByPaymentIdAndOrderItemIdAndStatus(
+                paymentId,
+                orderItemId,
+                "SUCCEEDED"
+        ));
+    }
+
+    private void saveRefundItems(Payment payment,
+                                 YooKassaClient.RefundResponse response,
+                                 List<PreparedRefundLine> preparedLines) {
+        if (paymentRefundItemRepository == null || payment == null || response == null || !StringUtils.hasText(response.id)) {
+            return;
+        }
+        if (preparedLines == null || preparedLines.isEmpty()) {
+            return;
+        }
+        String status = normalizeRefundStatus(response.status);
+        preparedLines.forEach(line -> {
+            PaymentRefundItem item = paymentRefundItemRepository
+                    .findByRefundIdAndOrderItemId(response.id, line.item().getId())
+                    .orElseGet(PaymentRefundItem::new);
+            item.setPaymentId(payment.getId());
+            item.setRefundId(response.id);
+            item.setOrderItemId(line.item().getId());
+            item.setQuantity(line.quantity());
+            item.setRefundAmount(line.amount());
+            item.setRefundStatus(status);
+            paymentRefundItemRepository.save(item);
+        });
+    }
+
+    private YooKassaClient.Receipt buildRefundReceipt(Order order,
+                                                      String email,
+                                                      List<PreparedRefundLine> refundLines) {
+        if (email == null || email.isBlank() || refundLines == null || refundLines.isEmpty()) {
+            return null;
+        }
+        YooKassaClient.Receipt receipt = new YooKassaClient.Receipt();
+        receipt.customer = new YooKassaClient.ReceiptCustomer();
+        receipt.customer.email = email;
+        String phone = resolveReceiptPhone(order, email);
+        if (StringUtils.hasText(phone)) {
+            receipt.customer.phone = phone;
+        }
+        List<YooKassaClient.ReceiptItem> receiptItems = new ArrayList<>();
+        refundLines.forEach(line -> receiptItems.addAll(buildReceiptItemsForRefundLine(line)));
+        receipt.items = receiptItems;
+        receipt.taxSystemCode = resolveTaxSystemCode();
+        return receipt;
+    }
+
+    private List<YooKassaClient.ReceiptItem> buildReceiptItemsForRefundLine(PreparedRefundLine line) {
+        if (line == null || line.item() == null || line.quantity() <= 0 || line.amount() == null || line.amount().getAmount() <= 0L) {
+            return List.of();
+        }
+        long total = line.amount().getAmount();
+        int quantity = line.quantity();
+        long unitAmount = total / quantity;
+        int remainder = (int) (total % quantity);
+        if (unitAmount <= 0L) {
+            throw new IllegalArgumentException("Refund line amount is too small for the selected quantity");
+        }
+        if (remainder == 0) {
+            return List.of(buildReceiptItem(line.item(), quantity, Money.of(unitAmount, line.amount().getCurrency()), null));
+        }
+        List<YooKassaClient.ReceiptItem> items = new ArrayList<>();
+        items.add(buildReceiptItem(line.item(), remainder, Money.of(unitAmount + 1, line.amount().getCurrency()), " / возврат 1"));
+        int remainingQuantity = quantity - remainder;
+        if (remainingQuantity > 0) {
+            items.add(buildReceiptItem(line.item(), remainingQuantity, Money.of(unitAmount, line.amount().getCurrency()), " / возврат 2"));
+        }
+        return items;
     }
 
     private YooKassaClient.Receipt buildReceipt(Order order, String email) {
@@ -376,7 +651,7 @@ public class PaymentService {
             deliveryItem.quantity = BigDecimal.ONE;
             deliveryItem.amount = YooKassaClient.Amount.of(formatAmount(order.getDeliveryAmount()), order.getDeliveryAmount().getCurrency());
             deliveryItem.vatCode = resolveVatCode();
-            deliveryItem.paymentMode = "full_payment";
+            deliveryItem.paymentMode = "full_prepayment";
             deliveryItem.paymentSubject = "service";
             receiptItems.add(deliveryItem);
         }
@@ -416,7 +691,7 @@ public class PaymentService {
         receiptItem.quantity = BigDecimal.valueOf(quantity);
         receiptItem.amount = YooKassaClient.Amount.of(formatAmount(unitPrice), unitPrice.getCurrency());
         receiptItem.vatCode = resolveVatCode();
-        receiptItem.paymentMode = "full_payment";
+        receiptItem.paymentMode = "full_prepayment";
         receiptItem.paymentSubject = "commodity";
         return receiptItem;
     }
@@ -534,8 +809,9 @@ public class PaymentService {
         return "order-" + orderId + "-r" + suffix;
     }
 
-    private String buildRefundIdempotencyKey(Payment payment) {
-        return "refund-" + payment.getProviderPaymentId();
+    private String buildRefundIdempotencyKey(Payment payment, long requestedAmount) {
+        long nextIndex = paymentRefundRepository.countByPaymentId(payment.getId()) + 1L;
+        return "refund-" + payment.getProviderPaymentId() + "-" + nextIndex + "-" + requestedAmount;
     }
 
     private String buildCancelIdempotencyKey(Payment payment) {

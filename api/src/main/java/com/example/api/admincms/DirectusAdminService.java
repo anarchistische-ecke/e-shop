@@ -10,6 +10,7 @@ import com.example.api.admincms.DirectusAdminModels.LowStockRow;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsRow;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
+import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderSearchResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderStatusEvent;
 import com.example.api.admincms.DirectusAdminModels.PaymentLinkAnalyticsResponse;
@@ -45,6 +46,7 @@ import com.example.order.domain.RmaStatus;
 import com.example.order.repository.OrderRepository;
 import com.example.order.repository.RmaRequestRepository;
 import com.example.order.service.OrderService;
+import com.example.payment.service.PaymentService;
 import com.example.shipment.repository.ShipmentRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -120,6 +122,7 @@ public class DirectusAdminService {
     private final RmaRequestRepository rmaRequestRepository;
     private final NotificationOrchestrator notificationOrchestrator;
     private final ShipmentRepository shipmentRepository;
+    private final PaymentService paymentService;
 
     public DirectusAdminService(
             OrderRepository orderRepository,
@@ -158,6 +161,52 @@ public class DirectusAdminService {
                 objectMapper,
                 null,
                 null,
+                null,
+                null
+        );
+    }
+
+    public DirectusAdminService(
+            OrderRepository orderRepository,
+            OrderService orderService,
+            OrderStatusHistoryRepository orderStatusHistoryRepository,
+            DirectusAdminRoleGuard roleGuard,
+            CatalogueImportJobRepository importJobRepository,
+            CatalogueImportRowRepository importRowRepository,
+            PromotionRepository promotionRepository,
+            PromoCodeRepository promoCodeRepository,
+            TaxConfigurationRepository taxConfigurationRepository,
+            ManagerPaymentLinkRepository managerPaymentLinkRepository,
+            StockAlertSettingsRepository stockAlertSettingsRepository,
+            ProductRepository productRepository,
+            ProductVariantRepository variantRepository,
+            CatalogService catalogService,
+            InventoryService inventoryService,
+            ObjectMapper objectMapper,
+            RmaRequestRepository rmaRequestRepository,
+            NotificationOrchestrator notificationOrchestrator,
+            ShipmentRepository shipmentRepository
+    ) {
+        this(
+                orderRepository,
+                orderService,
+                orderStatusHistoryRepository,
+                roleGuard,
+                importJobRepository,
+                importRowRepository,
+                promotionRepository,
+                promoCodeRepository,
+                taxConfigurationRepository,
+                managerPaymentLinkRepository,
+                stockAlertSettingsRepository,
+                productRepository,
+                variantRepository,
+                catalogService,
+                inventoryService,
+                objectMapper,
+                rmaRequestRepository,
+                notificationOrchestrator,
+                shipmentRepository,
                 null
         );
     }
@@ -182,7 +231,8 @@ public class DirectusAdminService {
             ObjectMapper objectMapper,
             RmaRequestRepository rmaRequestRepository,
             NotificationOrchestrator notificationOrchestrator,
-            ShipmentRepository shipmentRepository
+            ShipmentRepository shipmentRepository,
+            PaymentService paymentService
     ) {
         this.orderRepository = orderRepository;
         this.orderService = orderService;
@@ -203,6 +253,7 @@ public class DirectusAdminService {
         this.rmaRequestRepository = rmaRequestRepository;
         this.notificationOrchestrator = notificationOrchestrator;
         this.shipmentRepository = shipmentRepository;
+        this.paymentService = paymentService;
     }
 
     public OrderSearchResponse searchOrders(String status,
@@ -320,7 +371,41 @@ public class DirectusAdminService {
         return toOrderDetail(order);
     }
 
+    public OrderDetail refundOrder(UUID orderId,
+                                   OrderRefundRequest request,
+                                   DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (!roleGuard.isAdmin(principal)) {
+            throw new AccessDeniedException("Only administrators can create payment refunds");
+        }
+        if (paymentService == null) {
+            throw new IllegalStateException("Payment service is not available");
+        }
+        Order order = orderService.findById(orderId);
+        requireCanReadOrder(order, principal);
+        List<PaymentService.RefundLineRequest> lines = request != null && request.items() != null
+                ? request.items().stream()
+                    .map(item -> new PaymentService.RefundLineRequest(
+                            item.orderItemId(),
+                            item.quantity(),
+                            item.amount()
+                    ))
+                    .toList()
+                : List.of();
+        paymentService.refundYooKassaPayment(orderId, lines);
+
+        OrderStatusHistory event = new OrderStatusHistory();
+        event.setOrderId(orderId);
+        event.setPreviousStatus(order.getStatus());
+        event.setNextStatus(order.getStatus());
+        event.setActor(principal.actor());
+        event.setActorRole(principal.primaryRole());
+        event.setNote("payment-refund");
+        orderStatusHistoryRepository.save(event);
+        return toOrderDetail(orderService.findById(orderId));
+    }
+
     private OrderDetail toOrderDetail(Order order) {
+        attachPaymentSummary(order);
         return new OrderDetail(
                 order,
                 orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(order.getId()).stream()
@@ -329,6 +414,12 @@ public class DirectusAdminService {
                 shipmentView(order),
                 rmaRequestViews(order.getId())
         );
+    }
+
+    private void attachPaymentSummary(Order order) {
+        if (paymentService != null && order != null && order.getId() != null) {
+            order.setPaymentSummary(paymentService.getPaymentSummary(order.getId()));
+        }
     }
 
     private ShipmentView shipmentView(Order order) {

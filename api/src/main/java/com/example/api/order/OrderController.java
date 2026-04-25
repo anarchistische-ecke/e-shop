@@ -108,7 +108,7 @@ public class OrderController {
                     resolvePaymentConfirmationMode(request.confirmationMode)
             );
             notifyPaymentCompletedIfNeeded(existingOrder.getStatus(), existingPayment);
-            return ResponseEntity.ok(new OrderCheckoutResponse(existingOrder, toPaymentResponse(existingPayment)));
+            return ResponseEntity.ok(new OrderCheckoutResponse(attachPaymentSummary(existingOrder), toPaymentResponse(existingPayment)));
         }
 
         boolean checkoutAttemptBound = false;
@@ -139,7 +139,7 @@ public class OrderController {
             notifyPaymentCompletedIfNeeded("PENDING", payment);
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new OrderCheckoutResponse(order, toPaymentResponse(payment)));
+                    .body(new OrderCheckoutResponse(attachPaymentSummary(order), toPaymentResponse(payment)));
         } catch (RuntimeException ex) {
             if (!checkoutAttemptBound) {
                 orderService.releaseCheckoutAttemptIfUnbound(idempotencyKey, requestHash);
@@ -206,24 +206,24 @@ public class OrderController {
     @GetMapping("/me")
     public ResponseEntity<List<Order>> getMyOrders(@AuthenticationPrincipal Jwt jwt) {
         Customer customer = resolveCustomer(jwt);
-        return ResponseEntity.ok(orderService.getOrdersByCustomerId(customer.getId()));
+        return ResponseEntity.ok(attachPaymentSummaries(orderService.getOrdersByCustomerId(customer.getId())));
     }
 
     @GetMapping
     public ResponseEntity<List<Order>> getAllOrders() {
-        return ResponseEntity.ok(orderService.getAllOrders());
+        return ResponseEntity.ok(attachPaymentSummaries(orderService.getAllOrders()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Order> getOrderById(@PathVariable UUID id) {
         Order order = orderService.findById(id);
-        return ResponseEntity.ok(order);
+        return ResponseEntity.ok(attachPaymentSummary(order));
     }
 
     @GetMapping("/public/{token}")
     public ResponseEntity<Order> getOrderByToken(@PathVariable String token) {
         Order order = orderService.findByPublicToken(token);
-        return ResponseEntity.ok(order);
+        return ResponseEntity.ok(attachPaymentSummary(order));
     }
 
     @PostMapping("/public/{token}/pay")
@@ -256,7 +256,7 @@ public class OrderController {
         if (result.completedNow()) {
             notificationOrchestrator.orderPaid(updated, result.payment());
         }
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(attachPaymentSummary(updated));
     }
 
     private Customer resolveCheckoutCustomer(CheckoutRequest request, Jwt jwt) {
@@ -436,6 +436,21 @@ public class OrderController {
                 payment.getConfirmationType(),
                 payment.getConfirmationToken()
         );
+    }
+
+    private List<Order> attachPaymentSummaries(List<Order> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return orders;
+        }
+        orders.forEach(this::attachPaymentSummary);
+        return orders;
+    }
+
+    private Order attachPaymentSummary(Order order) {
+        if (order != null && order.getId() != null) {
+            order.setPaymentSummary(paymentService.getPaymentSummary(order.getId()));
+        }
+        return order;
     }
 
     private void notifyPaymentCompletedIfNeeded(String previousOrderStatus, Payment payment) {
