@@ -2,6 +2,8 @@ package com.example.api.admincms;
 
 import com.example.common.domain.Money;
 import com.example.order.domain.Order;
+import com.example.order.domain.RmaRequest;
+import com.example.shipment.domain.Shipment;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -47,7 +49,7 @@ public final class DirectusAdminModels {
         }
     }
 
-    public record OrderDetail(Order order, List<OrderStatusEvent> history) {
+    public record OrderDetail(Order order, List<OrderStatusEvent> history, ShipmentView shipment, List<RmaRequestView> rmaRequests) {
     }
 
     public record OrderStatusEvent(
@@ -73,6 +75,72 @@ public final class DirectusAdminModels {
     }
 
     public record OrderStatusRequest(String status, String note) {
+    }
+
+    public record ShipmentView(
+            UUID id,
+            UUID orderId,
+            String carrier,
+            String trackingNumber,
+            OffsetDateTime shippedAt,
+            OffsetDateTime deliveredAt
+    ) {
+        public static ShipmentView from(Shipment shipment) {
+            if (shipment == null) {
+                return null;
+            }
+            return new ShipmentView(
+                    shipment.getId(),
+                    shipment.getOrderId(),
+                    shipment.getCarrier(),
+                    shipment.getTrackingNumber(),
+                    shipment.getShippedAt(),
+                    shipment.getDeliveredAt()
+            );
+        }
+    }
+
+    public record RmaRequestCreateRequest(UUID orderId, String reason, String desiredResolution) {
+    }
+
+    public record RmaDecisionRequest(String status, String comment) {
+    }
+
+    public record RmaRequestListResponse(List<RmaRequestView> items) {
+    }
+
+    public record RmaRequestView(
+            UUID id,
+            String rmaNumber,
+            UUID orderId,
+            String customerEmail,
+            String status,
+            String reason,
+            String desiredResolution,
+            String managerComment,
+            String decidedBy,
+            OffsetDateTime decidedAt,
+            int decisionVersion,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt
+    ) {
+        public static RmaRequestView from(RmaRequest request) {
+            return new RmaRequestView(
+                    request.getId(),
+                    request.getRmaNumber(),
+                    request.getOrderId(),
+                    request.getCustomerEmail(),
+                    request.getStatus() != null ? request.getStatus().name() : null,
+                    request.getReason(),
+                    request.getDesiredResolution(),
+                    request.getManagerComment(),
+                    request.getDecidedBy(),
+                    request.getDecidedAt(),
+                    request.getDecisionVersion(),
+                    request.getCreatedAt(),
+                    request.getUpdatedAt()
+            );
+        }
     }
 
     public record ImportMapping(

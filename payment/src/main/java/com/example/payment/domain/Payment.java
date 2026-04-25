@@ -43,6 +43,12 @@ public class Payment extends BaseEntity {
     @Column(name = "confirmation_token")
     private String confirmationToken;
 
+    @Column(name = "receipt_registration")
+    private String receiptRegistration;
+
+    @Column(name = "receipt_url")
+    private String receiptUrl;
+
     @Column(name = "refund_id")
     private String refundId;
 
@@ -140,6 +146,22 @@ public class Payment extends BaseEntity {
 
     public void setConfirmationToken(String confirmationToken) {
         this.confirmationToken = confirmationToken;
+    }
+
+    public String getReceiptRegistration() {
+        return receiptRegistration;
+    }
+
+    public void setReceiptRegistration(String receiptRegistration) {
+        this.receiptRegistration = receiptRegistration;
+    }
+
+    public String getReceiptUrl() {
+        return receiptUrl;
+    }
+
+    public void setReceiptUrl(String receiptUrl) {
+        this.receiptUrl = receiptUrl;
     }
 
     public String getRefundId() {

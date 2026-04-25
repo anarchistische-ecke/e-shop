@@ -33,6 +33,9 @@ public class EmailService {
     @Value("${mail.from:yug-postel@yandex.ru}")
     private String fromAddress;
 
+    @Value("${mail.reply-to:}")
+    private String replyToAddress;
+
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
@@ -57,7 +60,7 @@ public class EmailService {
         if (StringUtils.hasText(orderUrl)) {
             text.append('\n').append("Оплатить заказ: ").append(orderUrl).append('\n');
         }
-        sendEmail(toEmail, subject, html, text.toString());
+        sendEmail(toEmail, subject, html, text.toString(), true);
     }
 
     public void sendPaymentReceipt(Order order, Payment payment, String toEmail) {
@@ -84,7 +87,7 @@ public class EmailService {
         if (payment != null && StringUtils.hasText(payment.getProviderPaymentId())) {
             text.append('\n').append("ID платежа: ").append(payment.getProviderPaymentId()).append('\n');
         }
-        sendEmail(toEmail, subject, html, text.toString());
+        sendEmail(toEmail, subject, html, text.toString(), true);
     }
 
     public void sendOrderStatusUpdatedEmail(Order order, String toEmail, String previousStatus) {
@@ -130,19 +133,29 @@ public class EmailService {
             text.append("Статус: ").append(currentStatus).append('\n');
         }
         text.append('\n').append(buildOrderSummaryText(order));
-        sendEmail(toEmail, subject, html, text.toString());
+        sendEmail(toEmail, subject, html, text.toString(), true);
     }
 
-    private void sendEmail(String toEmail, String subject, String htmlBody, String textBody) {
+    public void sendTransactionalEmail(String toEmail, String subject, String htmlBody, String textBody) {
+        sendEmail(toEmail, subject, htmlBody, textBody, false);
+    }
+
+    private void sendEmail(String toEmail, String subject, String htmlBody, String textBody, boolean swallowFailures) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromAddress);
+            if (StringUtils.hasText(replyToAddress)) {
+                helper.setReplyTo(replyToAddress);
+            }
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(textBody, htmlBody);
             mailSender.send(message);
         } catch (MessagingException | RuntimeException ex) {
+            if (!swallowFailures) {
+                throw new IllegalStateException("Failed to send email '" + subject + "' to " + toEmail, ex);
+            }
             log.warn("Failed to send email '{}' to {}", subject, toEmail, ex);
         }
     }
@@ -328,10 +341,13 @@ public class EmailService {
         return switch (status.toUpperCase(Locale.ROOT)) {
             case "PENDING" -> "Ожидает оплаты";
             case "PAID" -> "Оплачен";
+            case "PROCESSING" -> "В обработке";
+            case "READY_FOR_PICKUP" -> "Готов к выдаче";
             case "CANCELLED" -> "Отменен";
             case "REFUNDED" -> "Возвращен";
             case "SHIPPED" -> "Отгружен";
             case "DELIVERED" -> "Доставлен";
+            case "RECEIVED", "COMPLETED" -> "Получен";
             default -> status;
         };
     }

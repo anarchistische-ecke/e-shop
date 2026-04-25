@@ -15,6 +15,23 @@ management:
         http.server.requests: true
         cms.directus.request: true
 
+mail:
+  from: ${MAIL_FROM:yug-postel@yandex.ru}
+  reply-to: ${MAIL_REPLY_TO:}
+
+notifications:
+  enabled: ${NOTIFICATIONS_ENABLED:true}
+  max-attempts: ${NOTIFICATIONS_MAX_ATTEMPTS:3}
+  retry-delay: ${NOTIFICATIONS_RETRY_DELAY:5m}
+  batch-size: ${NOTIFICATIONS_BATCH_SIZE:20}
+  dispatcher:
+    enabled: ${NOTIFICATIONS_DISPATCHER_ENABLED:true}
+    fixed-delay-ms: ${NOTIFICATIONS_DISPATCHER_FIXED_DELAY_MS:30000}
+  tracking-url-templates:
+    cdek: ${NOTIFICATIONS_TRACKING_URL_CDEK:https://www.cdek.ru/ru/tracking?order_id={trackingNumber}}
+    pochta: ${NOTIFICATIONS_TRACKING_URL_POCHTA:https://www.pochta.ru/tracking#{trackingNumber}}
+    boxberry: ${NOTIFICATIONS_TRACKING_URL_BOXBERRY:https://boxberry.ru/tracking-page?id={trackingNumber}}
+
 app:
   security:
     directus-bridge-token: ${DIRECTUS_BRIDGE_TOKEN:}

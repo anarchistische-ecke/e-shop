@@ -36,6 +36,23 @@ The metrics, alerts, dashboards, and log-search contract are documented in [dire
 | `DIRECTUS_RESPONSE_CACHE_STALE_IF_ERROR` | backend | `PT1H` | Public `Cache-Control: stale-if-error` for published `/content/*` responses. |
 | `DIRECTUS_CONNECT_TIMEOUT` | backend | `PT3S` | Optional Directus connect timeout. Defaults to 3 seconds. |
 | `DIRECTUS_READ_TIMEOUT` | backend | `PT5S` | Optional Directus read timeout. Defaults to 5 seconds. |
+| `SPRING_MAIL_HOST` | backend | `smtp.example.com` | SMTP relay host for transactional notifications. Required when `NOTIFICATIONS_ENABLED=true` outside local test stubs. |
+| `SPRING_MAIL_PORT` | backend | `587` | SMTP relay port. Use the value required by the chosen provider. |
+| `SPRING_MAIL_USERNAME` | backend | unset in repo | SMTP username or API-login value. Keep in secret storage. |
+| `SPRING_MAIL_PASSWORD` | backend | unset in repo | SMTP password or API key. Keep in secret storage. |
+| `SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH` | backend | `true` | Enables SMTP AUTH for providers that require it. |
+| `SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE` | backend | `true` | Enables STARTTLS on port 587. |
+| `MAIL_FROM` | backend | `no-reply@example.com` | Verified sender used in transactional notification From headers. |
+| `MAIL_REPLY_TO` | backend | `support@example.com` | Optional Reply-To for customer replies. |
+| `NOTIFICATIONS_ENABLED` | backend | `true` | Master switch for dispatching transactional notifications. Enqueued rows remain in the outbox when disabled. |
+| `NOTIFICATIONS_DISPATCHER_ENABLED` | backend | `true` | Enables the scheduled outbox dispatcher. Tests may call `NotificationDispatcher.dispatchDue()` directly. |
+| `NOTIFICATIONS_MAX_ATTEMPTS` | backend | `3` | Maximum SMTP attempts before an outbox row remains `FAILED`. |
+| `NOTIFICATIONS_RETRY_DELAY` | backend | `5m` | Delay before retrying a failed notification. |
+| `NOTIFICATIONS_BATCH_SIZE` | backend | `20` | Maximum due outbox rows processed per dispatcher tick. |
+| `NOTIFICATIONS_DISPATCHER_FIXED_DELAY_MS` | backend | `30000` | Scheduler delay between dispatcher runs. |
+| `NOTIFICATIONS_TRACKING_URL_CDEK` | backend | `https://www.cdek.ru/ru/tracking?order_id={trackingNumber}` | Carrier-specific tracking URL template for NTF-02. |
+| `NOTIFICATIONS_TRACKING_URL_POCHTA` | backend | `https://www.pochta.ru/tracking#{trackingNumber}` | Carrier-specific tracking URL template for NTF-02. |
+| `NOTIFICATIONS_TRACKING_URL_BOXBERRY` | backend | `https://boxberry.ru/tracking-page?id={trackingNumber}` | Carrier-specific tracking URL template for NTF-02. |
 
 ## Local Directus Compose Variables
 

@@ -20,10 +20,16 @@ import com.example.api.admincms.DirectusAdminModels.PromotionRequest;
 import com.example.api.admincms.DirectusAdminModels.PromotionTargetRequest;
 import com.example.api.admincms.DirectusAdminModels.PromotionTargetView;
 import com.example.api.admincms.DirectusAdminModels.PromotionView;
+import com.example.api.admincms.DirectusAdminModels.RmaDecisionRequest;
+import com.example.api.admincms.DirectusAdminModels.RmaRequestCreateRequest;
+import com.example.api.admincms.DirectusAdminModels.RmaRequestListResponse;
+import com.example.api.admincms.DirectusAdminModels.RmaRequestView;
+import com.example.api.admincms.DirectusAdminModels.ShipmentView;
 import com.example.api.admincms.DirectusAdminModels.StockAlertSettingsRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.api.catalog.DirectusBridgeSecurity;
+import com.example.api.notification.NotificationOrchestrator;
 import com.example.catalog.domain.Brand;
 import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
@@ -34,8 +40,12 @@ import com.example.catalog.service.CatalogService;
 import com.example.catalog.service.InventoryService;
 import com.example.common.domain.Money;
 import com.example.order.domain.Order;
+import com.example.order.domain.RmaRequest;
+import com.example.order.domain.RmaStatus;
 import com.example.order.repository.OrderRepository;
+import com.example.order.repository.RmaRequestRepository;
 import com.example.order.service.OrderService;
+import com.example.shipment.repository.ShipmentRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.transaction.Transactional;
@@ -43,6 +53,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -62,6 +73,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -80,6 +92,8 @@ public class DirectusAdminService {
             "PROCESSING",
             "READY_FOR_PICKUP",
             "SHIPPED",
+            "DELIVERED",
+            "RECEIVED",
             "COMPLETED",
             "CANCELLED",
             "REFUNDED"
@@ -103,6 +117,9 @@ public class DirectusAdminService {
     private final CatalogService catalogService;
     private final InventoryService inventoryService;
     private final ObjectMapper objectMapper;
+    private final RmaRequestRepository rmaRequestRepository;
+    private final NotificationOrchestrator notificationOrchestrator;
+    private final ShipmentRepository shipmentRepository;
 
     public DirectusAdminService(
             OrderRepository orderRepository,
@@ -122,6 +139,51 @@ public class DirectusAdminService {
             InventoryService inventoryService,
             ObjectMapper objectMapper
     ) {
+        this(
+                orderRepository,
+                orderService,
+                orderStatusHistoryRepository,
+                roleGuard,
+                importJobRepository,
+                importRowRepository,
+                promotionRepository,
+                promoCodeRepository,
+                taxConfigurationRepository,
+                managerPaymentLinkRepository,
+                stockAlertSettingsRepository,
+                productRepository,
+                variantRepository,
+                catalogService,
+                inventoryService,
+                objectMapper,
+                null,
+                null,
+                null
+        );
+    }
+
+    @Autowired
+    public DirectusAdminService(
+            OrderRepository orderRepository,
+            OrderService orderService,
+            OrderStatusHistoryRepository orderStatusHistoryRepository,
+            DirectusAdminRoleGuard roleGuard,
+            CatalogueImportJobRepository importJobRepository,
+            CatalogueImportRowRepository importRowRepository,
+            PromotionRepository promotionRepository,
+            PromoCodeRepository promoCodeRepository,
+            TaxConfigurationRepository taxConfigurationRepository,
+            ManagerPaymentLinkRepository managerPaymentLinkRepository,
+            StockAlertSettingsRepository stockAlertSettingsRepository,
+            ProductRepository productRepository,
+            ProductVariantRepository variantRepository,
+            CatalogService catalogService,
+            InventoryService inventoryService,
+            ObjectMapper objectMapper,
+            RmaRequestRepository rmaRequestRepository,
+            NotificationOrchestrator notificationOrchestrator,
+            ShipmentRepository shipmentRepository
+    ) {
         this.orderRepository = orderRepository;
         this.orderService = orderService;
         this.orderStatusHistoryRepository = orderStatusHistoryRepository;
@@ -138,6 +200,9 @@ public class DirectusAdminService {
         this.catalogService = catalogService;
         this.inventoryService = inventoryService;
         this.objectMapper = objectMapper;
+        this.rmaRequestRepository = rmaRequestRepository;
+        this.notificationOrchestrator = notificationOrchestrator;
+        this.shipmentRepository = shipmentRepository;
     }
 
     public OrderSearchResponse searchOrders(String status,
@@ -151,7 +216,7 @@ public class DirectusAdminService {
         String normalizedQuery = normalize(query);
         List<DirectusAdminModels.OrderSummary> items = orderRepository.findAllByOrderByOrderDateDesc().stream()
                 .filter(order -> canReadOrder(order, principal))
-                .filter(order -> !StringUtils.hasText(normalizedStatus) || equalsIgnoreCase(order.getStatus(), normalizedStatus))
+                .filter(order -> !StringUtils.hasText(normalizedStatus) || statusMatches(order.getStatus(), normalizedStatus))
                 .filter(order -> !StringUtils.hasText(normalizedManager) || matchesManager(order, normalizedManager))
                 .filter(order -> from == null || (order.getOrderDate() != null && !order.getOrderDate().isBefore(from)))
                 .filter(order -> to == null || (order.getOrderDate() != null && !order.getOrderDate().isAfter(to)))
@@ -176,7 +241,7 @@ public class DirectusAdminService {
                                          String note,
                                          DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order before = orderService.findById(orderId);
-        String nextStatus = requireText(status, "status").toUpperCase(Locale.ROOT);
+        String nextStatus = normalizeStatusAlias(requireText(status, "status"));
         if (!ORDER_STATUSES.contains(nextStatus)) {
             throw new IllegalArgumentException("Unsupported order status: " + status);
         }
@@ -190,6 +255,9 @@ public class DirectusAdminService {
         event.setActorRole(principal.primaryRole());
         event.setNote(normalize(note));
         orderStatusHistoryRepository.save(event);
+        if (notificationOrchestrator != null) {
+            notificationOrchestrator.orderStatusChanged(updated, before.getStatus());
+        }
         return toOrderDetail(updated);
     }
 
@@ -257,8 +325,153 @@ public class DirectusAdminService {
                 order,
                 orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(order.getId()).stream()
                         .map(OrderStatusEvent::from)
-                        .toList()
+                        .toList(),
+                shipmentView(order),
+                rmaRequestViews(order.getId())
         );
+    }
+
+    private ShipmentView shipmentView(Order order) {
+        if (shipmentRepository == null || order == null || order.getShipmentId() == null) {
+            return null;
+        }
+        return shipmentRepository.findById(order.getShipmentId())
+                .map(ShipmentView::from)
+                .orElse(null);
+    }
+
+    private List<RmaRequestView> rmaRequestViews(UUID orderId) {
+        if (rmaRequestRepository == null || orderId == null) {
+            return List.of();
+        }
+        return rmaRequestRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(RmaRequestView::from)
+                .toList();
+    }
+
+    public RmaRequestListResponse listRmaRequests(String status,
+                                                  UUID orderId,
+                                                  DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        RmaRequestRepository repository = requireRmaRepository();
+        RmaStatus filterStatus = parseRmaStatus(status, false);
+        if (orderId != null) {
+            Order order = orderService.findById(orderId);
+            requireCanReadOrder(order, principal);
+        }
+        List<RmaRequestView> items = (filterStatus != null
+                ? repository.findByStatusOrderByCreatedAtDesc(filterStatus)
+                : repository.findAllNewestFirst()).stream()
+                .filter(request -> orderId == null || orderId.equals(request.getOrderId()))
+                .filter(request -> canReadRmaRequest(request, principal))
+                .map(RmaRequestView::from)
+                .toList();
+        return new RmaRequestListResponse(items);
+    }
+
+    public RmaRequestView createRmaRequest(RmaRequestCreateRequest request,
+                                           DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        RmaRequestRepository repository = requireRmaRepository();
+        UUID orderId = request != null ? request.orderId() : null;
+        if (orderId == null) {
+            throw new IllegalArgumentException("orderId is required");
+        }
+        Order order = orderService.findById(orderId);
+        requireCanReadOrder(order, principal);
+
+        RmaRequest rma = new RmaRequest();
+        rma.setRmaNumber(nextRmaNumber(repository));
+        rma.setOrderId(order.getId());
+        rma.setCustomerEmail(order.getReceiptEmail());
+        rma.setStatus(RmaStatus.REQUESTED);
+        rma.setReason(normalize(request != null ? request.reason() : null));
+        rma.setDesiredResolution(normalize(request != null ? request.desiredResolution() : null));
+        return RmaRequestView.from(repository.save(rma));
+    }
+
+    public RmaRequestView decideRmaRequest(UUID rmaId,
+                                           RmaDecisionRequest request,
+                                           DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        RmaRequestRepository repository = requireRmaRepository();
+        RmaRequest rma = repository.findById(rmaId)
+                .orElseThrow(() -> new IllegalArgumentException("RMA request not found: " + rmaId));
+        Order order = orderService.findById(rma.getOrderId());
+        requireCanDecideRma(order, principal);
+        RmaStatus nextStatus = parseRmaStatus(request != null ? request.status() : null, true);
+        if (nextStatus == RmaStatus.REQUESTED) {
+            throw new IllegalArgumentException("RMA decision status must be APPROVED or REJECTED");
+        }
+        String nextComment = normalize(request != null ? request.comment() : null);
+        boolean changed = rma.getStatus() != nextStatus || !Objects.equals(normalize(rma.getManagerComment()), nextComment);
+        if (!changed) {
+            return RmaRequestView.from(rma);
+        }
+        rma.setStatus(nextStatus);
+        rma.setManagerComment(nextComment);
+        rma.setDecidedBy(principal.actor());
+        rma.setDecidedAt(OffsetDateTime.now());
+        rma.setDecisionVersion(rma.getDecisionVersion() + 1);
+        rma = repository.save(rma);
+        if (notificationOrchestrator != null) {
+            notificationOrchestrator.rmaDecision(
+                    order,
+                    rma.getId(),
+                    rma.getRmaNumber(),
+                    rma.getDecisionVersion(),
+                    rma.getStatus().name(),
+                    rma.getManagerComment()
+            );
+        }
+        return RmaRequestView.from(rma);
+    }
+
+    private RmaRequestRepository requireRmaRepository() {
+        if (rmaRequestRepository == null) {
+            throw new IllegalStateException("RMA repository is not available");
+        }
+        return rmaRequestRepository;
+    }
+
+    private boolean canReadRmaRequest(RmaRequest request, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (request == null || request.getOrderId() == null) {
+            return false;
+        }
+        return orderRepository.findById(request.getOrderId())
+                .map(order -> canReadOrder(order, principal))
+                .orElse(false);
+    }
+
+    private void requireCanDecideRma(Order order, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (roleGuard.isAdmin(principal)) {
+            return;
+        }
+        if (roleGuard.isManager(principal) && isAssignedToPrincipal(order, principal)) {
+            return;
+        }
+        throw new AccessDeniedException("Directus role is not allowed to decide this RMA request");
+    }
+
+    private RmaStatus parseRmaStatus(String status, boolean required) {
+        if (!StringUtils.hasText(status)) {
+            if (required) {
+                throw new IllegalArgumentException("RMA status is required");
+            }
+            return null;
+        }
+        try {
+            return RmaStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Unsupported RMA status: " + status);
+        }
+    }
+
+    private String nextRmaNumber(RmaRequestRepository repository) {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            String candidate = "RMA-" + UUID.randomUUID().toString().replace("-", "").substring(0, 10).toUpperCase(Locale.ROOT);
+            if (!repository.existsByRmaNumber(candidate)) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("Could not generate unique RMA number");
     }
 
     private void requireCanReadOrder(Order order, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
@@ -362,6 +575,17 @@ public class DirectusAdminService {
 
     private String normalizeStatus(String status) {
         return StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "";
+    }
+
+    private String normalizeStatusAlias(String status) {
+        String normalized = normalizeStatus(status);
+        return "COMPLETED".equals(normalized) ? "RECEIVED" : normalized;
+    }
+
+    private boolean statusMatches(String actual, String requested) {
+        String normalizedActual = normalizeStatusAlias(actual);
+        String normalizedRequested = normalizeStatusAlias(requested);
+        return StringUtils.hasText(normalizedRequested) && normalizedActual.equals(normalizedRequested);
     }
 
     public ImportDryRunResponse dryRunImport(MultipartFile file, ImportMapping mapping, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {

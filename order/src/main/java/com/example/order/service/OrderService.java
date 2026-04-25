@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -120,11 +121,12 @@ public class OrderService {
     public Order updateOrderStatus(UUID orderId, String status) {
         Order order = orderRepository.findWithItemsById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        String normalizedStatus = normalizeStatusAlias(status);
         String previousStatus = order.getStatus();
-        order.setStatus(status);
+        order.setStatus(normalizedStatus);
         order = orderRepository.save(order);
-        if (shouldRestock(previousStatus, status)) {
-            restockOrderItems(order, "ORDER_STATUS_" + status, "restock-" + orderId + "-" + status.toLowerCase());
+        if (shouldRestock(previousStatus, normalizedStatus)) {
+            restockOrderItems(order, "ORDER_STATUS_" + normalizedStatus, "restock-" + orderId + "-" + normalizedStatus.toLowerCase(Locale.ROOT));
         }
         return order;
     }
@@ -162,6 +164,14 @@ public class OrderService {
             return true;
         }
         return !previousStatus.equalsIgnoreCase(nextStatus);
+    }
+
+    private String normalizeStatusAlias(String status) {
+        if (!StringUtils.hasText(status)) {
+            return status;
+        }
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        return "COMPLETED".equals(normalized) ? "RECEIVED" : normalized;
     }
 
     public List<Order> getOrdersByCustomerId(UUID customerId) {

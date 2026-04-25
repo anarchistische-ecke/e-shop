@@ -15,6 +15,10 @@ import com.example.api.admincms.DirectusAdminModels.PromoCodeRequest;
 import com.example.api.admincms.DirectusAdminModels.PromoCodeView;
 import com.example.api.admincms.DirectusAdminModels.PromotionRequest;
 import com.example.api.admincms.DirectusAdminModels.PromotionView;
+import com.example.api.admincms.DirectusAdminModels.RmaDecisionRequest;
+import com.example.api.admincms.DirectusAdminModels.RmaRequestCreateRequest;
+import com.example.api.admincms.DirectusAdminModels.RmaRequestListResponse;
+import com.example.api.admincms.DirectusAdminModels.RmaRequestView;
 import com.example.api.admincms.DirectusAdminModels.StockAlertSettingsRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
@@ -117,6 +121,42 @@ public class DirectusAdminBridgeController {
         roleGuard.requireOrders(principal);
         OrderDetail response = adminService.clearOrderClaim(id, principal);
         audit(principal, "admin.order.unclaim", Map.of("orderId", id));
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/rma-requests")
+    public ResponseEntity<RmaRequestListResponse> listRmaRequests(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) UUID orderId,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireRma(principal);
+        return ResponseEntity.ok(adminService.listRmaRequests(status, orderId, principal));
+    }
+
+    @PostMapping("/rma-requests")
+    public ResponseEntity<RmaRequestView> createRmaRequest(
+            @RequestBody RmaRequestCreateRequest requestBody,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireRma(principal);
+        RmaRequestView response = adminService.createRmaRequest(requestBody, principal);
+        audit(principal, "admin.rma.create", Map.of("rmaId", response.id(), "orderId", response.orderId()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @PostMapping("/rma-requests/{id}/decision")
+    public ResponseEntity<RmaRequestView> decideRmaRequest(
+            @PathVariable UUID id,
+            @RequestBody RmaDecisionRequest requestBody,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireRma(principal);
+        RmaRequestView response = adminService.decideRmaRequest(id, requestBody, principal);
+        audit(principal, "admin.rma.decision", Map.of("rmaId", id, "status", response.status()));
         return ResponseEntity.ok(response);
     }
 

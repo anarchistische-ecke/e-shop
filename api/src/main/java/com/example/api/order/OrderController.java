@@ -2,6 +2,7 @@ package com.example.api.order;
 
 import com.example.api.admincms.DirectusAdminService;
 import com.example.api.notification.EmailService;
+import com.example.api.notification.NotificationOrchestrator;
 import com.example.customer.domain.Customer;
 import com.example.customer.service.CustomerService;
 import com.example.order.domain.Order;
@@ -46,6 +47,7 @@ public class OrderController {
     private final PaymentService paymentService;
     private final EmailService emailService;
     private final DirectusAdminService directusAdminService;
+    private final NotificationOrchestrator notificationOrchestrator;
 
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
@@ -58,12 +60,14 @@ public class OrderController {
                            CustomerService customerService,
                            PaymentService paymentService,
                            EmailService emailService,
-                           DirectusAdminService directusAdminService) {
+                           DirectusAdminService directusAdminService,
+                           NotificationOrchestrator notificationOrchestrator) {
         this.orderService = orderService;
         this.customerService = customerService;
         this.paymentService = paymentService;
         this.emailService = emailService;
         this.directusAdminService = directusAdminService;
+        this.notificationOrchestrator = notificationOrchestrator;
     }
 
     @PostMapping
@@ -103,6 +107,7 @@ public class OrderController {
                     customerId.toString(),
                     resolvePaymentConfirmationMode(request.confirmationMode)
             );
+            notifyPaymentCompletedIfNeeded(existingOrder.getStatus(), existingPayment);
             return ResponseEntity.ok(new OrderCheckoutResponse(existingOrder, toPaymentResponse(existingPayment)));
         }
 
@@ -131,6 +136,7 @@ public class OrderController {
                     customerId.toString(),
                     resolvePaymentConfirmationMode(request.confirmationMode)
             );
+            notifyPaymentCompletedIfNeeded("PENDING", payment);
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new OrderCheckoutResponse(order, toPaymentResponse(payment)));
@@ -193,9 +199,7 @@ public class OrderController {
         Order beforeUpdate = orderService.findById(id);
         String previousStatus = beforeUpdate.getStatus();
         Order updated = orderService.updateOrderStatus(id, status);
-        if (hasStatusChanged(previousStatus, updated.getStatus()) && StringUtils.hasText(updated.getReceiptEmail())) {
-            emailService.sendOrderStatusUpdatedEmail(updated, updated.getReceiptEmail(), previousStatus);
-        }
+        notificationOrchestrator.orderStatusChanged(updated, previousStatus);
         return ResponseEntity.noContent().build();
     }
 
@@ -239,6 +243,7 @@ public class OrderController {
                 null,
                 resolvePaymentConfirmationMode(request.confirmationMode)
         );
+        notifyPaymentCompletedIfNeeded(order.getStatus(), payment);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(toPaymentResponse(payment));
     }
@@ -246,8 +251,11 @@ public class OrderController {
     @PostMapping("/public/{token}/refresh-payment")
     public ResponseEntity<Order> refreshPaymentByToken(@PathVariable String token) {
         Order order = orderService.findByPublicToken(token);
-        paymentService.refreshLatestYooKassaPaymentForOrder(order.getId());
+        PaymentService.PaymentUpdateResult result = paymentService.refreshLatestYooKassaPaymentForOrder(order.getId());
         Order updated = orderService.findByPublicToken(token);
+        if (result.completedNow()) {
+            notificationOrchestrator.orderPaid(updated, result.payment());
+        }
         return ResponseEntity.ok(updated);
     }
 
@@ -430,6 +438,17 @@ public class OrderController {
         );
     }
 
+    private void notifyPaymentCompletedIfNeeded(String previousOrderStatus, Payment payment) {
+        if (payment == null || payment.getStatus() == null || !"COMPLETED".equals(payment.getStatus().name())) {
+            return;
+        }
+        if ("PAID".equalsIgnoreCase(previousOrderStatus)) {
+            return;
+        }
+        Order updated = orderService.findById(payment.getOrderId());
+        notificationOrchestrator.orderPaid(updated, payment);
+    }
+
     private String applyTokenTemplate(String value, Order order) {
         if (value == null) {
             return null;
@@ -441,13 +460,4 @@ public class OrderController {
         return value.replace("{token}", token);
     }
 
-    private boolean hasStatusChanged(String previousStatus, String nextStatus) {
-        if (previousStatus == null && nextStatus == null) {
-            return false;
-        }
-        if (previousStatus == null || nextStatus == null) {
-            return true;
-        }
-        return !previousStatus.equalsIgnoreCase(nextStatus);
-    }
 }

@@ -54,6 +54,27 @@ Current behavior:
 
 The workflow calls `scripts/check-stack-health.sh` on the target VM. A failure means the environment should be treated as degraded until someone inspects the host.
 
+## Transactional Email
+
+The backend sends NTF-01..NTF-05 notifications through provider-neutral SMTP and records delivery state in `notification_outbox`.
+
+Production sender checklist:
+
+- verify `MAIL_FROM` with the SMTP provider before enabling production traffic
+- publish the provider SPF include or sending IP in the sender domain DNS
+- enable DKIM signing in the provider and publish the DKIM TXT/CNAME records it gives you
+- publish a DMARC TXT record for the sender domain; start with `p=none` for monitoring, then move to a stricter policy after successful delivery checks
+- keep marketing/bulk email on a separate provider stream or sender identity
+- verify `/actuator/health` includes the notification health details and that `notification_outbox` does not accumulate stale `FAILED` rows
+
+SMTP smoke test:
+
+1. Point `SPRING_MAIL_*` to a local capture server such as MailHog or Mailpit.
+2. Set `NOTIFICATIONS_ENABLED=true` and `NOTIFICATIONS_DISPATCHER_ENABLED=false`.
+3. Trigger one event for each template: paid, shipped, RMA approved/rejected, delivered, and received.
+4. Call `NotificationDispatcher.dispatchDue()` from an integration test or temporarily enable the dispatcher.
+5. Confirm every message has an HTML body, text fallback, correct recipient, and no duplicate message for repeated webhook/status/shipment/RMA decision retries.
+
 ## Quick Triage
 
 1. Check the latest `ops-health-check` workflow run in GitHub Actions.
