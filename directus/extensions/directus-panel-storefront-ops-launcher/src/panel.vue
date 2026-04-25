@@ -42,7 +42,13 @@ const tabs = [
 ];
 
 const ROLE_IDS = {
-  admin: ['admin', 'администратор cms', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001'],
+  admin: [
+    'admin',
+    'administrator',
+    'администратор',
+    'администратор cms',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001',
+  ],
   manager: ['manager', 'менеджер', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006'],
   picker: ['picker', 'сборщик', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007'],
   content: [
@@ -106,24 +112,38 @@ function resolveRoleKind(state) {
 
 async function loadAccessProfile() {
   try {
-    const response = await api.request({
-      url: '/users/me',
-      method: 'GET',
-      params: {
-        fields: ['role.id', 'role.name', 'role.admin_access'].join(','),
-      },
-    });
+    const response = await requestAccessProfile(['role.id', 'role.name']);
     const user = response?.data?.data || response?.data || {};
-    accessState.roleId = user.role?.id || user.role || '';
-    accessState.roleName = user.role?.name || '';
-    accessState.roleAdminAccess = Boolean(user.role?.admin_access);
+    applyAccessProfile(user);
   } catch {
-    accessState.roleId = '';
-    accessState.roleName = '';
-    accessState.roleAdminAccess = false;
+    try {
+      const response = await requestAccessProfile(['role']);
+      const user = response?.data?.data || response?.data || {};
+      applyAccessProfile(user);
+    } catch {
+      applyAccessProfile({});
+    }
   } finally {
     accessState.loaded = true;
   }
+}
+
+function requestAccessProfile(fields) {
+  return api.request({
+    url: '/users/me',
+    method: 'GET',
+    params: {
+      fields: fields.join(','),
+    },
+  });
+}
+
+function applyAccessProfile(user) {
+  const role = user?.role || '';
+  const roleIsObject = role && typeof role === 'object';
+  accessState.roleId = roleIsObject ? role.id || '' : role || '';
+  accessState.roleName = roleIsObject ? role.name || '' : '';
+  accessState.roleAdminAccess = Boolean(roleIsObject && (role.admin_access || role.adminAccess));
 }
 
 function openTab(tabId) {

@@ -284,6 +284,14 @@
               <span>Менеджер</span>
               <input v-model.trim="orderState.manager" type="text" @keyup.enter="loadOrders" />
             </label>
+            <label class="ops-field">
+              <span>С</span>
+              <input v-model="orderState.from" type="datetime-local" @keyup.enter="loadOrders" />
+            </label>
+            <label class="ops-field">
+              <span>По</span>
+              <input v-model="orderState.to" type="datetime-local" @keyup.enter="loadOrders" />
+            </label>
           </div>
 
           <section v-if="canViewActivePromotions" class="section-block section-block-compact">
@@ -336,7 +344,7 @@
               <p class="list-card-slug">{{ order.id }}</p>
               <div class="list-card-meta">
                 <span>{{ formatMoney(order.totalAmount) }}</span>
-                <span>{{ order.managerSubject || 'Без менеджера' }}</span>
+                <span>{{ orderManagerLabel(order) }}</span>
                 <span>{{ formatDateTime(order.orderDate) }}</span>
               </div>
             </button>
@@ -1269,8 +1277,23 @@
                 <p class="detail-subtitle">{{ orderState.detail.order.id }}</p>
               </div>
               <div class="detail-header-actions">
-                <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="claimOrder">
-                  Забрать в работу
+                <button
+                  v-if="canClaimSelectedOrder"
+                  class="button button-secondary"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="claimOrder"
+                >
+                  Взять в работу
+                </button>
+                <button
+                  v-if="canClearSelectedOrder"
+                  class="button button-danger"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="clearOrderClaim"
+                >
+                  Снять менеджера
                 </button>
               </div>
             </header>
@@ -1286,7 +1309,7 @@
               </article>
               <article class="metric-card">
                 <span>Менеджер</span>
-                <strong>{{ orderState.detail.order.managerSubject || 'Не назначен' }}</strong>
+                <strong>{{ orderManagerLabel(orderState.detail.order) }}</strong>
               </article>
             </div>
 
@@ -1302,14 +1325,9 @@
                   <label class="ops-field ops-field-required">
                     <span>Новый статус</span>
                     <select v-model="orderState.nextStatus">
-                      <option value="PENDING">PENDING</option>
-                      <option value="PAID">PAID</option>
-                      <option value="PROCESSING">PROCESSING</option>
-                      <option value="READY_FOR_PICKUP">READY_FOR_PICKUP</option>
-                      <option value="SHIPPED">SHIPPED</option>
-                      <option value="COMPLETED">COMPLETED</option>
-                      <option value="CANCELLED">CANCELLED</option>
-                      <option value="REFUNDED">REFUNDED</option>
+                      <option v-for="status in orderStatusOptions" :key="status" :value="status">
+                        {{ status }}
+                      </option>
                     </select>
                   </label>
                   <label class="ops-field">
@@ -1318,10 +1336,13 @@
                   </label>
                 </div>
                 <div class="sticky-actions sticky-actions-inline">
-                  <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                  <button class="button button-primary" type="submit" :disabled="isSubmitting || !canSubmitSelectedOrderStatus">
                     Сохранить статус
                   </button>
                 </div>
+                <p v-if="!canSubmitSelectedOrderStatus" class="inline-note">
+                  Для текущей роли изменение статуса этого заказа недоступно.
+                </p>
               </form>
             </section>
 
@@ -1792,7 +1813,13 @@ const tabs = [
 ];
 
 const ROLE_IDS = {
-  admin: ['admin', 'администратор cms', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001'],
+  admin: [
+    'admin',
+    'administrator',
+    'администратор',
+    'администратор cms',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001',
+  ],
   manager: ['manager', 'менеджер', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006'],
   picker: ['picker', 'сборщик', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007'],
   content: [
@@ -1825,6 +1852,18 @@ const productDetailTabs = [
   { id: 'media', label: 'Медиа' },
   { id: 'merch', label: 'Мерчандайзинг' },
 ];
+
+const ORDER_STATUS_OPTIONS = [
+  'PENDING',
+  'PAID',
+  'PROCESSING',
+  'READY_FOR_PICKUP',
+  'SHIPPED',
+  'COMPLETED',
+  'CANCELLED',
+  'REFUNDED',
+];
+const PICKER_TARGET_STATUS_OPTIONS = ['PROCESSING', 'READY_FOR_PICKUP', 'SHIPPED'];
 
 const STORAGE_KEY = 'storefront-ops.workspace-state';
 
@@ -2096,6 +2135,35 @@ const isManagerRole = computed(() => roleKind.value === 'manager');
 const canViewActivePromotions = computed(() => ['admin', 'manager', 'picker', 'content'].includes(roleKind.value));
 const visibleTabs = computed(() => tabs.filter((tab) => canAccessTab(tab.id)));
 const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
+const selectedOrder = computed(() => orderState.detail?.order || null);
+const orderStatusOptions = computed(() => (
+  roleKind.value === 'picker'
+    ? PICKER_TARGET_STATUS_OPTIONS
+    : ORDER_STATUS_OPTIONS
+));
+const canClaimSelectedOrder = computed(() => {
+  const order = selectedOrder.value;
+  return Boolean(order && ['admin', 'manager'].includes(roleKind.value) && !isOrderAssigned(order));
+});
+const canClearSelectedOrder = computed(() => Boolean(
+  selectedOrder.value && roleKind.value === 'admin' && isOrderAssigned(selectedOrder.value)
+));
+const canSubmitSelectedOrderStatus = computed(() => {
+  const order = selectedOrder.value;
+  if (!order || !orderState.nextStatus) {
+    return false;
+  }
+  if (roleKind.value === 'admin') {
+    return true;
+  }
+  if (roleKind.value === 'manager') {
+    return isOrderAssignedToCurrentUser(order);
+  }
+  if (roleKind.value === 'picker') {
+    return PICKER_TARGET_STATUS_OPTIONS.includes(orderState.nextStatus);
+  }
+  return false;
+});
 const accessRoleLabel = computed(() => {
   if (accessState.roleName) {
     return accessState.roleName;
@@ -2223,6 +2291,38 @@ function normalizeRoleToken(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function orderManagerLabel(order) {
+  return order?.managerEmail || order?.managerSubject || 'Не назначен';
+}
+
+function isOrderAssigned(order) {
+  return Boolean(order?.managerEmail || order?.managerSubject || order?.managerDirectusUserId);
+}
+
+function isOrderAssignedToCurrentUser(order) {
+  if (!order) {
+    return false;
+  }
+  const currentUserId = normalizeRoleToken(accessState.userId);
+  const currentEmail = normalizeRoleToken(accessState.email);
+  const assignedUserId = normalizeRoleToken(order.managerDirectusUserId);
+  const assignedEmail = normalizeRoleToken(order.managerEmail);
+  const assignedSubject = normalizeRoleToken(order.managerSubject);
+  if (currentUserId && assignedUserId && currentUserId === assignedUserId) {
+    return true;
+  }
+  return Boolean(currentEmail && (currentEmail === assignedEmail || currentEmail === assignedSubject));
+}
+
+function nextAllowedOrderStatus(currentStatus) {
+  if (roleKind.value === 'picker') {
+    return PICKER_TARGET_STATUS_OPTIONS.includes(currentStatus)
+      ? currentStatus
+      : PICKER_TARGET_STATUS_OPTIONS[0];
+  }
+  return currentStatus || ORDER_STATUS_OPTIONS[0];
+}
+
 function roleMatches(tokens, roleKey) {
   return (ROLE_IDS[roleKey] || []).some((entry) => tokens.has(normalizeRoleToken(entry)));
 }
@@ -2305,27 +2405,52 @@ async function bridgeRequest(path, options = {}) {
 
 async function loadAccessProfile() {
   try {
-    const response = await api.request({
-      url: '/users/me',
-      method: 'GET',
-      params: {
-        fields: ['id', 'email', 'external_identifier', 'role.id', 'role.name', 'role.admin_access'].join(','),
-      },
-    });
+    const response = await requestAccessProfile([
+      'id',
+      'email',
+      'external_identifier',
+      'role.id',
+      'role.name',
+    ]);
     const user = response?.data?.data || response?.data || {};
-    accessState.userId = user.id || '';
-    accessState.email = user.email || '';
-    accessState.externalId = user.external_identifier || user.externalIdentifier || '';
-    accessState.roleId = user.role?.id || user.role || '';
-    accessState.roleName = user.role?.name || '';
-    accessState.roleAdminAccess = Boolean(user.role?.admin_access);
+    applyAccessProfile(user);
   } catch {
-    accessState.roleId = '';
-    accessState.roleName = '';
-    accessState.roleAdminAccess = false;
+    try {
+      const response = await requestAccessProfile([
+        'id',
+        'email',
+        'external_identifier',
+        'role',
+      ]);
+      const user = response?.data?.data || response?.data || {};
+      applyAccessProfile(user);
+    } catch {
+      applyAccessProfile({});
+    }
   } finally {
     accessState.loaded = true;
   }
+}
+
+function requestAccessProfile(fields) {
+  return api.request({
+    url: '/users/me',
+    method: 'GET',
+    params: {
+      fields: fields.join(','),
+    },
+  });
+}
+
+function applyAccessProfile(user) {
+  const role = user?.role || '';
+  const roleIsObject = role && typeof role === 'object';
+  accessState.userId = user?.id || '';
+  accessState.email = user?.email || '';
+  accessState.externalId = user?.external_identifier || user?.externalIdentifier || '';
+  accessState.roleId = roleIsObject ? role.id || '' : role || '';
+  accessState.roleName = roleIsObject ? role.name || '' : '';
+  accessState.roleAdminAccess = Boolean(roleIsObject && (role.admin_access || role.adminAccess));
 }
 
 async function loadProducts({ reloadSelected = true } = {}) {
@@ -2524,7 +2649,7 @@ async function loadOrderDetail(id, { silent = false } = {}) {
     const response = await bridgeRequest(`/admin/orders/${id}`);
     orderState.detail = response;
     orderState.selectedId = id;
-    orderState.nextStatus = response?.order?.status || '';
+    orderState.nextStatus = nextAllowedOrderStatus(response?.order?.status || '');
     orderState.note = '';
   } catch (error) {
     setError(error);
@@ -3329,6 +3454,10 @@ async function submitOrderStatus() {
     pageError.value = 'Выберите заказ и статус.';
     return;
   }
+  if (!canSubmitSelectedOrderStatus.value) {
+    pageError.value = 'Для текущей роли изменение статуса этого заказа недоступно.';
+    return;
+  }
   isSubmitting.value = true;
   clearMessages();
   try {
@@ -3354,11 +3483,33 @@ async function claimOrder() {
   if (!orderState.selectedId) {
     return;
   }
+  if (!canClaimSelectedOrder.value) {
+    pageError.value = 'Этот заказ уже взят в работу или недоступен для вашей роли.';
+    return;
+  }
   isSubmitting.value = true;
   clearMessages();
   try {
     orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/claim`, { method: 'POST' });
+    await loadOrders();
     setSuccess('Заказ отмечен как взятый в работу.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function clearOrderClaim() {
+  if (!orderState.selectedId || !canClearSelectedOrder.value) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/unclaim`, { method: 'POST' });
+    await loadOrders();
+    setSuccess('Менеджер снят с заказа.');
   } catch (error) {
     setError(error);
   } finally {

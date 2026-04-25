@@ -23,6 +23,9 @@ public final class DirectusAdminModels {
             Money totalAmount,
             String receiptEmail,
             String managerSubject,
+            String managerEmail,
+            String managerDirectusUserId,
+            OffsetDateTime managerClaimedAt,
             OffsetDateTime orderDate,
             int itemCount,
             String publicToken
@@ -34,6 +37,9 @@ public final class DirectusAdminModels {
                     order.getTotalAmount(),
                     order.getReceiptEmail(),
                     order.getManagerSubject(),
+                    order.getManagerEmail(),
+                    order.getManagerDirectusUserId(),
+                    order.getManagerClaimedAt(),
                     order.getOrderDate(),
                     order.getItems() != null ? order.getItems().size() : 0,
                     order.getPublicToken()

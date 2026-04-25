@@ -54,6 +54,10 @@ public class DirectusAdminRoleGuard {
         return hasAny(principal, managerTokens());
     }
 
+    public boolean isPicker(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        return hasAny(principal, pickerTokens());
+    }
+
     @SafeVarargs
     private void requireAny(DirectusBridgeSecurity.DirectusBridgePrincipal principal,
                             String scope,

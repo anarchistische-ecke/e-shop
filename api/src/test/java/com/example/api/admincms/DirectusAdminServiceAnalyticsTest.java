@@ -34,6 +34,8 @@ class DirectusAdminServiceAnalyticsTest {
     @Mock
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
     @Mock
+    private DirectusAdminRoleGuard roleGuard;
+    @Mock
     private CatalogueImportJobRepository importJobRepository;
     @Mock
     private CatalogueImportRowRepository importRowRepository;
@@ -64,6 +66,7 @@ class DirectusAdminServiceAnalyticsTest {
                 orderRepository,
                 orderService,
                 orderStatusHistoryRepository,
+                roleGuard,
                 importJobRepository,
                 importRowRepository,
                 promotionRepository,

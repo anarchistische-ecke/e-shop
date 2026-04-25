@@ -44,6 +44,7 @@ import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -73,10 +74,23 @@ public class DirectusAdminService {
 
     private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {
     };
+    private static final Set<String> ORDER_STATUSES = Set.of(
+            "PENDING",
+            "PAID",
+            "PROCESSING",
+            "READY_FOR_PICKUP",
+            "SHIPPED",
+            "COMPLETED",
+            "CANCELLED",
+            "REFUNDED"
+    );
+    private static final Set<String> PICKER_VISIBLE_STATUSES = Set.of("PAID", "PROCESSING", "READY_FOR_PICKUP", "SHIPPED");
+    private static final Set<String> PICKER_TARGET_STATUSES = Set.of("PROCESSING", "READY_FOR_PICKUP", "SHIPPED");
 
     private final OrderRepository orderRepository;
     private final OrderService orderService;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final DirectusAdminRoleGuard roleGuard;
     private final CatalogueImportJobRepository importJobRepository;
     private final CatalogueImportRowRepository importRowRepository;
     private final PromotionRepository promotionRepository;
@@ -94,6 +108,7 @@ public class DirectusAdminService {
             OrderRepository orderRepository,
             OrderService orderService,
             OrderStatusHistoryRepository orderStatusHistoryRepository,
+            DirectusAdminRoleGuard roleGuard,
             CatalogueImportJobRepository importJobRepository,
             CatalogueImportRowRepository importRowRepository,
             PromotionRepository promotionRepository,
@@ -110,6 +125,7 @@ public class DirectusAdminService {
         this.orderRepository = orderRepository;
         this.orderService = orderService;
         this.orderStatusHistoryRepository = orderStatusHistoryRepository;
+        this.roleGuard = roleGuard;
         this.importJobRepository = importJobRepository;
         this.importRowRepository = importRowRepository;
         this.promotionRepository = promotionRepository;
@@ -124,33 +140,35 @@ public class DirectusAdminService {
         this.objectMapper = objectMapper;
     }
 
-    public OrderSearchResponse searchOrders(String status, String manager, OffsetDateTime from, OffsetDateTime to, String query) {
+    public OrderSearchResponse searchOrders(String status,
+                                            String manager,
+                                            OffsetDateTime from,
+                                            OffsetDateTime to,
+                                            String query,
+                                            DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         String normalizedStatus = normalize(status);
         String normalizedManager = normalize(manager);
         String normalizedQuery = normalize(query);
         List<DirectusAdminModels.OrderSummary> items = orderRepository.findAllByOrderByOrderDateDesc().stream()
+                .filter(order -> canReadOrder(order, principal))
                 .filter(order -> !StringUtils.hasText(normalizedStatus) || equalsIgnoreCase(order.getStatus(), normalizedStatus))
-                .filter(order -> !StringUtils.hasText(normalizedManager) || containsIgnoreCase(order.getManagerSubject(), normalizedManager))
+                .filter(order -> !StringUtils.hasText(normalizedManager) || matchesManager(order, normalizedManager))
                 .filter(order -> from == null || (order.getOrderDate() != null && !order.getOrderDate().isBefore(from)))
                 .filter(order -> to == null || (order.getOrderDate() != null && !order.getOrderDate().isAfter(to)))
                 .filter(order -> !StringUtils.hasText(normalizedQuery)
                         || containsIgnoreCase(String.valueOf(order.getId()), normalizedQuery)
                         || containsIgnoreCase(order.getReceiptEmail(), normalizedQuery)
                         || containsIgnoreCase(order.getPublicToken(), normalizedQuery)
-                        || containsIgnoreCase(order.getManagerSubject(), normalizedQuery))
+                        || matchesManager(order, normalizedQuery))
                 .map(DirectusAdminModels.OrderSummary::from)
                 .toList();
         return new OrderSearchResponse(items);
     }
 
-    public OrderDetail getOrder(UUID orderId) {
+    public OrderDetail getOrder(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order order = orderService.findById(orderId);
-        return new OrderDetail(
-                order,
-                orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId).stream()
-                        .map(OrderStatusEvent::from)
-                        .toList()
-        );
+        requireCanReadOrder(order, principal);
+        return toOrderDetail(order);
     }
 
     public OrderDetail updateOrderStatus(UUID orderId,
@@ -158,7 +176,12 @@ public class DirectusAdminService {
                                          String note,
                                          DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order before = orderService.findById(orderId);
-        Order updated = orderService.updateOrderStatus(orderId, requireText(status, "status"));
+        String nextStatus = requireText(status, "status").toUpperCase(Locale.ROOT);
+        if (!ORDER_STATUSES.contains(nextStatus)) {
+            throw new IllegalArgumentException("Unsupported order status: " + status);
+        }
+        requireCanUpdateOrder(before, nextStatus, principal);
+        Order updated = orderService.updateOrderStatus(orderId, nextStatus);
         OrderStatusHistory event = new OrderStatusHistory();
         event.setOrderId(orderId);
         event.setPreviousStatus(before.getStatus());
@@ -167,11 +190,32 @@ public class DirectusAdminService {
         event.setActorRole(principal.primaryRole());
         event.setNote(normalize(note));
         orderStatusHistoryRepository.save(event);
-        return getOrder(orderId);
+        return toOrderDetail(updated);
     }
 
     public OrderDetail claimOrder(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order order = orderService.findById(orderId);
+        requireCanClaimOrder(order, principal);
+        if (isAssignedToPrincipal(order, principal)) {
+            return toOrderDetail(order);
+        }
+        if (isAssigned(order)) {
+            throw new IllegalStateException("Order is already assigned to " + assignedManagerLabel(order));
+        }
+        String managerEmail = principal.email();
+        String managerLabel = StringUtils.hasText(managerEmail) ? managerEmail : principal.actor();
+        OffsetDateTime claimedAt = OffsetDateTime.now();
+        int claimed = orderRepository.claimDirectusManager(orderId, managerLabel, managerEmail, principal.userId(), claimedAt);
+        order = orderService.findById(orderId);
+        if (claimed == 0) {
+            if (isAssignedToPrincipal(order, principal)) {
+                return toOrderDetail(order);
+            }
+            if (isAssigned(order)) {
+                throw new IllegalStateException("Order is already assigned to " + assignedManagerLabel(order));
+            }
+            throw new IllegalStateException("Order could not be claimed. Please reload and try again.");
+        }
         OrderStatusHistory event = new OrderStatusHistory();
         event.setOrderId(orderId);
         event.setPreviousStatus(order.getStatus());
@@ -180,7 +224,144 @@ public class DirectusAdminService {
         event.setActorRole(principal.primaryRole());
         event.setNote("claimed");
         orderStatusHistoryRepository.save(event);
-        return getOrder(orderId);
+        return toOrderDetail(order);
+    }
+
+    public OrderDetail clearOrderClaim(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (!roleGuard.isAdmin(principal)) {
+            throw new AccessDeniedException("Only administrators can clear order assignment");
+        }
+        Order order = orderService.findById(orderId);
+        if (!isAssigned(order)) {
+            return toOrderDetail(order);
+        }
+        order.setManagerSubject(null);
+        order.setManagerEmail(null);
+        order.setManagerDirectusUserId(null);
+        order.setManagerClaimedAt(null);
+        order = orderRepository.save(order);
+
+        OrderStatusHistory event = new OrderStatusHistory();
+        event.setOrderId(orderId);
+        event.setPreviousStatus(order.getStatus());
+        event.setNextStatus(order.getStatus());
+        event.setActor(principal.actor());
+        event.setActorRole(principal.primaryRole());
+        event.setNote("assignment-cleared");
+        orderStatusHistoryRepository.save(event);
+        return toOrderDetail(order);
+    }
+
+    private OrderDetail toOrderDetail(Order order) {
+        return new OrderDetail(
+                order,
+                orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(order.getId()).stream()
+                        .map(OrderStatusEvent::from)
+                        .toList()
+        );
+    }
+
+    private void requireCanReadOrder(Order order, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (!canReadOrder(order, principal)) {
+            throw new AccessDeniedException("Directus role is not allowed to access this order");
+        }
+    }
+
+    private boolean canReadOrder(Order order, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (roleGuard.isAdmin(principal)) {
+            return true;
+        }
+        if (roleGuard.isManager(principal)) {
+            return !isAssigned(order) || isAssignedToPrincipal(order, principal);
+        }
+        if (roleGuard.isPicker(principal)) {
+            return isPickerQueueOrder(order);
+        }
+        return false;
+    }
+
+    private void requireCanUpdateOrder(Order order,
+                                       String nextStatus,
+                                       DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (roleGuard.isAdmin(principal)) {
+            return;
+        }
+        if (roleGuard.isManager(principal)) {
+            if (isAssignedToPrincipal(order, principal)) {
+                return;
+            }
+            throw new AccessDeniedException("Claim this order before changing its status");
+        }
+        if (roleGuard.isPicker(principal)) {
+            if (isPickerQueueOrder(order) && PICKER_TARGET_STATUSES.contains(nextStatus)) {
+                return;
+            }
+            throw new AccessDeniedException("Picker can only advance paid order queue statuses");
+        }
+        throw new AccessDeniedException("Directus role is not allowed to update this order");
+    }
+
+    private void requireCanClaimOrder(Order order, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (roleGuard.isPicker(principal)) {
+            throw new AccessDeniedException("Picker role cannot claim manager ownership of orders");
+        }
+        if (roleGuard.isAdmin(principal) || roleGuard.isManager(principal)) {
+            return;
+        }
+        throw new AccessDeniedException("Directus role is not allowed to claim orders");
+    }
+
+    private boolean isPickerQueueOrder(Order order) {
+        return order != null && PICKER_VISIBLE_STATUSES.contains(normalizeStatus(order.getStatus()));
+    }
+
+    private boolean isAssigned(Order order) {
+        return order != null
+                && (StringUtils.hasText(order.getManagerDirectusUserId())
+                || StringUtils.hasText(order.getManagerEmail())
+                || StringUtils.hasText(order.getManagerSubject()));
+    }
+
+    private boolean isAssignedToPrincipal(Order order, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (order == null || principal == null) {
+            return false;
+        }
+        if (StringUtils.hasText(principal.userId())
+                && equalsIgnoreCase(order.getManagerDirectusUserId(), principal.userId())) {
+            return true;
+        }
+        if (StringUtils.hasText(principal.email())) {
+            return equalsIgnoreCase(order.getManagerEmail(), principal.email())
+                    || equalsIgnoreCase(order.getManagerSubject(), principal.email());
+        }
+        return StringUtils.hasText(principal.externalId())
+                && equalsIgnoreCase(order.getManagerSubject(), principal.externalId());
+    }
+
+    private boolean matchesManager(Order order, String query) {
+        return containsIgnoreCase(order.getManagerSubject(), query)
+                || containsIgnoreCase(order.getManagerEmail(), query)
+                || containsIgnoreCase(order.getManagerDirectusUserId(), query);
+    }
+
+    private String assignedManagerLabel(Order order) {
+        if (order == null) {
+            return "another account";
+        }
+        if (StringUtils.hasText(order.getManagerEmail())) {
+            return order.getManagerEmail();
+        }
+        if (StringUtils.hasText(order.getManagerSubject())) {
+            return order.getManagerSubject();
+        }
+        if (StringUtils.hasText(order.getManagerDirectusUserId())) {
+            return order.getManagerDirectusUserId();
+        }
+        return "another account";
+    }
+
+    private String normalizeStatus(String status) {
+        return StringUtils.hasText(status) ? status.trim().toUpperCase(Locale.ROOT) : "";
     }
 
     public ImportDryRunResponse dryRunImport(MultipartFile file, ImportMapping mapping, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
@@ -404,13 +585,13 @@ public class DirectusAdminService {
         String normalizedManager = normalize(manager);
         Set<UUID> managerLinkedOrderIds = managerLinkedOrderIds(normalizedManager);
         Map<String, List<Order>> byManager = orderRepository.findAllByOrderByOrderDateDesc().stream()
-                .filter(order -> StringUtils.hasText(order.getManagerSubject()))
+                .filter(this::isAssigned)
                 .filter(order -> !StringUtils.hasText(normalizedManager)
-                        || containsIgnoreCase(order.getManagerSubject(), normalizedManager)
+                        || matchesManager(order, normalizedManager)
                         || managerLinkedOrderIds.contains(order.getId()))
                 .filter(order -> from == null || (order.getOrderDate() != null && !order.getOrderDate().isBefore(from)))
                 .filter(order -> to == null || (order.getOrderDate() != null && !order.getOrderDate().isAfter(to)))
-                .collect(Collectors.groupingBy(Order::getManagerSubject, LinkedHashMap::new, Collectors.toList()));
+                .collect(Collectors.groupingBy(this::assignedManagerLabel, LinkedHashMap::new, Collectors.toList()));
         List<ManagerAnalyticsRow> rows = byManager.entrySet().stream()
                 .map(entry -> {
                     long paidOrders = entry.getValue().stream().filter(order -> equalsIgnoreCase(order.getStatus(), "PAID")).count();

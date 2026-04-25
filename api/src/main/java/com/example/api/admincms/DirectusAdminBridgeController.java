@@ -79,14 +79,14 @@ public class DirectusAdminBridgeController {
     ) {
         var principal = authorize(request);
         roleGuard.requireOrders(principal);
-        return ResponseEntity.ok(adminService.searchOrders(status, manager, from, to, q));
+        return ResponseEntity.ok(adminService.searchOrders(status, manager, from, to, q, principal));
     }
 
     @GetMapping("/orders/{id}")
     public ResponseEntity<OrderDetail> getOrder(@PathVariable UUID id, HttpServletRequest request) {
         var principal = authorize(request);
         roleGuard.requireOrders(principal);
-        return ResponseEntity.ok(adminService.getOrder(id));
+        return ResponseEntity.ok(adminService.getOrder(id, principal));
     }
 
     @PostMapping("/orders/{id}/status")
@@ -108,6 +108,15 @@ public class DirectusAdminBridgeController {
         roleGuard.requireOrders(principal);
         OrderDetail response = adminService.claimOrder(id, principal);
         audit(principal, "admin.order.claim", Map.of("orderId", id));
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/orders/{id}/unclaim")
+    public ResponseEntity<OrderDetail> clearOrderClaim(@PathVariable UUID id, HttpServletRequest request) {
+        var principal = authorize(request);
+        roleGuard.requireOrders(principal);
+        OrderDetail response = adminService.clearOrderClaim(id, principal);
+        audit(principal, "admin.order.unclaim", Map.of("orderId", id));
         return ResponseEntity.ok(response);
     }
 
@@ -380,11 +389,11 @@ public class DirectusAdminBridgeController {
         if (!roleGuard.isManager(principal) || roleGuard.isAdmin(principal)) {
             return requestedManager;
         }
-        if (StringUtils.hasText(principal.externalId())) {
-            return principal.externalId();
-        }
         if (StringUtils.hasText(principal.email())) {
             return principal.email();
+        }
+        if (StringUtils.hasText(principal.externalId())) {
+            return principal.externalId();
         }
         return principal.userId();
     }
