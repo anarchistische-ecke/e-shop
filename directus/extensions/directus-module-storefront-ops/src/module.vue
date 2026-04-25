@@ -1879,6 +1879,7 @@ const accessState = reactive({
   userId: '',
   email: '',
   externalId: '',
+  roleKind: '',
   roleId: '',
   roleName: '',
   roleAdminAccess: false,
@@ -2328,6 +2329,10 @@ function roleMatches(tokens, roleKey) {
 }
 
 function resolveRoleKind(state) {
+  if (['admin', 'manager', 'picker', 'content'].includes(state.roleKind)) {
+    return state.roleKind;
+  }
+
   const tokens = new Set([
     normalizeRoleToken(state.roleId),
     normalizeRoleToken(state.roleName),
@@ -2405,6 +2410,14 @@ async function bridgeRequest(path, options = {}) {
 
 async function loadAccessProfile() {
   try {
+    const profile = await bridgeRequest('/access-profile');
+    applyAccessProfile(profile?.data || profile || {});
+    return;
+  } catch {
+    // Older deployed endpoints do not expose the bridge profile yet.
+  }
+
+  try {
     const response = await requestAccessProfile([
       'id',
       'email',
@@ -2450,6 +2463,7 @@ function applyAccessProfile(user) {
   accessState.externalId = user?.external_identifier || user?.externalIdentifier || '';
   accessState.roleId = roleIsObject ? role.id || '' : role || '';
   accessState.roleName = roleIsObject ? role.name || '' : '';
+  accessState.roleKind = user?.roleKind || user?.role_kind || (roleIsObject ? role.kind || '' : '');
   accessState.roleAdminAccess = Boolean(roleIsObject && (role.admin_access || role.adminAccess));
 }
 
