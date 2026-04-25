@@ -101,6 +101,15 @@ public class CatalogService {
         return variantRepository.save(variant);
     }
 
+    public void deleteVariant(UUID productId, UUID variantId) {
+        ProductVariant variant = variantRepository.findWithProductById(variantId)
+                .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+        if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
+            throw new IllegalArgumentException("Variant does not belong to product: " + productId);
+        }
+        variantRepository.delete(variant);
+    }
+
     public ProductImage addProductImage(UUID productId, String url, String objectKey, int position, UUID variantId) {
         Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
         ProductVariant variant = null;

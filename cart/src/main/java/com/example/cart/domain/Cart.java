@@ -18,6 +18,9 @@ public class Cart extends BaseEntity {
     @Column(name = "customer_id", columnDefinition = "uuid")
     private UUID customerId;
 
+    @Column(name = "promo_code")
+    private String promoCode;
+
     @OneToMany(mappedBy = "cart", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<CartItem> items = new HashSet<>();
@@ -36,6 +39,14 @@ public class Cart extends BaseEntity {
 
     public void setCustomerId(UUID customerId) {
         this.customerId = customerId;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
     }
 
     public Set<CartItem> getItems() {

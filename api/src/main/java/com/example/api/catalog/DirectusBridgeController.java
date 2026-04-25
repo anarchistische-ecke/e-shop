@@ -215,6 +215,18 @@ public class DirectusBridgeController {
         return ResponseEntity.ok(responseFactory.toVariantResponse(updated));
     }
 
+    @DeleteMapping("/products/{productId}/variants/{variantId}")
+    public ResponseEntity<Void> deleteVariant(
+            @PathVariable UUID productId,
+            @PathVariable UUID variantId,
+            HttpServletRequest request
+    ) {
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        catalogService.deleteVariant(productId, variantId);
+        audit(principal, "catalogue.variant.delete", Map.of("productId", productId, "variantId", variantId));
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping(value = "/products/{productId}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<List<CatalogController.ImageResponse>> uploadProductImages(
             @PathVariable UUID productId,

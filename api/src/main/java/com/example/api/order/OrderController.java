@@ -1,5 +1,6 @@
 package com.example.api.order;
 
+import com.example.api.admincms.DirectusAdminService;
 import com.example.api.notification.EmailService;
 import com.example.customer.domain.Customer;
 import com.example.customer.service.CustomerService;
@@ -44,6 +45,7 @@ public class OrderController {
     private final CustomerService customerService;
     private final PaymentService paymentService;
     private final EmailService emailService;
+    private final DirectusAdminService directusAdminService;
 
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
@@ -55,11 +57,13 @@ public class OrderController {
     public OrderController(OrderService orderService,
                            CustomerService customerService,
                            PaymentService paymentService,
-                           EmailService emailService) {
+                           EmailService emailService,
+                           DirectusAdminService directusAdminService) {
         this.orderService = orderService;
         this.customerService = customerService;
         this.paymentService = paymentService;
         this.emailService = emailService;
+        this.directusAdminService = directusAdminService;
     }
 
     @PostMapping
@@ -178,6 +182,7 @@ public class OrderController {
         if (shouldSend) {
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
         }
+        directusAdminService.recordManagerPaymentLink(order, managerSubject, jwt.getClaimAsString("email"), shouldSend);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new OrderLinkResponse(order.getId(), order.getPublicToken()));
     }

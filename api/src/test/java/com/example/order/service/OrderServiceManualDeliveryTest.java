@@ -52,6 +52,7 @@ class OrderServiceManualDeliveryTest {
         Cart cart = new Cart(customerId);
         cart.addItem(new CartItem(variantId, 2, Money.of(210000, "RUB")));
         when(cartService.getCartById(cartId)).thenReturn(cart);
+        when(cartService.calculateCartTotal(cartId)).thenReturn(420000L);
 
         Product product = new Product("Сатиновый комплект Sand", "desc", "satin-sand");
         ProductVariant variant = new ProductVariant("SKU-1", "200x220", Money.of(210000, "RUB"), 4);

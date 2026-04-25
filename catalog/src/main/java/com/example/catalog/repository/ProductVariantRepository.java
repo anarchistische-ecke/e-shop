@@ -16,5 +16,8 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     Optional<ProductVariant> findWithProductById(UUID id);
 
     @EntityGraph(attributePaths = "product")
+    Optional<ProductVariant> findBySku(String sku);
+
+    @EntityGraph(attributePaths = "product")
     List<ProductVariant> findByIdIn(Collection<UUID> ids);
 }

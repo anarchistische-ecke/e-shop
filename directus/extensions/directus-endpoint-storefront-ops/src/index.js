@@ -22,8 +22,12 @@ function isInventoryPath(path) {
 
 function buildRoleSets(env) {
   return {
+    admin: new Set(parseCsv(env.STOREFRONT_OPS_ADMIN_ROLE_IDS || 'admin,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001')),
     catalogue: new Set(parseCsv(env.STOREFRONT_OPS_CATALOGUE_ROLE_IDS || '')),
     inventory: new Set(parseCsv(env.STOREFRONT_OPS_INVENTORY_ROLE_IDS || '')),
+    manager: new Set(parseCsv(env.STOREFRONT_OPS_MANAGER_ROLE_IDS || '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006')),
+    picker: new Set(parseCsv(env.STOREFRONT_OPS_PICKER_ROLE_IDS || '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007')),
+    content: new Set(parseCsv(env.STOREFRONT_OPS_CONTENT_ROLE_IDS || '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005')),
   };
 }
 
@@ -45,7 +49,28 @@ function hasAnyAllowedRole(accountability, allowedRoleSets) {
   return sets.some((entry) => hasAllowedRole(accountability, entry));
 }
 
-async function forwardJson(req, res, context, targetPath) {
+function resolveAdminRoleSets(path, roleSets) {
+  if (path === '/admin/promotions/active' || path.startsWith('/admin/promotions/active/')) {
+    return [roleSets.admin, roleSets.manager, roleSets.picker, roleSets.content];
+  }
+  if (path.startsWith('/admin/orders')) {
+    return [roleSets.admin, roleSets.manager, roleSets.picker];
+  }
+  if (path.startsWith('/admin/analytics') || path.startsWith('/admin/tax-settings')) {
+    return [roleSets.admin];
+  }
+  if (
+    path.startsWith('/admin/imports') ||
+    path.startsWith('/admin/promotions') ||
+    path.startsWith('/admin/promo-codes') ||
+    path.startsWith('/admin/alerts')
+  ) {
+    return [roleSets.admin, roleSets.content];
+  }
+  return [roleSets.admin];
+}
+
+async function forwardJson(req, res, context, targetPath, namespace = 'catalogue') {
   const { env, accountability } = context;
   const backendBaseUrl = normalizeBaseUrl(env.STOREFRONT_OPS_BACKEND_URL);
   const backendToken = env.STOREFRONT_OPS_BACKEND_TOKEN || '';
@@ -57,7 +82,7 @@ async function forwardJson(req, res, context, targetPath) {
     return;
   }
 
-  const url = new URL(`${backendBaseUrl}/internal/directus/catalogue${targetPath}`);
+  const url = new URL(`${backendBaseUrl}/internal/directus/${namespace}${targetPath}`);
   Object.entries(req.query || {}).forEach(([key, value]) => {
     if (Array.isArray(value)) {
       value.forEach((entry) => url.searchParams.append(key, entry));
@@ -139,6 +164,26 @@ export default {
     }
 
     const path = String(req.path || '');
+    const isAdminRoute = path === '/admin' || path.startsWith('/admin/');
+    const adminTargetPath = isAdminRoute ? path.replace(/^\/admin/, '') || '/' : path;
+    const adminAllowedRoles = isAdminRoute ? resolveAdminRoleSets(path, roleSets) : [];
+
+    if (isAdminRoute && !hasAnyAllowedRole(req.accountability, adminAllowedRoles)) {
+      res.status(403).json({ error: 'У этой роли Directus нет доступа к административному разделу витрины.' });
+      return;
+    }
+
+    if (isAdminRoute) {
+      try {
+        await forwardJson(req, res, context, adminTargetPath, 'admin');
+      } catch (error) {
+        res.status(502).json({
+          error: error instanceof Error ? error.message : 'Не удалось обратиться к административному bridge в бэкенде.',
+        });
+      }
+      return;
+    }
+
     const inventoryRoute = isInventoryPath(path);
     const allowedRoles = inventoryRoute ? roleSets.inventory : roleSets.catalogue;
 
@@ -153,7 +198,7 @@ export default {
     }
 
     try {
-      await forwardJson(req, res, context, path);
+      await forwardJson(req, res, context, path, 'catalogue');
     } catch (error) {
       res.status(502).json({
         error: error instanceof Error ? error.message : 'Не удалось обратиться к bridge каталога в бэкенде.',

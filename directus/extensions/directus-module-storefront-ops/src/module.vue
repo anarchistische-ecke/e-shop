@@ -191,7 +191,7 @@
           </div>
         </template>
 
-        <template v-else>
+        <template v-else-if="activeTab === 'inventory'">
           <div class="pane-header">
             <div>
               <h2>Остатки</h2>
@@ -232,6 +232,257 @@
                 <span>{{ formatMoney(item.price) }}</span>
               </div>
             </button>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'orders'">
+          <div class="pane-header">
+            <div>
+              <h2>Заказы</h2>
+              <p>{{ orderState.items.length }} записей</p>
+            </div>
+            <button class="button button-secondary" type="button" @click="loadOrders">
+              Найти
+            </button>
+          </div>
+
+          <label class="search-field">
+            <span>Поиск</span>
+            <input v-model.trim="orderState.query" type="search" placeholder="ID, email, токен" @keyup.enter="loadOrders" />
+          </label>
+
+          <div class="form-grid">
+            <label class="ops-field">
+              <span>Статус</span>
+              <input v-model.trim="orderState.status" type="text" placeholder="PENDING, PAID" @keyup.enter="loadOrders" />
+            </label>
+            <label class="ops-field">
+              <span>Менеджер</span>
+              <input v-model.trim="orderState.manager" type="text" @keyup.enter="loadOrders" />
+            </label>
+          </div>
+
+          <div v-if="isTabLoading('orders')" class="empty-state">
+            <strong>Загружаю заказы</strong>
+          </div>
+          <div v-else-if="!orderState.items.length" class="empty-state">
+            <strong>Заказы не найдены</strong>
+            <span>Измените фильтр или период.</span>
+          </div>
+          <div v-else class="card-list">
+            <button
+              v-for="order in orderState.items"
+              :key="order.id"
+              type="button"
+              class="list-card"
+              :class="{ active: orderState.selectedId === order.id }"
+              @click="selectOrder(order.id)"
+            >
+              <div class="list-card-head">
+                <strong>{{ order.receiptEmail || order.id }}</strong>
+                <span class="pill pill-neutral">{{ order.status }}</span>
+              </div>
+              <p class="list-card-slug">{{ order.id }}</p>
+              <div class="list-card-meta">
+                <span>{{ formatMoney(order.totalAmount) }}</span>
+                <span>{{ order.managerSubject || 'Без менеджера' }}</span>
+                <span>{{ formatDateTime(order.orderDate) }}</span>
+              </div>
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'imports'">
+          <div class="pane-header">
+            <div>
+              <h2>Импорт</h2>
+              <p>{{ importState.jobs.length }} запусков</p>
+            </div>
+          </div>
+
+          <div v-if="isTabLoading('imports')" class="empty-state">
+            <strong>Загружаю историю</strong>
+          </div>
+          <div v-else-if="!importState.jobs.length" class="empty-state">
+            <strong>История пуста</strong>
+            <span>Запустите dry-run для Excel или CSV файла.</span>
+          </div>
+          <div v-else class="card-list">
+            <button
+              v-for="job in importState.jobs"
+              :key="job.id"
+              type="button"
+              class="list-card"
+              :class="{ active: importState.selectedJobId === job.id }"
+              @click="selectImportJob(job.id)"
+            >
+              <div class="list-card-head">
+                <strong>{{ job.fileName || job.id }}</strong>
+                <span class="pill" :class="job.invalidRows ? 'pill-muted' : 'pill-positive'">{{ job.status }}</span>
+              </div>
+              <div class="list-card-meta">
+                <span>{{ job.validRows }} валидных</span>
+                <span>{{ job.invalidRows }} ошибок</span>
+                <span>{{ formatDateTime(job.createdAt) }}</span>
+              </div>
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'promotions'">
+          <div class="pane-header">
+            <div>
+              <h2>Акции</h2>
+              <p>{{ promotionState.items.length }} акций · {{ promotionState.promoCodes.length }} кодов</p>
+            </div>
+            <button class="button button-primary" type="button" @click="startCreatePromotion">
+              Новая акция
+            </button>
+          </div>
+
+          <div v-if="isTabLoading('promotions')" class="empty-state">
+            <strong>Загружаю акции</strong>
+          </div>
+          <div v-else class="card-list">
+            <button
+              v-for="promotion in promotionState.items"
+              :key="promotion.id"
+              type="button"
+              class="list-card"
+              :class="{ active: promotionState.selectedId === promotion.id && promotionState.mode === 'promotion' }"
+              @click="selectPromotion(promotion)"
+            >
+              <div class="list-card-head">
+                <strong>{{ promotion.name }}</strong>
+                <span class="pill" :class="promotion.activeNow ? 'pill-positive' : 'pill-muted'">{{ promotion.status }}</span>
+              </div>
+              <p class="list-card-slug">{{ promotion.type }}</p>
+              <div class="list-card-meta">
+                <span>{{ promotion.startsAt ? formatDateTime(promotion.startsAt) : 'Без начала' }}</span>
+                <span>{{ promotion.endsAt ? formatDateTime(promotion.endsAt) : 'Без окончания' }}</span>
+              </div>
+            </button>
+            <button
+              v-for="promoCode in promotionState.promoCodes"
+              :key="promoCode.id"
+              type="button"
+              class="list-card"
+              :class="{ active: promotionState.selectedPromoCodeId === promoCode.id && promotionState.mode === 'promoCode' }"
+              @click="selectPromoCode(promoCode)"
+            >
+              <div class="list-card-head">
+                <strong>{{ promoCode.code }}</strong>
+                <span class="pill" :class="promoCode.activeNow ? 'pill-positive' : 'pill-muted'">{{ promoCode.status }}</span>
+              </div>
+              <p class="list-card-slug">Промокод</p>
+              <div class="list-card-meta">
+                <span>{{ promoCode.redemptionCount }} использований</span>
+                <span>{{ promoCode.maxRedemptions || 'Без лимита' }}</span>
+              </div>
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'tax'">
+          <div class="pane-header">
+            <div>
+              <h2>Налоги</h2>
+              <p>{{ taxState.items.length }} режимов</p>
+            </div>
+            <button class="button button-primary" type="button" @click="startCreateTax">
+              Новый режим
+            </button>
+          </div>
+
+          <div v-if="isTabLoading('tax')" class="empty-state">
+            <strong>Загружаю настройки</strong>
+          </div>
+          <div v-else class="card-list">
+            <button
+              v-for="tax in taxState.items"
+              :key="tax.id"
+              type="button"
+              class="list-card"
+              :class="{ active: taxState.selectedId === tax.id }"
+              @click="selectTax(tax)"
+            >
+              <div class="list-card-head">
+                <strong>{{ tax.name }}</strong>
+                <span class="pill" :class="tax.active ? 'pill-positive' : 'pill-muted'">{{ tax.active ? 'Активен' : tax.status }}</span>
+              </div>
+              <div class="list-card-meta">
+                <span>СНО {{ tax.taxSystemCode }}</span>
+                <span>НДС {{ tax.vatCode }}</span>
+                <span>{{ tax.vatRatePercent ?? 0 }}%</span>
+              </div>
+            </button>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'analytics'">
+          <div class="pane-header">
+            <div>
+              <h2>Аналитика</h2>
+              <p>{{ analyticsState.managerRows.length }} менеджеров</p>
+            </div>
+            <button class="button button-secondary" type="button" @click="loadAnalytics">
+              Рассчитать
+            </button>
+          </div>
+
+          <label class="search-field">
+            <span>Менеджер</span>
+            <input v-model.trim="analyticsState.manager" type="search" placeholder="Фильтр" @keyup.enter="loadAnalytics" />
+          </label>
+
+          <div v-if="isTabLoading('analytics')" class="empty-state">
+            <strong>Считаю показатели</strong>
+          </div>
+          <div v-else class="card-list">
+            <article v-for="row in analyticsState.managerRows" :key="row.managerSubject" class="list-card">
+              <div class="list-card-head">
+                <strong>{{ row.managerSubject }}</strong>
+                <span class="pill pill-neutral">{{ row.paidOrders }}/{{ row.totalOrders }}</span>
+              </div>
+              <div class="list-card-meta">
+                <span>{{ formatMoney(row.paidAmount) }}</span>
+                <span>3% {{ formatMoney(row.commission) }}</span>
+              </div>
+            </article>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'alerts'">
+          <div class="pane-header">
+            <div>
+              <h2>Алерты</h2>
+              <p>{{ alertState.rows.length }} SKU ниже порога</p>
+            </div>
+          </div>
+
+          <label class="ops-field">
+            <span>Глобальный порог</span>
+            <input v-model.number="alertState.threshold" type="number" min="0" step="1" />
+          </label>
+          <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="saveLowStockThreshold">
+            Сохранить порог
+          </button>
+
+          <div v-if="isTabLoading('alerts')" class="empty-state">
+            <strong>Проверяю остатки</strong>
+          </div>
+          <div v-else-if="!alertState.rows.length" class="empty-state">
+            <strong>Алертов нет</strong>
+            <span>Все SKU выше текущего порога.</span>
+          </div>
+          <div v-else class="card-list">
+            <article v-for="row in alertState.rows" :key="row.variantId" class="list-card">
+              <div class="list-card-head">
+                <strong>{{ row.productName }}</strong>
+                <span class="pill pill-muted">{{ row.stock }} шт.</span>
+              </div>
+              <p class="list-card-slug">{{ row.variantName }} · {{ row.sku }}</p>
+            </article>
           </div>
         </template>
         </aside>
@@ -483,6 +734,9 @@
                       </div>
                       <button class="button button-secondary" type="button" @click="loadVariantEditor(variant)">
                         Изменить
+                      </button>
+                      <button class="button button-danger" type="button" :disabled="isSubmitting" @click="deleteVariant(variant)">
+                        Удалить
                       </button>
                     </article>
                   </div>
@@ -885,7 +1139,7 @@
           </section>
         </template>
 
-        <template v-else>
+        <template v-else-if="activeTab === 'inventory'">
           <div v-if="!selectedInventoryRow" class="empty-detail">
             <strong>Выберите вариант</strong>
             <span>Откройте SKU слева, чтобы скорректировать остаток.</span>
@@ -943,6 +1197,513 @@
             </form>
           </section>
         </template>
+
+        <template v-else-if="activeTab === 'orders'">
+          <div v-if="!orderState.detail" class="empty-detail">
+            <strong>Выберите заказ</strong>
+            <span>Откройте заказ из списка, чтобы увидеть состав, историю и действия.</span>
+          </div>
+          <section v-else class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Заказы</p>
+                <h2>{{ orderState.detail.order.receiptEmail || orderState.detail.order.id }}</h2>
+                <p class="detail-subtitle">{{ orderState.detail.order.id }}</p>
+              </div>
+              <div class="detail-header-actions">
+                <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="claimOrder">
+                  Забрать в работу
+                </button>
+              </div>
+            </header>
+
+            <div class="metrics-row">
+              <article class="metric-card">
+                <span>Статус</span>
+                <strong>{{ orderState.detail.order.status }}</strong>
+              </article>
+              <article class="metric-card">
+                <span>Сумма</span>
+                <strong>{{ formatMoney(orderState.detail.order.totalAmount) }}</strong>
+              </article>
+              <article class="metric-card">
+                <span>Менеджер</span>
+                <strong>{{ orderState.detail.order.managerSubject || 'Не назначен' }}</strong>
+              </article>
+            </div>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>Статус</h3>
+                  <p>Переход будет записан в аудит истории заказа.</p>
+                </div>
+              </div>
+              <form class="editor-form" @submit.prevent="submitOrderStatus">
+                <div class="form-grid">
+                  <label class="ops-field ops-field-required">
+                    <span>Новый статус</span>
+                    <select v-model="orderState.nextStatus">
+                      <option value="PENDING">PENDING</option>
+                      <option value="PAID">PAID</option>
+                      <option value="PROCESSING">PROCESSING</option>
+                      <option value="READY_FOR_PICKUP">READY_FOR_PICKUP</option>
+                      <option value="SHIPPED">SHIPPED</option>
+                      <option value="COMPLETED">COMPLETED</option>
+                      <option value="CANCELLED">CANCELLED</option>
+                      <option value="REFUNDED">REFUNDED</option>
+                    </select>
+                  </label>
+                  <label class="ops-field">
+                    <span>Комментарий</span>
+                    <input v-model.trim="orderState.note" type="text" />
+                  </label>
+                </div>
+                <div class="sticky-actions sticky-actions-inline">
+                  <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                    Сохранить статус
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>Состав</h3>
+                  <p>{{ orderState.detail.order.items?.length || 0 }} строк</p>
+                </div>
+              </div>
+              <div v-if="orderState.detail.order.items?.length" class="card-list">
+                <article v-for="item in orderState.detail.order.items" :key="item.id" class="list-card">
+                  <div class="list-card-head">
+                    <strong>{{ item.productName || item.variantName || item.variantId }}</strong>
+                    <span class="pill pill-neutral">{{ item.quantity }} шт.</span>
+                  </div>
+                  <p class="list-card-slug">{{ item.sku || item.variantId }}</p>
+                  <div class="list-card-meta">
+                    <span>{{ formatMoney(item.unitPrice) }}</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>История статусов</h3>
+                  <p>{{ orderState.detail.history?.length || 0 }} событий</p>
+                </div>
+              </div>
+              <div v-if="orderState.detail.history?.length" class="card-list">
+                <article v-for="event in orderState.detail.history" :key="event.id" class="list-card">
+                  <div class="list-card-head">
+                    <strong>{{ event.previousStatus || 'Создан' }} → {{ event.nextStatus }}</strong>
+                    <span class="pill pill-neutral">{{ formatDateTime(event.createdAt) }}</span>
+                  </div>
+                  <div class="list-card-meta">
+                    <span>{{ event.actor || 'system' }}</span>
+                    <span>{{ event.note || 'Без комментария' }}</span>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="empty-inline">История пока пуста.</div>
+            </section>
+          </section>
+        </template>
+
+        <template v-else-if="activeTab === 'imports'">
+          <section class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Импорт</p>
+                <h2>Excel / CSV загрузка</h2>
+                <p class="detail-subtitle">Dry-run проверяет строки до применения к каталогу и остаткам.</p>
+              </div>
+            </header>
+
+            <form class="editor-form" @submit.prevent="dryRunImport">
+              <label class="ops-field ops-field-required">
+                <span>Файл</span>
+                <input type="file" accept=".xlsx,.xls,.csv" @change="onImportFileSelected" />
+              </label>
+
+              <section class="selector-card">
+                <div class="selector-card-head">
+                  <div>
+                    <h3>Маппинг колонок</h3>
+                    <p>По умолчанию используются sku, product_name, product_slug, variant_name, price, stock, currency.</p>
+                  </div>
+                </div>
+                <div class="form-grid form-grid-three">
+                  <label v-for="field in importMappingFields" :key="field.key" class="ops-field">
+                    <span>{{ field.label }}</span>
+                    <input v-model.trim="importState.mapping[field.key]" type="text" />
+                  </label>
+                </div>
+              </section>
+
+              <div class="sticky-actions">
+                <button class="button button-primary" type="submit" :disabled="isSubmitting || !importState.file">
+                  Проверить файл
+                </button>
+                <button class="button button-secondary" type="button" :disabled="isSubmitting || !importState.dryRun?.job" @click="commitImport">
+                  Применить импорт
+                </button>
+              </div>
+            </form>
+
+            <section v-if="importState.dryRun" class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>Результат проверки</h3>
+                  <p>{{ importState.dryRun.job.validRows }} валидных · {{ importState.dryRun.job.invalidRows }} ошибок</p>
+                </div>
+              </div>
+              <div class="card-list">
+                <article v-for="row in importState.dryRun.rows.slice(0, 50)" :key="row.id" class="list-card">
+                  <div class="list-card-head">
+                    <strong>Строка {{ row.rowNumber }} · {{ row.sku || 'без SKU' }}</strong>
+                    <span class="pill" :class="row.valid ? 'pill-positive' : 'pill-muted'">{{ row.valid ? 'OK' : 'Ошибка' }}</span>
+                  </div>
+                  <p class="list-card-slug">{{ row.productName || row.errorMessage }}</p>
+                  <div v-if="row.errorMessage" class="list-card-meta">
+                    <span>{{ row.errorMessage }}</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </section>
+        </template>
+
+        <template v-else-if="activeTab === 'promotions'">
+          <section class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Акции</p>
+                <h2>{{ promotionState.mode === 'promoCode' ? 'Промокод' : 'Акция' }}</h2>
+                <p class="detail-subtitle">Sale price, пороговые скидки и промокоды управляются из CMS.</p>
+              </div>
+              <div class="detail-header-actions">
+                <button class="button button-secondary" type="button" @click="startCreatePromotion">
+                  Акция
+                </button>
+                <button class="button button-secondary" type="button" @click="startCreatePromoCode">
+                  Промокод
+                </button>
+              </div>
+            </header>
+
+            <form v-if="promotionState.mode !== 'promoCode'" class="editor-form" @submit.prevent="submitPromotion">
+              <div class="form-grid">
+                <label class="ops-field ops-field-required">
+                  <span>Название</span>
+                  <input v-model.trim="promotionForm.name" type="text" />
+                </label>
+                <label class="ops-field">
+                  <span>Тип</span>
+                  <select v-model="promotionForm.type">
+                    <option value="PRODUCT_SALE">PRODUCT_SALE</option>
+                    <option value="CART_THRESHOLD">CART_THRESHOLD</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid form-grid-three">
+                <label class="ops-field">
+                  <span>Статус</span>
+                  <select v-model="promotionForm.status">
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                </label>
+                <label class="ops-field">
+                  <span>Начало</span>
+                  <input v-model="promotionForm.startsAt" type="datetime-local" />
+                </label>
+                <label class="ops-field">
+                  <span>Окончание</span>
+                  <input v-model="promotionForm.endsAt" type="datetime-local" />
+                </label>
+              </div>
+              <div class="form-grid form-grid-three">
+                <label class="ops-field">
+                  <span>Цена распродажи</span>
+                  <input v-model.number="promotionForm.salePriceAmount" type="number" min="0" step="1" />
+                </label>
+                <label class="ops-field">
+                  <span>Скидка, %</span>
+                  <input v-model.number="promotionForm.discountPercent" type="number" min="0" max="100" step="1" />
+                </label>
+                <label class="ops-field">
+                  <span>Порог корзины</span>
+                  <input v-model.number="promotionForm.thresholdAmount" type="number" min="0" step="1" />
+                </label>
+              </div>
+              <div class="form-grid">
+                <label class="ops-field">
+                  <span>Цель</span>
+                  <select v-model="promotionForm.targetKind">
+                    <option value="">Все товары</option>
+                    <option value="VARIANT">VARIANT</option>
+                    <option value="PRODUCT">PRODUCT</option>
+                    <option value="BRAND">BRAND</option>
+                    <option value="CATEGORY">CATEGORY</option>
+                  </select>
+                </label>
+                <label class="ops-field">
+                  <span>Ключ цели</span>
+                  <input v-model.trim="promotionForm.targetKey" type="text" placeholder="sku, slug или UUID" />
+                </label>
+              </div>
+              <label class="ops-field">
+                <span>Описание</span>
+                <textarea v-model="promotionForm.description" rows="4" />
+              </label>
+              <div class="sticky-actions">
+                <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                  {{ promotionForm.id ? 'Сохранить акцию' : 'Создать акцию' }}
+                </button>
+                <button v-if="promotionForm.id" class="button button-danger" type="button" :disabled="isSubmitting" @click="deletePromotion">
+                  Удалить
+                </button>
+              </div>
+            </form>
+
+            <form v-else class="editor-form" @submit.prevent="submitPromoCode">
+              <div class="form-grid">
+                <label class="ops-field ops-field-required">
+                  <span>Код</span>
+                  <input v-model.trim="promoCodeForm.code" type="text" />
+                </label>
+                <label class="ops-field">
+                  <span>Статус</span>
+                  <select v-model="promoCodeForm.status">
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid form-grid-three">
+                <label class="ops-field">
+                  <span>Скидка, %</span>
+                  <input v-model.number="promoCodeForm.discountPercent" type="number" min="0" max="100" step="1" />
+                </label>
+                <label class="ops-field">
+                  <span>Скидка суммой</span>
+                  <input v-model.number="promoCodeForm.discountAmount" type="number" min="0" step="1" />
+                </label>
+                <label class="ops-field">
+                  <span>Порог</span>
+                  <input v-model.number="promoCodeForm.thresholdAmount" type="number" min="0" step="1" />
+                </label>
+              </div>
+              <div class="form-grid form-grid-three">
+                <label class="ops-field">
+                  <span>Начало</span>
+                  <input v-model="promoCodeForm.startsAt" type="datetime-local" />
+                </label>
+                <label class="ops-field">
+                  <span>Окончание</span>
+                  <input v-model="promoCodeForm.endsAt" type="datetime-local" />
+                </label>
+                <label class="ops-field">
+                  <span>Лимит</span>
+                  <input v-model.number="promoCodeForm.maxRedemptions" type="number" min="0" step="1" />
+                </label>
+              </div>
+              <label class="ops-field">
+                <span>Описание</span>
+                <textarea v-model="promoCodeForm.description" rows="4" />
+              </label>
+              <div class="sticky-actions">
+                <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                  {{ promoCodeForm.id ? 'Сохранить промокод' : 'Создать промокод' }}
+                </button>
+                <button v-if="promoCodeForm.id" class="button button-danger" type="button" :disabled="isSubmitting" @click="deletePromoCode">
+                  Удалить
+                </button>
+              </div>
+            </form>
+          </section>
+        </template>
+
+        <template v-else-if="activeTab === 'tax'">
+          <section class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Налоги</p>
+                <h2>{{ taxForm.id ? taxForm.name : 'Новый налоговый режим' }}</h2>
+                <p class="detail-subtitle">Активный режим используется при создании чеков YooKassa.</p>
+              </div>
+            </header>
+            <form class="editor-form" @submit.prevent="submitTax">
+              <div class="form-grid">
+                <label class="ops-field ops-field-required">
+                  <span>Название</span>
+                  <input v-model.trim="taxForm.name" type="text" />
+                </label>
+                <label class="ops-field">
+                  <span>Статус</span>
+                  <select v-model="taxForm.status">
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="INACTIVE">INACTIVE</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid form-grid-three">
+                <label class="ops-field">
+                  <span>Код СНО YooKassa</span>
+                  <input v-model.number="taxForm.taxSystemCode" type="number" min="1" step="1" />
+                </label>
+                <label class="ops-field">
+                  <span>Код НДС YooKassa</span>
+                  <input v-model.number="taxForm.vatCode" type="number" min="1" step="1" />
+                </label>
+                <label class="ops-field">
+                  <span>Ставка НДС, %</span>
+                  <input v-model.number="taxForm.vatRatePercent" type="number" min="0" step="0.001" />
+                </label>
+              </div>
+              <label class="ops-field ops-field-boolean">
+                <span>Активность</span>
+                <label class="ops-toggle">
+                  <input v-model="taxForm.active" type="checkbox" />
+                  <span>{{ taxForm.active ? 'Использовать в чеках' : 'Не использовать' }}</span>
+                </label>
+              </label>
+              <div class="sticky-actions">
+                <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                  {{ taxForm.id ? 'Сохранить режим' : 'Создать режим' }}
+                </button>
+                <button v-if="taxForm.id" class="button button-danger" type="button" :disabled="isSubmitting" @click="deleteTax">
+                  Удалить
+                </button>
+              </div>
+            </form>
+          </section>
+        </template>
+
+        <template v-else-if="activeTab === 'analytics'">
+          <section class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Аналитика</p>
+                <h2>Менеджеры и ссылки оплаты</h2>
+                <p class="detail-subtitle">Комиссия менеджера фиксирована на уровне 3% от оплаченной суммы.</p>
+              </div>
+            </header>
+            <div class="form-grid form-grid-three">
+              <label class="ops-field">
+                <span>С</span>
+                <input v-model="analyticsState.from" type="datetime-local" />
+              </label>
+              <label class="ops-field">
+                <span>По</span>
+                <input v-model="analyticsState.to" type="datetime-local" />
+              </label>
+              <label class="ops-field">
+                <span>Менеджер</span>
+                <input v-model.trim="analyticsState.manager" type="text" />
+              </label>
+            </div>
+            <div class="sticky-actions sticky-actions-inline">
+              <button class="button button-primary" type="button" :disabled="isSubmitting" @click="loadAnalytics">
+                Обновить аналитику
+              </button>
+            </div>
+
+            <div class="metrics-row">
+              <article class="metric-card">
+                <span>Ссылок отправлено</span>
+                <strong>{{ analyticsState.paymentLinks.sent || 0 }}</strong>
+              </article>
+              <article class="metric-card">
+                <span>Оплачено</span>
+                <strong>{{ analyticsState.paymentLinks.paid || 0 }}</strong>
+              </article>
+              <article class="metric-card">
+                <span>Конверсия</span>
+                <strong>{{ formatPercent(analyticsState.paymentLinks.conversionRate) }}</strong>
+              </article>
+            </div>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>Менеджеры</h3>
+                  <p>{{ analyticsState.managerRows.length }} строк</p>
+                </div>
+              </div>
+              <div class="card-list">
+                <article v-for="row in analyticsState.managerRows" :key="row.managerSubject" class="list-card">
+                  <div class="list-card-head">
+                    <strong>{{ row.managerSubject }}</strong>
+                    <span class="pill pill-neutral">{{ row.paidOrders }} paid</span>
+                  </div>
+                  <div class="list-card-meta">
+                    <span>Заказов {{ row.totalOrders }}</span>
+                    <span>{{ formatMoney(row.paidAmount) }}</span>
+                    <span>Комиссия {{ formatMoney(row.commission) }}</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>Ссылки оплаты</h3>
+                  <p>{{ analyticsState.paymentLinks.rows?.length || 0 }} строк</p>
+                </div>
+              </div>
+              <div class="card-list">
+                <article v-for="link in analyticsState.paymentLinks.rows || []" :key="link.id" class="list-card">
+                  <div class="list-card-head">
+                    <strong>{{ link.managerSubject || link.managerEmail || 'Менеджер' }}</strong>
+                    <span class="pill" :class="link.paid ? 'pill-positive' : 'pill-muted'">{{ link.paid ? 'paid' : link.status }}</span>
+                  </div>
+                  <p class="list-card-slug">{{ link.orderId }}</p>
+                  <div class="list-card-meta">
+                    <span>{{ formatDateTime(link.sentAt || link.createdAt) }}</span>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </section>
+        </template>
+
+        <template v-else-if="activeTab === 'alerts'">
+          <section class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Алерты</p>
+                <h2>Низкие остатки</h2>
+                <p class="detail-subtitle">Список виден администраторам и контент-менеджерам.</p>
+              </div>
+            </header>
+            <div class="metrics-row">
+              <article class="metric-card">
+                <span>Порог</span>
+                <strong>{{ alertState.threshold }}</strong>
+              </article>
+              <article class="metric-card">
+                <span>SKU ниже порога</span>
+                <strong>{{ alertState.rows.length }}</strong>
+              </article>
+            </div>
+            <div v-if="alertState.rows.length" class="card-list">
+              <article v-for="row in alertState.rows" :key="row.variantId" class="list-card">
+                <div class="list-card-head">
+                  <strong>{{ row.productName }}</strong>
+                  <span class="pill pill-muted">{{ row.stock }} шт.</span>
+                </div>
+                <p class="list-card-slug">{{ row.productSlug }} · {{ row.variantName }} · {{ row.sku }}</p>
+              </article>
+            </div>
+            <div v-else class="empty-inline">Нет SKU ниже порога.</div>
+          </section>
+        </template>
         </main>
       </section>
     </div>
@@ -960,6 +1721,12 @@ const tabs = [
   { id: 'categories', label: 'Категории' },
   { id: 'brands', label: 'Бренды' },
   { id: 'inventory', label: 'Остатки' },
+  { id: 'orders', label: 'Заказы' },
+  { id: 'imports', label: 'Импорт' },
+  { id: 'promotions', label: 'Акции' },
+  { id: 'tax', label: 'Налоги' },
+  { id: 'analytics', label: 'Аналитика' },
+  { id: 'alerts', label: 'Алерты' },
 ];
 
 const productDetailTabs = [
@@ -983,6 +1750,12 @@ const navigationCounts = reactive({
   categories: 0,
   brands: 0,
   inventory: 0,
+  orders: 0,
+  imports: 0,
+  promotions: 0,
+  tax: 0,
+  analytics: 0,
+  alerts: 0,
 });
 
 const loading = reactive({
@@ -990,6 +1763,12 @@ const loading = reactive({
   categories: false,
   brands: false,
   inventory: false,
+  orders: false,
+  imports: false,
+  promotions: false,
+  tax: false,
+  analytics: false,
+  alerts: false,
 });
 
 const productState = reactive({
@@ -1092,6 +1871,121 @@ const inventoryForm = reactive({
   idempotencyKey: nextIdempotencyKey(),
 });
 
+const orderState = reactive({
+  loaded: false,
+  query: '',
+  status: '',
+  manager: '',
+  from: '',
+  to: '',
+  items: [],
+  selectedId: '',
+  detail: null,
+  nextStatus: '',
+  note: '',
+});
+
+const importState = reactive({
+  loaded: false,
+  jobs: [],
+  selectedJobId: '',
+  file: null,
+  dryRun: null,
+  mapping: {
+    sku: 'sku',
+    productName: 'product_name',
+    productSlug: 'product_slug',
+    variantName: 'variant_name',
+    brandSlug: 'brand_slug',
+    categorySlug: 'category_slug',
+    priceAmount: 'price',
+    stockQuantity: 'stock',
+    currency: 'currency',
+  },
+});
+
+const importMappingFields = [
+  { key: 'sku', label: 'SKU' },
+  { key: 'productName', label: 'Товар' },
+  { key: 'productSlug', label: 'Слаг товара' },
+  { key: 'variantName', label: 'Вариант' },
+  { key: 'brandSlug', label: 'Бренд' },
+  { key: 'categorySlug', label: 'Категория' },
+  { key: 'priceAmount', label: 'Цена' },
+  { key: 'stockQuantity', label: 'Остаток' },
+  { key: 'currency', label: 'Валюта' },
+];
+
+const promotionState = reactive({
+  loaded: false,
+  items: [],
+  promoCodes: [],
+  selectedId: '',
+  selectedPromoCodeId: '',
+  mode: 'promotion',
+});
+
+const promotionForm = reactive({
+  id: '',
+  name: '',
+  type: 'PRODUCT_SALE',
+  status: 'ACTIVE',
+  startsAt: '',
+  endsAt: '',
+  discountPercent: null,
+  discountAmount: null,
+  salePriceAmount: null,
+  currency: 'RUB',
+  thresholdAmount: null,
+  description: '',
+  targetKind: '',
+  targetKey: '',
+});
+
+const promoCodeForm = reactive({
+  id: '',
+  code: '',
+  status: 'ACTIVE',
+  discountPercent: null,
+  discountAmount: null,
+  thresholdAmount: null,
+  startsAt: '',
+  endsAt: '',
+  maxRedemptions: null,
+  description: '',
+});
+
+const taxState = reactive({
+  loaded: false,
+  items: [],
+  selectedId: '',
+});
+
+const taxForm = reactive({
+  id: '',
+  name: '',
+  status: 'ACTIVE',
+  taxSystemCode: 1,
+  vatCode: 1,
+  vatRatePercent: 0,
+  active: false,
+});
+
+const analyticsState = reactive({
+  loaded: false,
+  from: '',
+  to: '',
+  manager: '',
+  managerRows: [],
+  paymentLinks: { sent: 0, paid: 0, conversionRate: 0, rows: [] },
+});
+
+const alertState = reactive({
+  loaded: false,
+  threshold: 5,
+  rows: [],
+});
+
 const filteredProducts = computed(() => filterCollection(productState.items, productState.query, [
   (item) => item.name,
   (item) => item.slug,
@@ -1172,14 +2066,27 @@ const activeDetailOpen = computed(() => {
   if (activeTab.value === 'brands') {
     return brandState.isCreating || Boolean(brandState.detail);
   }
-  return Boolean(selectedInventoryRow.value);
+  if (activeTab.value === 'inventory') {
+    return Boolean(selectedInventoryRow.value);
+  }
+  if (activeTab.value === 'orders') {
+    return Boolean(orderState.detail);
+  }
+  return true;
 });
 
 function tabCount(tabId) {
   if (tabId === 'products') return productState.loaded ? productState.items.length : navigationCounts.products;
   if (tabId === 'categories') return categoryState.loaded ? categoryState.items.length : navigationCounts.categories;
   if (tabId === 'brands') return brandState.loaded ? brandState.items.length : navigationCounts.brands;
-  return inventoryState.loaded ? inventoryState.items.length : navigationCounts.inventory;
+  if (tabId === 'inventory') return inventoryState.loaded ? inventoryState.items.length : navigationCounts.inventory;
+  if (tabId === 'orders') return orderState.loaded ? orderState.items.length : navigationCounts.orders;
+  if (tabId === 'imports') return importState.loaded ? importState.jobs.length : navigationCounts.imports;
+  if (tabId === 'promotions') return promotionState.loaded ? promotionState.items.length + promotionState.promoCodes.length : navigationCounts.promotions;
+  if (tabId === 'tax') return taxState.loaded ? taxState.items.length : navigationCounts.tax;
+  if (tabId === 'analytics') return analyticsState.loaded ? analyticsState.managerRows.length : navigationCounts.analytics;
+  if (tabId === 'alerts') return alertState.loaded ? alertState.rows.length : navigationCounts.alerts;
+  return 0;
 }
 
 function isTabLoading(tabId) {
@@ -1379,6 +2286,146 @@ async function loadNavigationSummary() {
   }
 }
 
+async function loadOrders() {
+  loading.orders = true;
+  try {
+    const response = await bridgeRequest('/admin/orders', {
+      params: compactParams({
+        status: orderState.status,
+        manager: orderState.manager,
+        from: toIsoDateTime(orderState.from),
+        to: toIsoDateTime(orderState.to),
+        q: orderState.query,
+      }),
+    });
+    orderState.items = response.items || [];
+    orderState.loaded = true;
+    navigationCounts.orders = orderState.items.length;
+    if (orderState.selectedId) {
+      const exists = orderState.items.some((order) => order.id === orderState.selectedId);
+      if (exists) {
+        await loadOrderDetail(orderState.selectedId, { silent: true });
+      } else {
+        orderState.selectedId = '';
+        orderState.detail = null;
+      }
+    }
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.orders = false;
+  }
+}
+
+async function loadOrderDetail(id, { silent = false } = {}) {
+  if (!id) {
+    return;
+  }
+  if (!silent) {
+    clearMessages();
+  }
+  loading.orders = true;
+  try {
+    const response = await bridgeRequest(`/admin/orders/${id}`);
+    orderState.detail = response;
+    orderState.selectedId = id;
+    orderState.nextStatus = response?.order?.status || '';
+    orderState.note = '';
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.orders = false;
+  }
+}
+
+async function loadImports() {
+  loading.imports = true;
+  try {
+    importState.jobs = await bridgeRequest('/admin/imports') || [];
+    importState.loaded = true;
+    navigationCounts.imports = importState.jobs.length;
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.imports = false;
+  }
+}
+
+async function loadPromotions() {
+  loading.promotions = true;
+  try {
+    const [promotions, promoCodes] = await Promise.all([
+      bridgeRequest('/admin/promotions'),
+      bridgeRequest('/admin/promo-codes'),
+    ]);
+    promotionState.items = promotions || [];
+    promotionState.promoCodes = promoCodes || [];
+    promotionState.loaded = true;
+    navigationCounts.promotions = promotionState.items.length + promotionState.promoCodes.length;
+    if (!promotionForm.id && !promoCodeForm.id) {
+      startCreatePromotion();
+    }
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.promotions = false;
+  }
+}
+
+async function loadTaxSettings() {
+  loading.tax = true;
+  try {
+    taxState.items = await bridgeRequest('/admin/tax-settings') || [];
+    taxState.loaded = true;
+    navigationCounts.tax = taxState.items.length;
+    if (!taxForm.id && taxState.items.length) {
+      selectTax(taxState.items.find((item) => item.active) || taxState.items[0]);
+    }
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.tax = false;
+  }
+}
+
+async function loadAnalytics() {
+  loading.analytics = true;
+  try {
+    const params = compactParams({
+      from: toIsoDateTime(analyticsState.from),
+      to: toIsoDateTime(analyticsState.to),
+      manager: analyticsState.manager,
+    });
+    const [managerResponse, paymentLinkResponse] = await Promise.all([
+      bridgeRequest('/admin/analytics/managers', { params }),
+      bridgeRequest('/admin/analytics/payment-links', { params }),
+    ]);
+    analyticsState.managerRows = managerResponse.rows || [];
+    analyticsState.paymentLinks = paymentLinkResponse || { sent: 0, paid: 0, conversionRate: 0, rows: [] };
+    analyticsState.loaded = true;
+    navigationCounts.analytics = analyticsState.managerRows.length;
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.analytics = false;
+  }
+}
+
+async function loadAlerts() {
+  loading.alerts = true;
+  try {
+    const response = await bridgeRequest('/admin/alerts/low-stock');
+    alertState.threshold = Number(response.threshold || 0);
+    alertState.rows = response.rows || [];
+    alertState.loaded = true;
+    navigationCounts.alerts = alertState.rows.length;
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.alerts = false;
+  }
+}
+
 async function ensureActiveTabLoaded() {
   if (activeTab.value === 'products' && !productState.loaded) {
     await loadProducts({ reloadSelected: false });
@@ -1403,6 +2450,30 @@ async function ensureActiveTabLoaded() {
   }
   if (activeTab.value === 'inventory' && !inventoryState.loaded) {
     await loadInventory();
+    return;
+  }
+  if (activeTab.value === 'orders' && !orderState.loaded) {
+    await loadOrders();
+    return;
+  }
+  if (activeTab.value === 'imports' && !importState.loaded) {
+    await loadImports();
+    return;
+  }
+  if (activeTab.value === 'promotions' && !promotionState.loaded) {
+    await loadPromotions();
+    return;
+  }
+  if (activeTab.value === 'tax' && !taxState.loaded) {
+    await loadTaxSettings();
+    return;
+  }
+  if (activeTab.value === 'analytics' && !analyticsState.loaded) {
+    await loadAnalytics();
+    return;
+  }
+  if (activeTab.value === 'alerts' && !alertState.loaded) {
+    await loadAlerts();
   }
 }
 
@@ -1862,6 +2933,28 @@ async function submitVariant() {
   }
 }
 
+async function deleteVariant(variant) {
+  if (!productForm.id || !variant?.id) return;
+  if (!window.confirm(`Удалить вариант «${variant.name || variant.sku}»?`)) {
+    return;
+  }
+
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest(`/products/${productForm.id}/variants/${variant.id}`, { method: 'DELETE' });
+    await loadProducts({ reloadSelected: false });
+    await loadNavigationSummary();
+    await loadProductDetail(productForm.id, { silent: true });
+    resetVariantEditor();
+    setSuccess('Вариант удалён.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
 async function submitCategory() {
   const validationError = validateCategoryForm();
   if (validationError) {
@@ -1997,6 +3090,394 @@ async function submitInventoryAdjustment() {
     inventoryForm.reason = '';
     inventoryForm.idempotencyKey = nextIdempotencyKey();
     setSuccess(response?.applied === false ? 'Повторный запрос распознан, остаток не изменён повторно.' : 'Корректировка применена.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function selectOrder(id) {
+  if (id === orderState.selectedId && orderState.detail) {
+    return;
+  }
+  await loadOrderDetail(id);
+}
+
+async function submitOrderStatus() {
+  if (!orderState.selectedId || !orderState.nextStatus) {
+    pageError.value = 'Выберите заказ и статус.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    const response = await bridgeRequest(`/admin/orders/${orderState.selectedId}/status`, {
+      method: 'POST',
+      data: {
+        status: orderState.nextStatus,
+        note: normalizeNullableText(orderState.note),
+      },
+    });
+    orderState.detail = response;
+    orderState.note = '';
+    await loadOrders();
+    setSuccess('Статус заказа обновлён.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function claimOrder() {
+  if (!orderState.selectedId) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/claim`, { method: 'POST' });
+    setSuccess('Заказ отмечен как взятый в работу.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function selectImportJob(jobId) {
+  importState.selectedJobId = jobId;
+  const job = importState.jobs.find((entry) => entry.id === jobId);
+  if (job && importState.dryRun?.job?.id !== jobId) {
+    setInfo(`Выбран импорт ${job.fileName || job.id}. Повторное применение доступно из последнего dry-run.`);
+  }
+}
+
+function onImportFileSelected(event) {
+  importState.file = event?.target?.files?.[0] || null;
+  importState.dryRun = null;
+}
+
+async function dryRunImport() {
+  if (!importState.file) {
+    pageError.value = 'Выберите файл для импорта.';
+    return;
+  }
+  const formData = new FormData();
+  formData.append('file', importState.file);
+  formData.append('mapping', JSON.stringify(importState.mapping));
+
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    importState.dryRun = await bridgeRequest('/admin/imports/catalogue/dry-run', {
+      method: 'POST',
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    importState.selectedJobId = importState.dryRun?.job?.id || '';
+    await loadImports();
+    setSuccess('Dry-run импорта завершён.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function commitImport() {
+  const jobId = importState.dryRun?.job?.id || importState.selectedJobId;
+  if (!jobId) {
+    pageError.value = 'Сначала выполните dry-run.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest('/admin/imports/catalogue/commit', {
+      method: 'POST',
+      data: { jobId },
+    });
+    await Promise.allSettled([loadImports(), loadProducts({ reloadSelected: true }), loadInventory()]);
+    setSuccess('Импорт применён к каталогу и остаткам.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function startCreatePromotion() {
+  promotionState.mode = 'promotion';
+  promotionState.selectedId = '';
+  Object.assign(promotionForm, {
+    id: '',
+    name: '',
+    type: 'PRODUCT_SALE',
+    status: 'ACTIVE',
+    startsAt: '',
+    endsAt: '',
+    discountPercent: null,
+    discountAmount: null,
+    salePriceAmount: null,
+    currency: 'RUB',
+    thresholdAmount: null,
+    description: '',
+    targetKind: '',
+    targetKey: '',
+  });
+}
+
+function selectPromotion(promotion) {
+  promotionState.mode = 'promotion';
+  promotionState.selectedId = promotion.id;
+  promotionState.selectedPromoCodeId = '';
+  Object.assign(promotionForm, {
+    id: promotion.id || '',
+    name: promotion.name || '',
+    type: promotion.type || 'PRODUCT_SALE',
+    status: promotion.status || 'ACTIVE',
+    startsAt: toDatetimeLocal(promotion.startsAt),
+    endsAt: toDatetimeLocal(promotion.endsAt),
+    discountPercent: promotion.discountPercent ?? null,
+    discountAmount: promotion.discountAmount ?? null,
+    salePriceAmount: promotion.salePriceAmount ?? null,
+    currency: promotion.currency || 'RUB',
+    thresholdAmount: promotion.thresholdAmount ?? null,
+    description: promotion.description || '',
+    targetKind: promotion.targets?.[0]?.targetKind || '',
+    targetKey: promotion.targets?.[0]?.targetKey || '',
+  });
+}
+
+function startCreatePromoCode() {
+  promotionState.mode = 'promoCode';
+  promotionState.selectedPromoCodeId = '';
+  Object.assign(promoCodeForm, {
+    id: '',
+    code: '',
+    status: 'ACTIVE',
+    discountPercent: null,
+    discountAmount: null,
+    thresholdAmount: null,
+    startsAt: '',
+    endsAt: '',
+    maxRedemptions: null,
+    description: '',
+  });
+}
+
+function selectPromoCode(promoCode) {
+  promotionState.mode = 'promoCode';
+  promotionState.selectedPromoCodeId = promoCode.id;
+  promotionState.selectedId = '';
+  Object.assign(promoCodeForm, {
+    id: promoCode.id || '',
+    code: promoCode.code || '',
+    status: promoCode.status || 'ACTIVE',
+    discountPercent: promoCode.discountPercent ?? null,
+    discountAmount: promoCode.discountAmount ?? null,
+    thresholdAmount: promoCode.thresholdAmount ?? null,
+    startsAt: toDatetimeLocal(promoCode.startsAt),
+    endsAt: toDatetimeLocal(promoCode.endsAt),
+    maxRedemptions: promoCode.maxRedemptions ?? null,
+    description: promoCode.description || '',
+  });
+}
+
+async function submitPromotion() {
+  if (!promotionForm.name.trim()) {
+    pageError.value = 'Укажите название акции.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    const targets = promotionForm.targetKind && promotionForm.targetKey
+      ? [{ targetKind: promotionForm.targetKind, targetKey: promotionForm.targetKey }]
+      : [];
+    const payload = {
+      name: promotionForm.name.trim(),
+      type: promotionForm.type,
+      status: promotionForm.status,
+      startsAt: toIsoDateTime(promotionForm.startsAt),
+      endsAt: toIsoDateTime(promotionForm.endsAt),
+      discountPercent: normalizeNullableNumber(promotionForm.discountPercent),
+      discountAmount: normalizeNullableNumber(promotionForm.discountAmount),
+      salePriceAmount: normalizeNullableNumber(promotionForm.salePriceAmount),
+      currency: promotionForm.currency || 'RUB',
+      thresholdAmount: normalizeNullableNumber(promotionForm.thresholdAmount),
+      description: normalizeNullableText(promotionForm.description),
+      targets,
+    };
+    const path = promotionForm.id ? `/admin/promotions/${promotionForm.id}` : '/admin/promotions';
+    const method = promotionForm.id ? 'PUT' : 'POST';
+    const saved = await bridgeRequest(path, { method, data: payload });
+    await loadPromotions();
+    selectPromotion(saved);
+    setSuccess(promotionForm.id ? 'Акция сохранена.' : 'Акция создана.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function deletePromotion() {
+  if (!promotionForm.id || !window.confirm(`Удалить акцию «${promotionForm.name}»?`)) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest(`/admin/promotions/${promotionForm.id}`, { method: 'DELETE' });
+    await loadPromotions();
+    startCreatePromotion();
+    setSuccess('Акция удалена.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function submitPromoCode() {
+  if (!promoCodeForm.code.trim()) {
+    pageError.value = 'Укажите промокод.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    const payload = {
+      code: promoCodeForm.code.trim(),
+      status: promoCodeForm.status,
+      discountPercent: normalizeNullableNumber(promoCodeForm.discountPercent),
+      discountAmount: normalizeNullableNumber(promoCodeForm.discountAmount),
+      thresholdAmount: normalizeNullableNumber(promoCodeForm.thresholdAmount),
+      startsAt: toIsoDateTime(promoCodeForm.startsAt),
+      endsAt: toIsoDateTime(promoCodeForm.endsAt),
+      maxRedemptions: normalizeNullableNumber(promoCodeForm.maxRedemptions),
+      description: normalizeNullableText(promoCodeForm.description),
+    };
+    const path = promoCodeForm.id ? `/admin/promo-codes/${promoCodeForm.id}` : '/admin/promo-codes';
+    const method = promoCodeForm.id ? 'PUT' : 'POST';
+    const saved = await bridgeRequest(path, { method, data: payload });
+    await loadPromotions();
+    selectPromoCode(saved);
+    setSuccess(promoCodeForm.id ? 'Промокод сохранён.' : 'Промокод создан.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function deletePromoCode() {
+  if (!promoCodeForm.id || !window.confirm(`Удалить промокод «${promoCodeForm.code}»?`)) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest(`/admin/promo-codes/${promoCodeForm.id}`, { method: 'DELETE' });
+    await loadPromotions();
+    startCreatePromoCode();
+    setSuccess('Промокод удалён.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+function startCreateTax() {
+  taxState.selectedId = '';
+  Object.assign(taxForm, {
+    id: '',
+    name: '',
+    status: 'ACTIVE',
+    taxSystemCode: 1,
+    vatCode: 1,
+    vatRatePercent: 0,
+    active: false,
+  });
+}
+
+function selectTax(tax) {
+  taxState.selectedId = tax.id;
+  Object.assign(taxForm, {
+    id: tax.id || '',
+    name: tax.name || '',
+    status: tax.status || 'ACTIVE',
+    taxSystemCode: Number(tax.taxSystemCode || 1),
+    vatCode: Number(tax.vatCode || 1),
+    vatRatePercent: Number(tax.vatRatePercent || 0),
+    active: Boolean(tax.active),
+  });
+}
+
+async function submitTax() {
+  if (!taxForm.name.trim()) {
+    pageError.value = 'Укажите название налогового режима.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    const payload = {
+      name: taxForm.name.trim(),
+      status: taxForm.status,
+      taxSystemCode: Number(taxForm.taxSystemCode || 1),
+      vatCode: Number(taxForm.vatCode || 1),
+      vatRatePercent: Number(taxForm.vatRatePercent || 0),
+      active: Boolean(taxForm.active),
+    };
+    const path = taxForm.id ? `/admin/tax-settings/${taxForm.id}` : '/admin/tax-settings';
+    const method = taxForm.id ? 'PUT' : 'POST';
+    const saved = await bridgeRequest(path, { method, data: payload });
+    await loadTaxSettings();
+    selectTax(saved);
+    setSuccess(taxForm.id ? 'Налоговый режим сохранён.' : 'Налоговый режим создан.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function deleteTax() {
+  if (!taxForm.id || !window.confirm(`Удалить налоговый режим «${taxForm.name}»?`)) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await bridgeRequest(`/admin/tax-settings/${taxForm.id}`, { method: 'DELETE' });
+    await loadTaxSettings();
+    startCreateTax();
+    setSuccess('Налоговый режим удалён.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function saveLowStockThreshold() {
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    const response = await bridgeRequest('/admin/alerts/low-stock/settings', {
+      method: 'PUT',
+      data: { threshold: Number(alertState.threshold || 0) },
+    });
+    alertState.threshold = Number(response.threshold || 0);
+    alertState.rows = response.rows || [];
+    alertState.loaded = true;
+    navigationCounts.alerts = alertState.rows.length;
+    setSuccess('Порог низких остатков сохранён.');
   } catch (error) {
     setError(error);
   } finally {
@@ -2146,8 +3627,20 @@ async function refreshCurrentTab() {
       await loadCategories({ reloadSelected: true });
     } else if (activeTab.value === 'brands') {
       await loadBrands({ reloadSelected: true });
-    } else {
+    } else if (activeTab.value === 'inventory') {
       await loadInventory();
+    } else if (activeTab.value === 'orders') {
+      await loadOrders();
+    } else if (activeTab.value === 'imports') {
+      await loadImports();
+    } else if (activeTab.value === 'promotions') {
+      await loadPromotions();
+    } else if (activeTab.value === 'tax') {
+      await loadTaxSettings();
+    } else if (activeTab.value === 'analytics') {
+      await loadAnalytics();
+    } else if (activeTab.value === 'alerts') {
+      await loadAlerts();
     }
     await loadNavigationSummary();
     setInfo('Раздел обновлён.');
@@ -2213,6 +3706,38 @@ function formatDateTime(value) {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(date);
+}
+
+function toIsoDateTime(value) {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function toDatetimeLocal(value) {
+  if (!value) {
+    return '';
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const offset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - offset * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function compactParams(params) {
+  return Object.fromEntries(
+    Object.entries(params || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '')
+  );
+}
+
+function formatPercent(value) {
+  const numeric = Number(value || 0) * 100;
+  return `${numeric.toFixed(1)}%`;
 }
 
 function cloneSpecifications(value) {
@@ -2313,7 +3838,7 @@ function persistState() {
     setOrDeleteParam(params, 'category', categoryState.selectedId);
   } else if (activeTab.value === 'brands') {
     setOrDeleteParam(params, 'brand', brandState.selectedId);
-  } else {
+  } else if (activeTab.value === 'inventory') {
     setOrDeleteParam(params, 'variant', inventoryState.selectedVariantId);
   }
   const nextQuery = params.toString();
