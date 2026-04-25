@@ -57,6 +57,15 @@ public class Order extends BaseEntity {
     @Column(name = "receipt_email")
     private String receiptEmail;
 
+    @Column(name = "contact_name")
+    private String contactName;
+
+    @Column(name = "contact_phone")
+    private String contactPhone;
+
+    @Column(name = "home_address")
+    private String homeAddress;
+
     @Column(name = "delivery_provider")
     private String deliveryProvider;
 
@@ -169,6 +178,30 @@ public class Order extends BaseEntity {
 
     public void setReceiptEmail(String receiptEmail) {
         this.receiptEmail = receiptEmail;
+    }
+
+    public String getContactName() {
+        return contactName;
+    }
+
+    public void setContactName(String contactName) {
+        this.contactName = contactName;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
+    }
+
+    public String getHomeAddress() {
+        return homeAddress;
+    }
+
+    public void setHomeAddress(String homeAddress) {
+        this.homeAddress = homeAddress;
     }
 
     public String getDeliveryProvider() {
