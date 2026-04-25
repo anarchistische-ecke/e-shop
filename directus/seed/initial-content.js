@@ -55,7 +55,7 @@ const navigation = [
       { migration_key: 'initial:footer_service:delivery', label: 'Доставка и самовывоз', url: '/info/delivery', sort: 1 },
       { migration_key: 'initial:footer_service:return', label: 'Доставка и возврат', url: '/usloviya-prodazhi#return', sort: 2 },
       { migration_key: 'initial:footer_service:payment', label: 'Способы оплаты', url: '/info/payment', sort: 3 },
-      { migration_key: 'initial:footer_service:bonuses', label: 'Бонусы и лояльность', url: '/info/bonuses', sort: 4 },
+      { migration_key: 'initial:footer_service:promocodes', label: 'Акции и промокоды', url: '/account#promocodes', sort: 4 },
       { migration_key: 'initial:footer_service:production', label: 'Производство', url: '/info/production', sort: 5 },
     ],
   },
@@ -310,69 +310,6 @@ const pages = [
     ],
   },
   {
-    path: '/info/bonuses',
-    slug: 'bonuses',
-    title: 'Бонусы и лояльность',
-    nav_label: 'Бонусы',
-    template: 'content',
-    summary: 'Как начисляются бонусы за покупки, сколько они действуют и как использовать их при следующем заказе.',
-    seo_title: 'Бонусы и лояльность',
-    seo_description:
-      'Как начисляются бонусы за покупки, сколько они действуют и как использовать их при следующем заказе.',
-    sections: [
-      {
-        migration_key: 'initial:page:bonuses:hero',
-        internal_name: 'Бонусы — интро',
-        section_type: 'hero',
-        sort: 1,
-        eyebrow: 'Лояльность',
-        title: 'Бонусы за покупки',
-        body: paragraphs(
-          'Лояльность простая: авторизуйтесь, копите баллы и оплачивайте ими до 20% стоимости следующего заказа.'
-        ),
-        style_variant: 'quiet',
-        layout_variant: 'contained',
-      },
-      {
-        migration_key: 'initial:page:bonuses:rules',
-        internal_name: 'Бонусы — правила',
-        section_type: 'rich_text',
-        sort: 2,
-        title: 'Как это работает',
-        body: htmlList([
-          '1 бонус = 1 рубль. Начисляем после подтверждения доставки.',
-          'Бонусы действуют 12 месяцев с момента начисления.',
-          'Не суммируются с промокодами, если в условиях акции указано иначе.',
-          'Баланс и история начислений доступны в личном кабинете.',
-        ]),
-      },
-      {
-        migration_key: 'initial:page:bonuses:extras',
-        internal_name: 'Бонусы — дополнительные сценарии',
-        section_type: 'feature_list',
-        sort: 3,
-        title: 'Дополнительные сценарии',
-        layout_variant: 'cards',
-        items: [
-          {
-            migration_key: 'initial:page:bonuses:extra',
-            title: 'Дополнительные бонусы',
-            description:
-              'Дарим за отзывы с фото, участие в опросах и рекомендации друзьям. Размер поощрения зависит от активности.',
-            sort: 1,
-          },
-          {
-            migration_key: 'initial:page:bonuses:return',
-            title: 'Возвраты',
-            description:
-              'При возврате товара списанные бонусы возвращаются на счёт после обработки заявки.',
-            sort: 2,
-          },
-        ],
-      },
-    ],
-  },
-  {
     path: '/info/production',
     slug: 'production',
     title: 'Собственное производство',
@@ -479,9 +416,9 @@ const pages = [
     title: 'Частые вопросы',
     nav_label: 'FAQ',
     template: 'faq',
-    summary: 'Короткие ответы на частые вопросы о доставке, оплате, бонусах и возвратах.',
+    summary: 'Короткие ответы на частые вопросы о доставке, оплате, акциях и возвратах.',
     seo_title: 'Частые вопросы',
-    seo_description: 'Короткие ответы на частые вопросы о доставке, оплате, бонусах и возвратах.',
+    seo_description: 'Короткие ответы на частые вопросы о доставке, оплате, акциях и возвратах.',
     sections: [
       {
         migration_key: 'initial:page:faq:hero',
@@ -537,11 +474,11 @@ const faq = [
     sort: 3,
   },
   {
-    migration_key: 'initial:faq:bonuses',
-    question: 'Как работают бонусы?',
+    migration_key: 'initial:faq:promocodes',
+    question: 'Как работают акции и промокоды?',
     answer:
-      '<p>1 бонус = 1 рубль. Бонусы начисляются после подтверждения доставки, действуют 12 месяцев и могут покрыть до 20% следующего заказа.</p>',
-    category: 'bonuses',
+      '<p>Скидки по сумме корзины рассчитываются автоматически, а промокод можно ввести в корзине. Если одновременно доступно несколько системных скидок, заказ получит наиболее выгодную.</p>',
+    category: 'promotions',
     is_featured: true,
     sort: 4,
   },

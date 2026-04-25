@@ -2,6 +2,7 @@ package com.example.order.service;
 
 import com.example.cart.domain.Cart;
 import com.example.cart.domain.CartItem;
+import com.example.cart.service.CartPricingSummary;
 import com.example.cart.service.CartService;
 import com.example.catalog.domain.Product;
 import com.example.catalog.domain.ProductVariant;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,7 +54,37 @@ class OrderServiceManualDeliveryTest {
         Cart cart = new Cart(customerId);
         cart.addItem(new CartItem(variantId, 2, Money.of(210000, "RUB")));
         when(cartService.getCartById(cartId)).thenReturn(cart);
-        when(cartService.calculateCartTotal(cartId)).thenReturn(420000L);
+        when(cartService.calculateCartPricing(cartId)).thenReturn(new CartPricingSummary(
+                Money.of(420000, "RUB"),
+                Money.of(420000, "RUB"),
+                Money.of(420000, "RUB"),
+                Money.of(0, "RUB"),
+                Money.of(0, "RUB"),
+                Money.of(0, "RUB"),
+                Money.of(0, "RUB"),
+                Money.of(0, "RUB"),
+                Money.of(420000, "RUB"),
+                null,
+                null,
+                null,
+                null,
+                false,
+                List.of(new CartPricingSummary.CartPricingLine(
+                        variantId,
+                        2,
+                        Money.of(210000, "RUB"),
+                        Money.of(210000, "RUB"),
+                        Money.of(420000, "RUB"),
+                        Money.of(420000, "RUB"),
+                        Money.of(0, "RUB"),
+                        Money.of(0, "RUB"),
+                        Money.of(420000, "RUB"),
+                        false,
+                        null,
+                        null,
+                        null
+                ))
+        ));
 
         Product product = new Product("Сатиновый комплект Sand", "desc", "satin-sand");
         ProductVariant variant = new ProductVariant("SKU-1", "200x220", Money.of(210000, "RUB"), 4);

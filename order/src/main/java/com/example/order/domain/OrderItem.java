@@ -36,6 +36,40 @@ public class OrderItem extends BaseEntity {
     @NotNull
     private Money unitPrice;
 
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "original_unit_price_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "original_unit_price_currency", length = 3))
+    })
+    private Money originalUnitPrice;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "product_sale_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "product_sale_discount_currency", length = 3))
+    })
+    private Money productSaleDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "cart_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "cart_discount_currency", length = 3))
+    })
+    private Money cartDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "payable_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "payable_currency", length = 3))
+    })
+    private Money payableAmount;
+
+    @Column(name = "sale_promotion_id", columnDefinition = "uuid")
+    private UUID salePromotionId;
+
+    @Column(name = "sale_promotion_name")
+    private String salePromotionName;
+
     @Column(name = "product_name")
     private String productName;
 
@@ -83,6 +117,54 @@ public class OrderItem extends BaseEntity {
         this.unitPrice = unitPrice;
     }
 
+    public Money getOriginalUnitPrice() {
+        return originalUnitPrice;
+    }
+
+    public void setOriginalUnitPrice(Money originalUnitPrice) {
+        this.originalUnitPrice = originalUnitPrice;
+    }
+
+    public Money getProductSaleDiscount() {
+        return productSaleDiscount;
+    }
+
+    public void setProductSaleDiscount(Money productSaleDiscount) {
+        this.productSaleDiscount = productSaleDiscount;
+    }
+
+    public Money getCartDiscount() {
+        return cartDiscount;
+    }
+
+    public void setCartDiscount(Money cartDiscount) {
+        this.cartDiscount = cartDiscount;
+    }
+
+    public Money getPayableAmount() {
+        return payableAmount;
+    }
+
+    public void setPayableAmount(Money payableAmount) {
+        this.payableAmount = payableAmount;
+    }
+
+    public UUID getSalePromotionId() {
+        return salePromotionId;
+    }
+
+    public void setSalePromotionId(UUID salePromotionId) {
+        this.salePromotionId = salePromotionId;
+    }
+
+    public String getSalePromotionName() {
+        return salePromotionName;
+    }
+
+    public void setSalePromotionName(String salePromotionName) {
+        this.salePromotionName = salePromotionName;
+    }
+
     public String getProductName() {
         return productName;
     }
@@ -117,5 +199,9 @@ public class OrderItem extends BaseEntity {
 
     public long getTotalAmount() {
         return unitPrice.getAmount() * quantity;
+    }
+
+    public long getPayableTotalAmount() {
+        return payableAmount != null ? payableAmount.getAmount() : getTotalAmount();
     }
 }

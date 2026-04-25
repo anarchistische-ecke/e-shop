@@ -1,13 +1,17 @@
 package com.example.api.catalog;
 
 import com.example.api.content.CatalogueContentModels;
+import com.example.cart.service.CartPricingService;
+import com.example.cart.service.VariantPricing;
 import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
 import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
+import com.example.common.domain.Money;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
@@ -23,10 +27,15 @@ public class CatalogueResponseFactory {
 
     private final CatalogService catalogService;
     private final ObjectMapper objectMapper;
+    private final CartPricingService pricingService;
 
-    public CatalogueResponseFactory(CatalogService catalogService, ObjectMapper objectMapper) {
+    public CatalogueResponseFactory(CatalogService catalogService,
+                                    ObjectMapper objectMapper,
+                                    ObjectProvider<CartPricingService> pricingServiceProvider) {
         this.catalogService = catalogService;
         this.objectMapper = objectMapper;
+        this.pricingService = pricingServiceProvider.getIfAvailable(() -> new CartPricingService() {
+        });
     }
 
     public CatalogController.ProductResponse toProductResponse(Product product) {
@@ -53,9 +62,18 @@ public class CatalogueResponseFactory {
         response.setUpdatedAt(product.getUpdatedAt());
         response.setPresentation(presentation);
         if (product.getVariants() != null) {
-            response.setVariants(product.getVariants().stream()
+            List<CatalogController.VariantResponse> variants = product.getVariants().stream()
                     .map(this::toVariantResponse)
-                    .toList());
+                    .toList();
+            response.setVariants(variants);
+            variants.stream()
+                    .min(Comparator.comparing(variant -> variant.getPrice() != null ? variant.getPrice().getAmount() : Long.MAX_VALUE))
+                    .ifPresent(primaryPrice -> {
+                        response.setPrice(primaryPrice.getPrice());
+                        response.setOldPrice(primaryPrice.getOldPrice());
+                        response.setOnSale(primaryPrice.isOnSale());
+                        response.setDiscountPercent(primaryPrice.getDiscountPercent());
+                    });
         } else {
             response.setVariants(List.of());
         }
@@ -90,13 +108,25 @@ public class CatalogueResponseFactory {
         response.setId(variant.getId());
         response.setSku(variant.getSku());
         response.setName(variant.getName());
-        response.setPrice(variant.getPrice());
+        VariantPricing pricing = pricingService.resolveVariantPricing(variant);
+        response.setPrice(pricing.unitPrice());
+        response.setOldPrice(pricing.saleApplied() ? pricing.originalUnitPrice() : null);
+        response.setOnSale(pricing.saleApplied());
+        response.setDiscountPercent(discountPercent(pricing.originalUnitPrice(), pricing.unitPrice()));
+        response.setSalePromotionName(pricing.salePromotionName());
         response.setStock(variant.getStockQuantity());
         response.setWeightGrossG(variant.getWeightGrossG());
         response.setLengthMm(variant.getLengthMm());
         response.setWidthMm(variant.getWidthMm());
         response.setHeightMm(variant.getHeightMm());
         return response;
+    }
+
+    private Integer discountPercent(Money original, Money current) {
+        if (original == null || current == null || original.getAmount() <= current.getAmount() || original.getAmount() <= 0L) {
+            return null;
+        }
+        return (int) Math.round((original.getAmount() - current.getAmount()) * 100.0d / original.getAmount());
     }
 
     public CatalogController.ImageResponse toImageResponse(ProductImage image) {

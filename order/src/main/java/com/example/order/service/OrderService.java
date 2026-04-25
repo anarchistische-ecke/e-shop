@@ -2,6 +2,7 @@ package com.example.order.service;
 
 import com.example.cart.domain.Cart;
 import com.example.cart.domain.CartItem;
+import com.example.cart.service.CartPricingSummary;
 import com.example.cart.service.CartService;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.InventoryService;
@@ -21,8 +22,10 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -73,14 +76,9 @@ public class OrderService {
         if (cart.getItems() == null || cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
         }
-        long itemsTotal = cartService.calculateCartTotal(cartId);
-        String currency = cart.getItems().stream()
-                .map(CartItem::getUnitPrice)
-                .filter(money -> money != null && money.getCurrency() != null && !money.getCurrency().isBlank())
-                .map(Money::getCurrency)
-                .findFirst()
-                .orElse("RUB");
-        Money totalMoney = Money.of(itemsTotal, currency);
+        CartPricingSummary pricing = cartService.calculateCartPricing(cartId);
+        String currency = pricing.finalTotal().getCurrency();
+        Money totalMoney = pricing.finalTotal();
         String baseKey = "order-cart-" + cartId;
 
         UUID customerId = customerIdOverride != null
@@ -90,6 +88,7 @@ public class OrderService {
             throw new IllegalArgumentException("Customer is required to create an order");
         }
         Order order = new Order(customerId, "PENDING", totalMoney);
+        applyPricingSummary(order, pricing);
         order.setReceiptEmail(receiptEmail);
         if (contactSpec != null) {
             order.setContactName(contactSpec.customerName());
@@ -99,10 +98,28 @@ public class OrderService {
         order.setPublicToken(generatePublicToken());
         order.setManagerSubject(managerSubject);
 
+        Map<UUID, CartPricingSummary.CartPricingLine> pricingLines = pricing.items().stream()
+                .collect(Collectors.toMap(
+                        CartPricingSummary.CartPricingLine::variantId,
+                        line -> line,
+                        (left, right) -> left
+                ));
         for (CartItem ci : cart.getItems()) {
             String itemKey = baseKey + "-" + ci.getVariantId();
             inventoryService.adjustStock(ci.getVariantId(), -ci.getQuantity(), itemKey, "ORDER");
-            OrderItem oi = new OrderItem(ci.getVariantId(), ci.getQuantity(), ci.getUnitPrice());
+            CartPricingSummary.CartPricingLine pricingLine = pricingLines.get(ci.getVariantId());
+            Money unitPrice = pricingLine != null && pricingLine.unitPrice() != null
+                    ? pricingLine.unitPrice()
+                    : ci.getUnitPrice();
+            OrderItem oi = new OrderItem(ci.getVariantId(), ci.getQuantity(), unitPrice);
+            if (pricingLine != null) {
+                oi.setOriginalUnitPrice(pricingLine.originalUnitPrice());
+                oi.setProductSaleDiscount(pricingLine.productSaleDiscount());
+                oi.setCartDiscount(pricingLine.cartDiscount());
+                oi.setPayableAmount(pricingLine.payableTotal());
+                oi.setSalePromotionId(pricingLine.salePromotionId());
+                oi.setSalePromotionName(pricingLine.salePromotionName());
+            }
             ProductVariant variant = variantRepository.findWithProductById(ci.getVariantId())
                     .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + ci.getVariantId()));
             oi.setVariantName(variant.getName());
@@ -116,6 +133,43 @@ public class OrderService {
         order = orderRepository.save(order);
         cartService.clearCart(cartId);
         return order;
+    }
+
+    private void applyPricingSummary(Order order, CartPricingSummary pricing) {
+        if (order == null || pricing == null) {
+            return;
+        }
+        order.setOriginalSubtotal(pricing.originalSubtotal());
+        order.setSaleSubtotal(pricing.saleSubtotal());
+        order.setEligibleDiscountSubtotal(pricing.eligibleDiscountSubtotal());
+        order.setProductSaleDiscount(pricing.productSaleDiscount());
+        order.setCartDiscount(pricing.cartDiscount());
+        order.setPromoCodeDiscount(pricing.promoCodeDiscount());
+        order.setTotalDiscount(pricing.totalDiscount());
+        order.setPromoCode(pricing.promoCode());
+        order.setAppliedCartDiscountType(pricing.appliedCartDiscountType());
+        order.setAppliedCartDiscountLabel(pricing.appliedCartDiscountLabel());
+        order.setDiscountSummary(buildDiscountSummary(pricing));
+    }
+
+    private String buildDiscountSummary(CartPricingSummary pricing) {
+        return "originalSubtotal=" + amount(pricing.originalSubtotal())
+                + ";saleSubtotal=" + amount(pricing.saleSubtotal())
+                + ";eligibleDiscountSubtotal=" + amount(pricing.eligibleDiscountSubtotal())
+                + ";productSaleDiscount=" + amount(pricing.productSaleDiscount())
+                + ";cartDiscount=" + amount(pricing.cartDiscount())
+                + ";promoCode=" + nullToEmpty(pricing.promoCode())
+                + ";promoCodeStatus=" + nullToEmpty(pricing.promoCodeStatus())
+                + ";appliedCartDiscountType=" + nullToEmpty(pricing.appliedCartDiscountType())
+                + ";finalTotal=" + amount(pricing.finalTotal());
+    }
+
+    private String amount(Money money) {
+        return money == null ? "0" : money.getAmount() + " " + money.getCurrency();
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     public Order updateOrderStatus(UUID orderId, String status) {

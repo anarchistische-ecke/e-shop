@@ -1544,7 +1544,7 @@
               <div>
                 <p class="detail-kicker">Акции</p>
                 <h2>{{ promotionState.mode === 'promoCode' ? 'Промокод' : 'Акция' }}</h2>
-                <p class="detail-subtitle">Sale price, пороговые скидки и промокоды управляются из CMS.</p>
+                <p class="detail-subtitle">Directus редактирует только backend-акции. Пороговые скидки DSC-01 фиксированы в API.</p>
               </div>
               <div class="detail-header-actions">
                 <button class="button button-secondary" type="button" @click="startCreatePromotion">
@@ -1562,13 +1562,9 @@
                   <span>Название</span>
                   <input v-model.trim="promotionForm.name" type="text" />
                 </label>
-                <label class="ops-field">
-                  <span>Тип</span>
-                  <select v-model="promotionForm.type">
-                    <option value="PRODUCT_SALE">PRODUCT_SALE</option>
-                    <option value="CART_THRESHOLD">CART_THRESHOLD</option>
-                  </select>
-                </label>
+                <div class="inline-note">
+                  Тип акции: PRODUCT_SALE. Скидки по сумме корзины: 50 000 ₽ → 5%, 65 000 ₽ → 7%, 100 000 ₽ → 10%.
+                </div>
               </div>
               <div class="form-grid form-grid-three">
                 <label class="ops-field">
@@ -1588,36 +1584,56 @@
                   <input v-model="promotionForm.endsAt" type="datetime-local" />
                 </label>
               </div>
-              <div class="form-grid form-grid-three">
+              <div class="form-grid">
                 <label class="ops-field">
-                  <span>Цена распродажи</span>
-                  <input v-model.number="promotionForm.salePriceAmount" type="number" min="0" step="1" />
+                  <span>Цена распродажи, ₽</span>
+                  <input v-model.number="promotionForm.salePriceAmount" type="number" min="0" step="0.01" />
                 </label>
                 <label class="ops-field">
                   <span>Скидка, %</span>
                   <input v-model.number="promotionForm.discountPercent" type="number" min="0" max="100" step="1" />
                 </label>
-                <label class="ops-field">
-                  <span>Порог корзины</span>
-                  <input v-model.number="promotionForm.thresholdAmount" type="number" min="0" step="1" />
-                </label>
               </div>
-              <div class="form-grid">
-                <label class="ops-field">
-                  <span>Цель</span>
-                  <select v-model="promotionForm.targetKind">
-                    <option value="">Все товары</option>
-                    <option value="VARIANT">VARIANT</option>
-                    <option value="PRODUCT">PRODUCT</option>
-                    <option value="BRAND">BRAND</option>
-                    <option value="CATEGORY">CATEGORY</option>
-                  </select>
-                </label>
-                <label class="ops-field">
-                  <span>Ключ цели</span>
-                  <input v-model.trim="promotionForm.targetKey" type="text" placeholder="sku, slug или UUID" />
-                </label>
-              </div>
+              <section class="selector-card">
+                <div class="selector-card-head">
+                  <div>
+                    <h3>Цели распродажи</h3>
+                    <p>Можно указать несколько товаров, вариантов, категорий или брендов.</p>
+                  </div>
+                  <button class="button button-secondary" type="button" @click="addPromotionTarget">
+                    Добавить цель
+                  </button>
+                </div>
+                <div v-if="promotionForm.targets.length" class="spec-item-list">
+                  <div
+                    v-for="(target, targetIndex) in promotionForm.targets"
+                    :key="`promotion-target-${targetIndex}`"
+                    class="spec-item-row"
+                  >
+                    <label class="ops-field">
+                      <span>Тип цели</span>
+                      <select v-model="target.targetKind">
+                        <option value="VARIANT">VARIANT</option>
+                        <option value="PRODUCT">PRODUCT</option>
+                        <option value="BRAND">BRAND</option>
+                        <option value="CATEGORY">CATEGORY</option>
+                      </select>
+                    </label>
+                    <label class="ops-field">
+                      <span>Ключ цели</span>
+                      <input v-model.trim="target.targetKey" type="text" placeholder="sku, slug или UUID" />
+                    </label>
+                    <button
+                      class="button button-danger button-small spec-item-remove"
+                      type="button"
+                      @click="removePromotionTarget(targetIndex)"
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="empty-inline">Без целей акция применяется ко всем товарам.</div>
+              </section>
               <label class="ops-field">
                 <span>Описание</span>
                 <textarea v-model="promotionForm.description" rows="4" />
@@ -1652,12 +1668,12 @@
                   <input v-model.number="promoCodeForm.discountPercent" type="number" min="0" max="100" step="1" />
                 </label>
                 <label class="ops-field">
-                  <span>Скидка суммой</span>
-                  <input v-model.number="promoCodeForm.discountAmount" type="number" min="0" step="1" />
+                  <span>Скидка суммой, ₽</span>
+                  <input v-model.number="promoCodeForm.discountAmount" type="number" min="0" step="0.01" />
                 </label>
                 <label class="ops-field">
-                  <span>Порог</span>
-                  <input v-model.number="promoCodeForm.thresholdAmount" type="number" min="0" step="1" />
+                  <span>Порог, ₽</span>
+                  <input v-model.number="promoCodeForm.thresholdAmount" type="number" min="0" step="0.01" />
                 </label>
               </div>
               <div class="form-grid form-grid-three">
@@ -2170,8 +2186,7 @@ const promotionForm = reactive({
   currency: 'RUB',
   thresholdAmount: null,
   description: '',
-  targetKind: '',
-  targetKey: '',
+  targets: [],
 });
 
 const promoCodeForm = reactive({
@@ -3812,8 +3827,7 @@ function startCreatePromotion() {
     currency: 'RUB',
     thresholdAmount: null,
     description: '',
-    targetKind: '',
-    targetKey: '',
+    targets: [],
   });
 }
 
@@ -3829,13 +3843,12 @@ function selectPromotion(promotion) {
     startsAt: toDatetimeLocal(promotion.startsAt),
     endsAt: toDatetimeLocal(promotion.endsAt),
     discountPercent: promotion.discountPercent ?? null,
-    discountAmount: promotion.discountAmount ?? null,
-    salePriceAmount: promotion.salePriceAmount ?? null,
+    discountAmount: minorToMajor(promotion.discountAmount),
+    salePriceAmount: minorToMajor(promotion.salePriceAmount),
     currency: promotion.currency || 'RUB',
-    thresholdAmount: promotion.thresholdAmount ?? null,
+    thresholdAmount: null,
     description: promotion.description || '',
-    targetKind: promotion.targets?.[0]?.targetKind || '',
-    targetKey: promotion.targets?.[0]?.targetKey || '',
+    targets: normalizePromotionTargets(promotion.targets),
   });
 }
 
@@ -3865,13 +3878,30 @@ function selectPromoCode(promoCode) {
     code: promoCode.code || '',
     status: promoCode.status || 'ACTIVE',
     discountPercent: promoCode.discountPercent ?? null,
-    discountAmount: promoCode.discountAmount ?? null,
-    thresholdAmount: promoCode.thresholdAmount ?? null,
+    discountAmount: minorToMajor(promoCode.discountAmount),
+    thresholdAmount: minorToMajor(promoCode.thresholdAmount),
     startsAt: toDatetimeLocal(promoCode.startsAt),
     endsAt: toDatetimeLocal(promoCode.endsAt),
     maxRedemptions: promoCode.maxRedemptions ?? null,
     description: promoCode.description || '',
   });
+}
+
+function normalizePromotionTargets(targets = []) {
+  return (Array.isArray(targets) ? targets : [])
+    .map((target) => ({
+      targetKind: target?.targetKind || 'VARIANT',
+      targetKey: target?.targetKey || '',
+    }))
+    .filter((target) => target.targetKind && target.targetKey);
+}
+
+function addPromotionTarget() {
+  promotionForm.targets.push({ targetKind: 'VARIANT', targetKey: '' });
+}
+
+function removePromotionTarget(index) {
+  promotionForm.targets.splice(index, 1);
 }
 
 async function submitPromotion() {
@@ -3882,20 +3912,18 @@ async function submitPromotion() {
   isSubmitting.value = true;
   clearMessages();
   try {
-    const targets = promotionForm.targetKind && promotionForm.targetKey
-      ? [{ targetKind: promotionForm.targetKind, targetKey: promotionForm.targetKey }]
-      : [];
+    const targets = normalizePromotionTargets(promotionForm.targets);
     const payload = {
       name: promotionForm.name.trim(),
-      type: promotionForm.type,
+      type: 'PRODUCT_SALE',
       status: promotionForm.status,
       startsAt: toIsoDateTime(promotionForm.startsAt),
       endsAt: toIsoDateTime(promotionForm.endsAt),
       discountPercent: normalizeNullableNumber(promotionForm.discountPercent),
-      discountAmount: normalizeNullableNumber(promotionForm.discountAmount),
-      salePriceAmount: normalizeNullableNumber(promotionForm.salePriceAmount),
+      discountAmount: majorToMinor(promotionForm.discountAmount),
+      salePriceAmount: majorToMinor(promotionForm.salePriceAmount),
       currency: promotionForm.currency || 'RUB',
-      thresholdAmount: normalizeNullableNumber(promotionForm.thresholdAmount),
+      thresholdAmount: null,
       description: normalizeNullableText(promotionForm.description),
       targets,
     };
@@ -3942,8 +3970,8 @@ async function submitPromoCode() {
       code: promoCodeForm.code.trim(),
       status: promoCodeForm.status,
       discountPercent: normalizeNullableNumber(promoCodeForm.discountPercent),
-      discountAmount: normalizeNullableNumber(promoCodeForm.discountAmount),
-      thresholdAmount: normalizeNullableNumber(promoCodeForm.thresholdAmount),
+      discountAmount: majorToMinor(promoCodeForm.discountAmount),
+      thresholdAmount: majorToMinor(promoCodeForm.thresholdAmount),
       startsAt: toIsoDateTime(promoCodeForm.startsAt),
       endsAt: toIsoDateTime(promoCodeForm.endsAt),
       maxRedemptions: normalizeNullableNumber(promoCodeForm.maxRedemptions),
@@ -4286,7 +4314,11 @@ function formatMinorMoney(amount, currency = 'RUB') {
   if (amount === null || amount === undefined || amount === '') {
     return 'Не задано';
   }
-  return formatMoney({ amount, currency });
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric)) {
+    return 'Не задано';
+  }
+  return `${(numeric / 100).toLocaleString('ru-RU')} ${currency}`;
 }
 
 function formatDateTime(value) {
@@ -4398,6 +4430,16 @@ function normalizeNullableNumber(value) {
   }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function minorToMajor(value) {
+  const numeric = normalizeNullableNumber(value);
+  return numeric === null ? null : numeric / 100;
+}
+
+function majorToMinor(value) {
+  const numeric = normalizeNullableNumber(value);
+  return numeric === null ? null : Math.round(numeric * 100);
 }
 
 function normalizeNullableText(value) {

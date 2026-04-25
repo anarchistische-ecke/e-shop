@@ -38,10 +38,12 @@ class PaymentServiceManualDeliveryTest {
         ObjectProvider<YooKassaClient> yooKassaClientProvider = mock(ObjectProvider.class);
         ObjectProvider<OrderService> orderServiceProvider = mock(ObjectProvider.class);
         ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProvider = mock(ObjectProvider.class);
+        ObjectProvider<PromoCodeRedemptionRecorder> promoCodeRedemptionRecorderProvider = mock(ObjectProvider.class);
         when(customerRepositoryProvider.getIfAvailable()).thenReturn(null);
         when(yooKassaClientProvider.getIfAvailable()).thenReturn(yooKassaClient);
         when(orderServiceProvider.getIfAvailable()).thenReturn(null);
         when(fiscalConfigurationProvider.getIfAvailable()).thenReturn(null);
+        when(promoCodeRedemptionRecorderProvider.getIfAvailable()).thenReturn(null);
 
         PaymentService service = new PaymentService(
                 paymentRepository,
@@ -51,7 +53,8 @@ class PaymentServiceManualDeliveryTest {
                 customerRepositoryProvider,
                 yooKassaClientProvider,
                 orderServiceProvider,
-                fiscalConfigurationProvider
+                fiscalConfigurationProvider,
+                promoCodeRedemptionRecorderProvider
         );
 
         UUID orderId = UUID.randomUUID();
