@@ -1,5 +1,6 @@
 package com.example.api.cart;
 
+import com.example.api.admincms.DirectusAdminService;
 import com.example.cart.domain.Cart;
 import com.example.cart.domain.CartItem;
 import com.example.cart.service.CartService;
@@ -23,10 +24,12 @@ public class CartController {
 
     private static final Logger log = LoggerFactory.getLogger(CartController.class);
     private final CartService cartService;
+    private final DirectusAdminService directusAdminService;
 
     @Autowired
-    public CartController(CartService cartService) {
+    public CartController(CartService cartService, DirectusAdminService directusAdminService) {
         this.cartService = cartService;
+        this.directusAdminService = directusAdminService;
     }
 
     @PostMapping
@@ -73,6 +76,20 @@ public class CartController {
         Map<String, Long> response = new HashMap<>();
         response.put("totalAmount", total);
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{cartId}/promo-code")
+    public ResponseEntity<Cart> applyPromoCode(@PathVariable UUID cartId,
+                                               @Valid @RequestBody PromoCodeRequest request) {
+        long subtotal = cartService.calculateItemsTotal(cartId);
+        directusAdminService.validatePromoCode(request.getCode(), subtotal);
+        Cart cart = cartService.applyPromoCode(cartId, request.getCode());
+        return ResponseEntity.ok(cart);
+    }
+
+    @DeleteMapping("/{cartId}/promo-code")
+    public ResponseEntity<Cart> removePromoCode(@PathVariable UUID cartId) {
+        return ResponseEntity.ok(cartService.removePromoCode(cartId));
     }
 
     @GetMapping("/{cartId}")
@@ -136,6 +153,19 @@ public class CartController {
 
         public void setQuantity(int quantity) {
             this.quantity = quantity;
+        }
+    }
+
+    public static class PromoCodeRequest {
+        @jakarta.validation.constraints.NotBlank
+        private String code;
+
+        public String getCode() {
+            return code;
+        }
+
+        public void setCode(String code) {
+            this.code = code;
         }
     }
 }

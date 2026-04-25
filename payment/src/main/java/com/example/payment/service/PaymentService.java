@@ -43,6 +43,7 @@ public class PaymentService {
     private final YooKassaClient yooKassaClient;
     private final OrderService orderService;
     private final YandexDeliveryClient yandexDeliveryClient;
+    private final FiscalConfigurationProvider fiscalConfigurationProvider;
 
     @Autowired
     public PaymentService(PaymentRepository paymentRepository,
@@ -52,7 +53,8 @@ public class PaymentService {
                           ObjectProvider<CustomerRepository> customerRepositoryProvider,
                           ObjectProvider<YooKassaClient> yooKassaClientProvider,
                           ObjectProvider<OrderService> orderServiceProvider,
-                          ObjectProvider<YandexDeliveryClient> yandexDeliveryClientProvider) {
+                          ObjectProvider<YandexDeliveryClient> yandexDeliveryClientProvider,
+                          ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProviderProvider) {
         this.paymentRepository = paymentRepository;
         this.paymentRefundRepository = paymentRefundRepository;
         this.savedPaymentMethodRepository = savedPaymentMethodRepository;
@@ -61,6 +63,7 @@ public class PaymentService {
         this.yooKassaClient = yooKassaClientProvider.getIfAvailable();
         this.orderService = orderServiceProvider.getIfAvailable();
         this.yandexDeliveryClient = yandexDeliveryClientProvider.getIfAvailable();
+        this.fiscalConfigurationProvider = fiscalConfigurationProviderProvider.getIfAvailable();
     }
 
     public Payment createYooKassaPayment(UUID orderId,
@@ -375,7 +378,7 @@ public class PaymentService {
                     receiptItem.description = buildItemDescription(item);
                     receiptItem.quantity = BigDecimal.valueOf(item.getQuantity());
                     receiptItem.amount = YooKassaClient.Amount.of(formatAmount(item.getUnitPrice()), item.getUnitPrice().getCurrency());
-                    receiptItem.vatCode = yooKassaClient.getVatCode();
+                    receiptItem.vatCode = resolveVatCode();
                     receiptItem.paymentMode = "full_payment";
                     receiptItem.paymentSubject = "commodity";
                     return receiptItem;
@@ -386,14 +389,28 @@ public class PaymentService {
             deliveryItem.description = "Доставка";
             deliveryItem.quantity = BigDecimal.ONE;
             deliveryItem.amount = YooKassaClient.Amount.of(formatAmount(order.getDeliveryAmount()), order.getDeliveryAmount().getCurrency());
-            deliveryItem.vatCode = yooKassaClient.getVatCode();
+            deliveryItem.vatCode = resolveVatCode();
             deliveryItem.paymentMode = "full_payment";
             deliveryItem.paymentSubject = "service";
             receiptItems.add(deliveryItem);
         }
         receipt.items = receiptItems;
-        receipt.taxSystemCode = yooKassaClient.getTaxSystemCode();
+        receipt.taxSystemCode = resolveTaxSystemCode();
         return receipt;
+    }
+
+    private int resolveVatCode() {
+        FiscalConfigurationProvider.FiscalConfiguration config = fiscalConfigurationProvider != null
+                ? fiscalConfigurationProvider.getActiveFiscalConfiguration()
+                : null;
+        return config != null ? config.vatCode() : yooKassaClient.getVatCode();
+    }
+
+    private int resolveTaxSystemCode() {
+        FiscalConfigurationProvider.FiscalConfiguration config = fiscalConfigurationProvider != null
+                ? fiscalConfigurationProvider.getActiveFiscalConfiguration()
+                : null;
+        return config != null ? config.taxSystemCode() : yooKassaClient.getTaxSystemCode();
     }
 
     private String buildItemDescription(OrderItem item) {

@@ -7,6 +7,7 @@ import com.example.catalog.repository.ProductVariantRepository;
 import com.example.common.domain.Money;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -21,12 +22,16 @@ public class CartService {
     private static final Duration CART_TTL = Duration.ofDays(30);
     private final RedisTemplate<String, Cart> cartRedisTemplate;
     private final ProductVariantRepository variantRepository;
+    private final CartPricingService pricingService;
 
     @Autowired
     public CartService(RedisTemplate<String, Cart> cartRedisTemplate,
-                       ProductVariantRepository variantRepository) {
+                       ProductVariantRepository variantRepository,
+                       ObjectProvider<CartPricingService> pricingServiceProvider) {
         this.cartRedisTemplate = cartRedisTemplate;
         this.variantRepository = variantRepository;
+        this.pricingService = pricingServiceProvider.getIfAvailable(() -> new CartPricingService() {
+        });
     }
 
     private String key(UUID cartId) {
@@ -75,11 +80,12 @@ public class CartService {
         if (available > 0 && newQuantity > available) {
             throw new IllegalStateException("Недостаточно запаса на складе. Доступно: " + available);
         }
-        Money price = variant.getPrice();
+        Money price = pricingService.resolveUnitPrice(variant);
 
         if (existing.isPresent()) {
             CartItem item = existing.get();
             item.setQuantity(newQuantity);
+            item.setUnitPrice(price);
             stampBaseEntity(item, false);
         } else {
             CartItem item = new CartItem(variantId, quantity, price);
@@ -129,7 +135,27 @@ public class CartService {
 
     public long calculateCartTotal(UUID cartId) {
         Cart cart = requireCart(cartId);
+        return pricingService.calculateCartTotal(cart);
+    }
+
+    public long calculateItemsTotal(UUID cartId) {
+        Cart cart = requireCart(cartId);
         return cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
+    }
+
+    public Cart applyPromoCode(UUID cartId, String promoCode) {
+        if (promoCode == null || promoCode.isBlank()) {
+            throw new IllegalArgumentException("Promo code is required");
+        }
+        Cart cart = requireCart(cartId);
+        cart.setPromoCode(promoCode.trim().toUpperCase());
+        return persistCart(cart, false);
+    }
+
+    public Cart removePromoCode(UUID cartId) {
+        Cart cart = requireCart(cartId);
+        cart.setPromoCode(null);
+        return persistCart(cart, false);
     }
 
     public void clearCart(UUID cartId) {

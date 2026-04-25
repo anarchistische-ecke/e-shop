@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 KEYCLOAK_ENV_FILE="$ROOT_DIR/keycloak/.env"
 KEYCLOAK_BASE_URL="${KEYCLOAK_BASE_URL:-http://localhost:8081}"
 KEYCLOAK_REALM="${KEYCLOAK_REALM:-cozyhome}"
-MAPPED_ROLES="admin manager publisher"
+MAPPED_ROLES="admin manager picker content_manager publisher"
 
 # shellcheck source=scripts/lib/env-file.sh
 source "$ROOT_DIR/scripts/lib/env-file.sh"
@@ -37,6 +37,8 @@ Usage:
 
 Allowed roles:
   manager   -> Directus CMS Editor
+  picker    -> Directus Picker
+  content_manager -> Directus Content Manager
   publisher -> Directus CMS Publisher
   admin     -> Directus CMS Administrator
 EOF
@@ -86,10 +88,10 @@ if [[ -z "$EMAIL" || -z "$PASSWORD" || -z "$ROLE" ]]; then
 fi
 
 case "$ROLE" in
-  admin|manager|publisher)
+  admin|manager|picker|content_manager|publisher)
     ;;
   *)
-    echo "Unsupported CMS role '$ROLE'. Use one of: admin, manager, publisher." >&2
+    echo "Unsupported CMS role '$ROLE'. Use one of: admin, manager, picker, content_manager, publisher." >&2
     exit 1
     ;;
 esac
@@ -97,7 +99,9 @@ esac
 directus_role_label() {
   case "$1" in
     admin) printf 'CMS Administrator' ;;
-    manager) printf 'CMS Editor' ;;
+    manager) printf 'Manager' ;;
+    picker) printf 'Picker' ;;
+    content_manager) printf 'Content Manager' ;;
     publisher) printf 'CMS Publisher' ;;
     *) printf 'unknown' ;;
   esac
@@ -240,7 +244,7 @@ api_put_json "${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${USER_I
 CURRENT_REALM_ROLES="$(api_get "${KEYCLOAK_BASE_URL}/admin/realms/${KEYCLOAK_REALM}/users/${USER_ID}/role-mappings/realm")"
 REMOVE_PAYLOAD="$(
   printf '%s' "$CURRENT_REALM_ROLES" \
-    | jq --arg selected "$ROLE" '[.[] | select((.name == "admin" or .name == "manager" or .name == "publisher") and .name != $selected)]'
+    | jq --arg selected "$ROLE" '[.[] | select((.name == "admin" or .name == "manager" or .name == "picker" or .name == "content_manager" or .name == "publisher") and .name != $selected)]'
 )"
 
 if [[ "$REMOVE_PAYLOAD" != "[]" ]]; then

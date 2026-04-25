@@ -73,7 +73,7 @@ public class OrderService {
         if (cart.getItems() == null || cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
         }
-        long itemsTotal = cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
+        long itemsTotal = cartService.calculateCartTotal(cartId);
         String currency = cart.getItems().stream()
                 .map(CartItem::getUnitPrice)
                 .filter(money -> money != null && money.getCurrency() != null && !money.getCurrency().isBlank())

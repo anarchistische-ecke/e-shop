@@ -26,6 +26,12 @@
         "name": "publisher"
       },
       {
+        "name": "picker"
+      },
+      {
+        "name": "content_manager"
+      },
+      {
         "name": "catalogue_operator"
       },
       {
@@ -192,6 +198,42 @@
       ],
       "realmRoles": [
         "publisher"
+      ]
+    },
+    {
+      "username": "picker@example.com",
+      "email": "picker@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Picker",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Picker123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "picker"
+      ]
+    },
+    {
+      "username": "content@example.com",
+      "email": "content@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Content",
+      "lastName": "Manager",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Content123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "content_manager"
       ]
     },
     {

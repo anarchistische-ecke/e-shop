@@ -32,16 +32,25 @@ DIRECTUS_ROLE_CMS_EDITOR_ID="${DIRECTUS_ROLE_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-8
 DIRECTUS_ROLE_CMS_PUBLISHER_ID="${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}"
 DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID="${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}"
 DIRECTUS_ROLE_INVENTORY_OPERATOR_ID="${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}"
+DIRECTUS_ROLE_MANAGER_ID="${DIRECTUS_ROLE_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006}"
+DIRECTUS_ROLE_PICKER_ID="${DIRECTUS_ROLE_PICKER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007}"
+DIRECTUS_ROLE_CONTENT_MANAGER_ID="${DIRECTUS_ROLE_CONTENT_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008}"
 DIRECTUS_POLICY_CMS_ADMIN_ID="${DIRECTUS_POLICY_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20001}"
 DIRECTUS_POLICY_CMS_EDITOR_ID="${DIRECTUS_POLICY_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20002}"
 DIRECTUS_POLICY_CMS_PUBLISHER_ID="${DIRECTUS_POLICY_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20003}"
 DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID="${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20004}"
 DIRECTUS_POLICY_INVENTORY_OPERATOR_ID="${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20005}"
+DIRECTUS_POLICY_MANAGER_ID="${DIRECTUS_POLICY_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20006}"
+DIRECTUS_POLICY_PICKER_ID="${DIRECTUS_POLICY_PICKER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20007}"
+DIRECTUS_POLICY_CONTENT_MANAGER_ID="${DIRECTUS_POLICY_CONTENT_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20008}"
 DIRECTUS_ACCESS_CMS_ADMIN_ID="${DIRECTUS_ACCESS_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30001}"
 DIRECTUS_ACCESS_CMS_EDITOR_ID="${DIRECTUS_ACCESS_CMS_EDITOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30002}"
 DIRECTUS_ACCESS_CMS_PUBLISHER_ID="${DIRECTUS_ACCESS_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30003}"
 DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID="${DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30004}"
 DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID="${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30005}"
+DIRECTUS_ACCESS_MANAGER_ID="${DIRECTUS_ACCESS_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30006}"
+DIRECTUS_ACCESS_PICKER_ID="${DIRECTUS_ACCESS_PICKER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30007}"
+DIRECTUS_ACCESS_CONTENT_MANAGER_ID="${DIRECTUS_ACCESS_CONTENT_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30008}"
 DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID="${DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f40001}"
 DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID="${DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f40002}"
 DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_settings,navigation,navigation_items,page,page_sections,page_section_items,faq,legal_documents,banner,post,product_overlay,category_overlay,catalogue_overlay_block,catalogue_overlay_block_item,storefront_collection,storefront_collection_item}"
@@ -210,7 +219,10 @@ VALUES
   ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', 'Политика редактора CMS', 'edit', 'Подготовка черновиков и работа с файлами без права публикации.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', 'Политика публикатора CMS', 'fact_check', 'Проверка и публикация CMS-контента.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', 'Политика оператора каталога', 'inventory_2', 'Операции с каталогом через витринный bridge Directus.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через витринный bridge Directus.', NULL, false, false, true)
+  ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через витринный bridge Directus.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_MANAGER_ID}', 'Политика менеджера', 'support_agent', 'Работа с заказами, ссылками оплаты и активными акциями.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_PICKER_ID}', 'Политика сборщика', 'inventory', 'Очередь сборки и смена статусов заказов.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_CONTENT_MANAGER_ID}', 'Политика контент-менеджера', 'edit_note', 'Каталог, импорт, акции и алерты низких остатков.', NULL, false, false, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -226,7 +238,10 @@ VALUES
   ('${DIRECTUS_ROLE_CMS_EDITOR_ID}', 'Редактор CMS', 'edit_note', 'Роль редактора для подготовки контента и черновиков.', NULL),
   ('${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', 'Публикатор CMS', 'fact_check', 'Роль для проверки, утверждения и публикации контента.', NULL),
   ('${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID}', 'Оператор каталога', 'inventory_2', 'Роль для работы с товарами, категориями, брендами и bridge-операциями каталога.', NULL),
-  ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Оператор остатков', 'inventory', 'Роль для работы с вариантами, ценами и остатками через bridge.', NULL)
+  ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Оператор остатков', 'inventory', 'Роль для работы с вариантами, ценами и остатками через bridge.', NULL),
+  ('${DIRECTUS_ROLE_MANAGER_ID}', 'Менеджер', 'support_agent', 'Роль для управления заказами, ссылками оплаты и просмотра активных акций.', NULL),
+  ('${DIRECTUS_ROLE_PICKER_ID}', 'Сборщик', 'inventory', 'Роль для работы с очередью сборки заказов.', NULL),
+  ('${DIRECTUS_ROLE_CONTENT_MANAGER_ID}', 'Контент-менеджер', 'edit_note', 'Роль для каталога, импорта, акций и алертов низких остатков.', NULL)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -239,7 +254,10 @@ VALUES
   ('${DIRECTUS_ACCESS_CMS_EDITOR_ID}', '${DIRECTUS_ROLE_CMS_EDITOR_ID}', NULL, '${DIRECTUS_POLICY_CMS_EDITOR_ID}', NULL),
   ('${DIRECTUS_ACCESS_CMS_PUBLISHER_ID}', '${DIRECTUS_ROLE_CMS_PUBLISHER_ID}', NULL, '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', NULL),
   ('${DIRECTUS_ACCESS_CATALOGUE_OPERATOR_ID}', '${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID}', NULL, '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}', NULL),
-  ('${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID}', '${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', NULL, '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', NULL)
+  ('${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID}', '${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', NULL, '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', NULL),
+  ('${DIRECTUS_ACCESS_MANAGER_ID}', '${DIRECTUS_ROLE_MANAGER_ID}', NULL, '${DIRECTUS_POLICY_MANAGER_ID}', NULL),
+  ('${DIRECTUS_ACCESS_PICKER_ID}', '${DIRECTUS_ROLE_PICKER_ID}', NULL, '${DIRECTUS_POLICY_PICKER_ID}', NULL),
+  ('${DIRECTUS_ACCESS_CONTENT_MANAGER_ID}', '${DIRECTUS_ROLE_CONTENT_MANAGER_ID}', NULL, '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}', NULL)
 ON CONFLICT (id) DO UPDATE SET
   role = EXCLUDED.role,
   "user" = EXCLUDED."user",
@@ -247,7 +265,7 @@ ON CONFLICT (id) DO UPDATE SET
   sort = EXCLUDED.sort;
 
 DELETE FROM directus_permissions
-WHERE policy IN ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}');
+WHERE policy IN ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}');
 
 DELETE FROM directus_permissions
 WHERE policy = '${PUBLIC_POLICY_ID}';
@@ -265,7 +283,13 @@ VALUES
   ('directus_files', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
   ('directus_folders', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
   ('directus_folders', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
-  ('directus_folders', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}');
+  ('directus_folders', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_files', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_files', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_files', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_folders', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_folders', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_folders', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}');
 
 DELETE FROM directus_permissions
 WHERE collection IN ('directus_dashboards', 'directus_panels')
@@ -273,7 +297,10 @@ WHERE collection IN ('directus_dashboards', 'directus_panels')
     '${DIRECTUS_POLICY_CMS_EDITOR_ID}',
     '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}',
     '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}',
-    '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}'
+    '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}',
+    '${DIRECTUS_POLICY_MANAGER_ID}',
+    '${DIRECTUS_POLICY_PICKER_ID}',
+    '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'
   );
 
 INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
@@ -285,7 +312,13 @@ VALUES
   ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}'),
   ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CATALOGUE_OPERATOR_ID}'),
   ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}'),
-  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}');
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}'),
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_MANAGER_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_MANAGER_ID}'),
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_PICKER_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_PICKER_ID}'),
+  ('directus_dashboards', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_panels', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}');
 
 INSERT INTO directus_dashboards (id, name, icon, note, color, user_created)
 VALUES
@@ -374,6 +407,7 @@ while IFS= read -r collection; do
 \set collection '${collection}'
 \set editor_policy '${DIRECTUS_POLICY_CMS_EDITOR_ID}'
 \set publisher_policy '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'
+\set content_manager_policy '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'
 \set editor_create_status_validation '${EDITOR_CREATE_STATUS_VALIDATION_JSON}'
 \set editor_update_status_validation '${EDITOR_UPDATE_STATUS_VALIDATION_JSON}'
 \set publisher_create_status_validation '${PUBLISHER_CREATE_STATUS_VALIDATION_JSON}'
@@ -382,7 +416,7 @@ while IFS= read -r collection; do
 
 DELETE FROM directus_permissions
 WHERE collection = :'collection'
-  AND policy IN (:'editor_policy', :'publisher_policy');
+  AND policy IN (:'editor_policy', :'publisher_policy', :'content_manager_policy');
 
 INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
 VALUES
@@ -391,7 +425,10 @@ VALUES
   (:'collection', 'update', '{}'::json, :'editor_update_status_validation'::json, NULL, '*', :'editor_policy'),
   (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'publisher_policy'),
   (:'collection', 'create', '{}'::json, :'publisher_create_status_validation'::json, :'create_status_preset'::json, '*', :'publisher_policy'),
-  (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'publisher_policy');
+  (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'publisher_policy'),
+  (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'content_manager_policy'),
+  (:'collection', 'create', '{}'::json, :'editor_create_status_validation'::json, :'create_status_preset'::json, '*', :'content_manager_policy'),
+  (:'collection', 'update', '{}'::json, :'editor_update_status_validation'::json, NULL, '*', :'content_manager_policy');
 SQL
 done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
 
