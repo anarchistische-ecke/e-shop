@@ -41,14 +41,15 @@ class DirectusAdminRoleGuardTest {
     }
 
     @Test
-    void requireAnalytics_isAdminOnly() {
+    void requireAnalytics_allowsManagerButRejectsContentOnlyRole() {
         assertThatCode(() -> guard.requireAnalytics(principal("admin-role"))).doesNotThrowAnyException();
+        assertThatCode(() -> guard.requireAnalytics(principal("manager-role"))).doesNotThrowAnyException();
 
-        assertThatThrownBy(() -> guard.requireAnalytics(principal("manager-role")))
+        assertThatThrownBy(() -> guard.requireAnalytics(principal("content-role")))
                 .isInstanceOf(AccessDeniedException.class);
     }
 
     private DirectusBridgeSecurity.DirectusBridgePrincipal principal(String role) {
-        return new DirectusBridgeSecurity.DirectusBridgePrincipal("user-id", "user@example.test", role, role);
+        return new DirectusBridgeSecurity.DirectusBridgePrincipal("user-id", "user@example.test", "external-id", role, role);
     }
 }

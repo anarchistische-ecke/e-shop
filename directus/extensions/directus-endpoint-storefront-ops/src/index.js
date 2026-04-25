@@ -49,6 +49,17 @@ function hasAnyAllowedRole(accountability, allowedRoleSets) {
   return sets.some((entry) => hasAllowedRole(accountability, entry));
 }
 
+function accountabilityUserId(accountability) {
+  const user = accountability?.user;
+  if (!user) {
+    return '';
+  }
+  if (typeof user === 'object') {
+    return user.id ? String(user.id) : '';
+  }
+  return String(user);
+}
+
 function resolveAdminRoleSets(path, roleSets) {
   if (path === '/admin/promotions/active' || path.startsWith('/admin/promotions/active/')) {
     return [roleSets.admin, roleSets.manager, roleSets.picker, roleSets.content];
@@ -56,7 +67,10 @@ function resolveAdminRoleSets(path, roleSets) {
   if (path.startsWith('/admin/orders')) {
     return [roleSets.admin, roleSets.manager, roleSets.picker];
   }
-  if (path.startsWith('/admin/analytics') || path.startsWith('/admin/tax-settings')) {
+  if (path.startsWith('/admin/analytics')) {
+    return [roleSets.admin, roleSets.manager];
+  }
+  if (path.startsWith('/admin/tax-settings')) {
     return [roleSets.admin];
   }
   if (
@@ -70,8 +84,36 @@ function resolveAdminRoleSets(path, roleSets) {
   return [roleSets.admin];
 }
 
+async function resolveDirectusUserDetails(accountability, context) {
+  const user = accountability?.user;
+  if (user && typeof user === 'object') {
+    return {
+      email: user.email || '',
+      externalId: user.external_identifier || user.externalIdentifier || '',
+    };
+  }
+
+  if (!user || !context?.database) {
+    return { email: '', externalId: '' };
+  }
+
+  try {
+    const row = await context.database('directus_users')
+      .select('email', 'external_identifier')
+      .where({ id: String(user) })
+      .first();
+    return {
+      email: row?.email || '',
+      externalId: row?.external_identifier || '',
+    };
+  } catch {
+    return { email: '', externalId: '' };
+  }
+}
+
 async function forwardJson(req, res, context, targetPath, namespace = 'catalogue') {
-  const { env, accountability } = context;
+  const { env } = context;
+  const accountability = req.accountability;
   const backendBaseUrl = normalizeBaseUrl(env.STOREFRONT_OPS_BACKEND_URL);
   const backendToken = env.STOREFRONT_OPS_BACKEND_TOKEN || '';
 
@@ -82,6 +124,7 @@ async function forwardJson(req, res, context, targetPath, namespace = 'catalogue
     return;
   }
 
+  const directusUser = await resolveDirectusUserDetails(accountability, context);
   const url = new URL(`${backendBaseUrl}/internal/directus/${namespace}${targetPath}`);
   Object.entries(req.query || {}).forEach(([key, value]) => {
     if (Array.isArray(value)) {
@@ -95,7 +138,9 @@ async function forwardJson(req, res, context, targetPath, namespace = 'catalogue
 
   const headers = new Headers({
     'X-Directus-Bridge-Token': backendToken,
-    'X-Directus-User-Id': accountability?.user ? String(accountability.user) : '',
+    'X-Directus-User-Id': accountabilityUserId(accountability),
+    'X-Directus-User-Email': directusUser.email,
+    'X-Directus-User-External-Id': directusUser.externalId,
     'X-Directus-User-Role': accountability?.role ? String(accountability.role) : '',
     'X-Directus-User-Roles': accountability?.role ? String(accountability.role) : '',
   });
@@ -110,10 +155,6 @@ async function forwardJson(req, res, context, targetPath, namespace = 'catalogue
 
   const method = String(req.method || '').toUpperCase();
   const requestContentType = String(req.headers['content-type'] || '');
-
-  if (req.accountability?.user && typeof req.accountability.user === 'object') {
-    headers.set('X-Directus-User-Email', req.accountability.user?.email || '');
-  }
 
   const fetchOptions = {
     method: req.method,
@@ -185,14 +226,16 @@ export default {
     }
 
     const inventoryRoute = isInventoryPath(path);
-    const allowedRoles = inventoryRoute ? roleSets.inventory : roleSets.catalogue;
+    const allowedRoleSets = inventoryRoute
+      ? [roleSets.admin, roleSets.inventory, roleSets.content]
+      : [roleSets.admin, roleSets.catalogue, roleSets.content];
 
-    if (canWrite(req.method) && !hasAllowedRole(req.accountability, allowedRoles)) {
+    if (canWrite(req.method) && !hasAnyAllowedRole(req.accountability, allowedRoleSets)) {
       res.status(403).json({ error: 'У этой роли Directus нет прав на управление данным разделом каталога.' });
       return;
     }
 
-    if (!canWrite(req.method) && !hasAnyAllowedRole(req.accountability, [roleSets.catalogue, roleSets.inventory])) {
+    if (!canWrite(req.method) && !hasAnyAllowedRole(req.accountability, allowedRoleSets)) {
       res.status(403).json({ error: 'У этой роли Directus нет доступа к операциям управления витриной.' });
       return;
     }

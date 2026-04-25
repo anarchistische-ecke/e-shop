@@ -318,7 +318,7 @@ public class DirectusAdminBridgeController {
     ) {
         var principal = authorize(request);
         roleGuard.requireAnalytics(principal);
-        return ResponseEntity.ok(adminService.managerAnalytics(from, to, manager));
+        return ResponseEntity.ok(adminService.managerAnalytics(from, to, analyticsManagerFilter(principal, manager)));
     }
 
     @GetMapping("/analytics/payment-links")
@@ -330,7 +330,7 @@ public class DirectusAdminBridgeController {
     ) {
         var principal = authorize(request);
         roleGuard.requireAnalytics(principal);
-        return ResponseEntity.ok(adminService.paymentLinkAnalytics(from, to, manager));
+        return ResponseEntity.ok(adminService.paymentLinkAnalytics(from, to, analyticsManagerFilter(principal, manager)));
     }
 
     @GetMapping("/alerts/low-stock")
@@ -374,6 +374,19 @@ public class DirectusAdminBridgeController {
             return null;
         }
         return UUID.fromString(String.valueOf(value));
+    }
+
+    private String analyticsManagerFilter(DirectusBridgeSecurity.DirectusBridgePrincipal principal, String requestedManager) {
+        if (!roleGuard.isManager(principal) || roleGuard.isAdmin(principal)) {
+            return requestedManager;
+        }
+        if (StringUtils.hasText(principal.externalId())) {
+            return principal.externalId();
+        }
+        if (StringUtils.hasText(principal.email())) {
+            return principal.email();
+        }
+        return principal.userId();
     }
 
     private void audit(DirectusBridgeSecurity.DirectusBridgePrincipal principal, String action, Map<String, Object> details) {

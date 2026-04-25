@@ -63,6 +63,7 @@ class StorefrontOpsWorkspaceControllerTest {
         when(bridgeSecurity.principal(any())).thenReturn(new DirectusBridgeSecurity.DirectusBridgePrincipal(
                 "user-1",
                 "manager@example.com",
+                "external-user-1",
                 "catalogue-operator",
                 "catalogue-operator"
         ));
