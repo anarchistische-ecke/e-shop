@@ -402,9 +402,12 @@ public class DirectusAdminService {
 
     public ManagerAnalyticsResponse managerAnalytics(OffsetDateTime from, OffsetDateTime to, String manager) {
         String normalizedManager = normalize(manager);
+        Set<UUID> managerLinkedOrderIds = managerLinkedOrderIds(normalizedManager);
         Map<String, List<Order>> byManager = orderRepository.findAllByOrderByOrderDateDesc().stream()
                 .filter(order -> StringUtils.hasText(order.getManagerSubject()))
-                .filter(order -> !StringUtils.hasText(normalizedManager) || containsIgnoreCase(order.getManagerSubject(), normalizedManager))
+                .filter(order -> !StringUtils.hasText(normalizedManager)
+                        || containsIgnoreCase(order.getManagerSubject(), normalizedManager)
+                        || managerLinkedOrderIds.contains(order.getId()))
                 .filter(order -> from == null || (order.getOrderDate() != null && !order.getOrderDate().isBefore(from)))
                 .filter(order -> to == null || (order.getOrderDate() != null && !order.getOrderDate().isAfter(to)))
                 .collect(Collectors.groupingBy(Order::getManagerSubject, LinkedHashMap::new, Collectors.toList()));
@@ -436,7 +439,7 @@ public class DirectusAdminService {
         String normalizedManager = normalize(manager);
         List<ManagerPaymentLink> links = managerPaymentLinkRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(effectiveFrom, effectiveTo);
         List<PaymentLinkAnalyticsRow> rows = links.stream()
-                .filter(link -> !StringUtils.hasText(normalizedManager) || containsIgnoreCase(link.getManagerSubject(), normalizedManager))
+                .filter(link -> !StringUtils.hasText(normalizedManager) || matchesManager(link, normalizedManager))
                 .map(link -> {
                     Order order = orderRepository.findById(link.getOrderId()).orElse(null);
                     boolean paid = order != null && equalsIgnoreCase(order.getStatus(), "PAID");
@@ -456,6 +459,22 @@ public class DirectusAdminService {
         long paid = rows.stream().filter(PaymentLinkAnalyticsRow::paid).count();
         double conversion = sent > 0 ? (double) paid / sent : 0d;
         return new PaymentLinkAnalyticsResponse(sent, paid, conversion, rows);
+    }
+
+    private Set<UUID> managerLinkedOrderIds(String normalizedManager) {
+        if (!StringUtils.hasText(normalizedManager)) {
+            return Set.of();
+        }
+        return managerPaymentLinkRepository.findAll().stream()
+                .filter(link -> matchesManager(link, normalizedManager))
+                .map(ManagerPaymentLink::getOrderId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+
+    private boolean matchesManager(ManagerPaymentLink link, String normalizedManager) {
+        return containsIgnoreCase(link.getManagerSubject(), normalizedManager)
+                || containsIgnoreCase(link.getManagerEmail(), normalizedManager);
     }
 
     public LowStockAlertResponse lowStockAlerts() {

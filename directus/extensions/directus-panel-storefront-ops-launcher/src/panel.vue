@@ -5,31 +5,132 @@
         <p class="launcher-kicker">Резервная точка входа</p>
         <h2>Управление витриной</h2>
       </div>
-      <button class="launcher-primary" type="button" @click="openTab('products')">
+      <button class="launcher-primary" type="button" :disabled="!visibleTabs.length" @click="openTab(defaultTab)">
         Открыть рабочее место
       </button>
     </header>
 
     <div class="launcher-grid">
-      <button v-for="tab in tabs" :key="tab.id" type="button" class="launcher-card" @click="openTab(tab.id)">
+      <button v-for="tab in visibleTabs" :key="tab.id" type="button" class="launcher-card" @click="openTab(tab.id)">
         <strong>{{ tab.label }}</strong>
         <span>{{ tab.description }}</span>
       </button>
     </div>
+    <p v-if="accessState.loaded && !visibleTabs.length" class="launcher-empty">
+      Для текущей роли нет доступных разделов Storefront Ops.
+    </p>
   </div>
 </template>
 
 <script setup>
+import { computed, onMounted, reactive } from 'vue';
+import { useApi } from '@directus/extensions-sdk';
+
+const api = useApi();
+
 const tabs = [
   { id: 'products', label: 'Товары', description: 'Карточки товаров, варианты, медиа, оверлеи' },
   { id: 'categories', label: 'Категории', description: 'Дерево категорий, изображение и оверлей' },
   { id: 'brands', label: 'Бренды', description: 'Справочник брендов и связанный ассортимент' },
   { id: 'inventory', label: 'Остатки', description: 'SKU, корректировки остатков и идемпотентность' },
+  { id: 'orders', label: 'Заказы', description: 'Фильтры, статус, история и очередь оплаты' },
+  { id: 'imports', label: 'Импорт', description: 'Dry-run, проверка строк и история загрузок' },
+  { id: 'promotions', label: 'Акции', description: 'Скидки, sale price и промокоды' },
+  { id: 'tax', label: 'Налоги', description: 'СНО, НДС и активный налоговый режим' },
+  { id: 'analytics', label: 'Аналитика', description: 'Менеджеры, ссылки оплаты и комиссия' },
+  { id: 'alerts', label: 'Алерты', description: 'Низкие остатки и глобальный порог' },
 ];
+
+const ROLE_IDS = {
+  admin: ['admin', 'администратор cms', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001'],
+  manager: ['manager', 'менеджер', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006'],
+  picker: ['picker', 'сборщик', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007'],
+  content: [
+    'content_manager',
+    'content-manager',
+    'контент-менеджер',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005',
+  ],
+};
+
+const TAB_ACCESS = {
+  products: ['admin', 'content'],
+  categories: ['admin', 'content'],
+  brands: ['admin', 'content'],
+  inventory: ['admin', 'content'],
+  orders: ['admin', 'manager', 'picker'],
+  imports: ['admin', 'content'],
+  promotions: ['admin', 'content'],
+  tax: ['admin'],
+  analytics: ['admin', 'manager'],
+  alerts: ['admin', 'content'],
+};
+
+const accessState = reactive({
+  loaded: false,
+  roleId: '',
+  roleName: '',
+  roleAdminAccess: false,
+});
+
+const roleKind = computed(() => resolveRoleKind(accessState));
+const visibleTabs = computed(() => (
+  accessState.loaded
+    ? tabs.filter((tab) => (TAB_ACCESS[tab.id] || ['admin']).includes(roleKind.value))
+    : []
+));
+const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
+
+function normalizeRoleToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function roleMatches(tokens, roleKey) {
+  return (ROLE_IDS[roleKey] || []).some((entry) => tokens.has(normalizeRoleToken(entry)));
+}
+
+function resolveRoleKind(state) {
+  const tokens = new Set([
+    normalizeRoleToken(state.roleId),
+    normalizeRoleToken(state.roleName),
+  ].filter(Boolean));
+  if (state.roleAdminAccess || roleMatches(tokens, 'admin')) return 'admin';
+  if (roleMatches(tokens, 'manager')) return 'manager';
+  if (roleMatches(tokens, 'picker')) return 'picker';
+  if (roleMatches(tokens, 'content')) return 'content';
+  return 'unknown';
+}
+
+async function loadAccessProfile() {
+  try {
+    const response = await api.request({
+      url: '/users/me',
+      method: 'GET',
+      params: {
+        fields: ['role.id', 'role.name', 'role.admin_access'].join(','),
+      },
+    });
+    const user = response?.data?.data || response?.data || {};
+    accessState.roleId = user.role?.id || user.role || '';
+    accessState.roleName = user.role?.name || '';
+    accessState.roleAdminAccess = Boolean(user.role?.admin_access);
+  } catch {
+    accessState.roleId = '';
+    accessState.roleName = '';
+    accessState.roleAdminAccess = false;
+  } finally {
+    accessState.loaded = true;
+  }
+}
 
 function openTab(tabId) {
   window.location.assign(`/admin/storefront-ops?tab=${encodeURIComponent(tabId)}`);
 }
+
+onMounted(loadAccessProfile);
 </script>
 
 <style scoped>
@@ -97,6 +198,11 @@ function openTab(tabId) {
   color: var(--theme--foreground-subdued);
   font-size: 13px;
   line-height: 1.35;
+}
+
+.launcher-empty {
+  color: var(--theme--foreground-subdued);
+  margin: 0;
 }
 
 @media (max-width: 720px) {

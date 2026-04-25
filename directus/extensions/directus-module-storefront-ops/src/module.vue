@@ -12,7 +12,7 @@
     <teleport v-if="navigationTarget" :to="navigationTarget">
       <nav class="pane-tabs pane-tabs-navigation" aria-label="Разделы управления витриной">
         <button
-          v-for="tab in tabs"
+          v-for="tab in visibleTabs"
           :key="tab.id"
           type="button"
           class="pane-tab"
@@ -26,6 +26,25 @@
     </teleport>
 
     <div class="workspace">
+      <nav v-if="!navigationTarget" class="pane-tabs pane-tabs-inline" aria-label="Разделы управления витриной">
+        <button
+          v-for="tab in visibleTabs"
+          :key="tab.id"
+          type="button"
+          class="pane-tab"
+          :class="{ active: activeTab === tab.id }"
+          @click="setActiveTab(tab.id)"
+        >
+          <span>{{ tab.label }}</span>
+          <small>{{ tabCount(tab.id) }}</small>
+        </button>
+      </nav>
+
+      <div v-if="accessState.loaded" class="access-context">
+        <strong>{{ accessRoleLabel }}</strong>
+        <span>{{ managerAnalyticsNotice }}</span>
+      </div>
+
       <div v-if="pageError" class="status-banner status-banner-error">
         <strong>Ошибка</strong>
         <span>{{ pageError }}</span>
@@ -39,7 +58,12 @@
         <span>{{ pageNotice.text }}</span>
       </div>
 
-      <section class="workspace-shell" :class="{ 'detail-open': activeDetailOpen }">
+      <div v-if="accessState.loaded && !visibleTabs.length" class="empty-state">
+        <strong>Нет доступных разделов</strong>
+        <span>Проверьте роль пользователя в Directus и Keycloak.</span>
+      </div>
+
+      <section v-else class="workspace-shell" :class="{ 'detail-open': activeDetailOpen }">
         <aside class="workspace-list surface-panel">
         <template v-if="activeTab === 'products'">
           <div class="pane-header">
@@ -262,6 +286,33 @@
             </label>
           </div>
 
+          <section v-if="canViewActivePromotions" class="section-block section-block-compact">
+            <div class="section-head">
+              <div>
+                <h3>Активные акции</h3>
+                <p>{{ activePromotionState.items.length }} доступно для менеджера</p>
+              </div>
+              <button class="button button-secondary" type="button" @click="loadActivePromotions">
+                Обновить
+              </button>
+            </div>
+            <div v-if="loading.activePromotions" class="empty-inline">Загружаю акции.</div>
+            <div v-else-if="!activePromotionState.items.length" class="empty-inline">Активных акций сейчас нет.</div>
+            <div v-else class="card-list card-list-compact">
+              <article v-for="promotion in activePromotionState.items" :key="promotion.id" class="list-card">
+                <div class="list-card-head">
+                  <strong>{{ promotion.name }}</strong>
+                  <span class="pill pill-positive">{{ promotion.type }}</span>
+                </div>
+                <div class="list-card-meta">
+                  <span v-if="promotion.salePriceAmount">Цена {{ formatMinorMoney(promotion.salePriceAmount, promotion.currency) }}</span>
+                  <span v-if="promotion.discountPercent">{{ promotion.discountPercent }}%</span>
+                  <span v-if="promotion.thresholdAmount">от {{ formatMinorMoney(promotion.thresholdAmount, promotion.currency) }}</span>
+                </div>
+              </article>
+            </div>
+          </section>
+
           <div v-if="isTabLoading('orders')" class="empty-state">
             <strong>Загружаю заказы</strong>
           </div>
@@ -430,13 +481,20 @@
             </button>
           </div>
 
-          <label class="search-field">
+          <label v-if="!isManagerRole" class="search-field">
             <span>Менеджер</span>
             <input v-model.trim="analyticsState.manager" type="search" placeholder="Фильтр" @keyup.enter="loadAnalytics" />
           </label>
+          <p v-else class="inline-note">
+            Для роли менеджера показываются только ваши заказы, ссылки оплаты и комиссия.
+          </p>
 
           <div v-if="isTabLoading('analytics')" class="empty-state">
             <strong>Считаю показатели</strong>
+          </div>
+          <div v-else-if="!analyticsState.managerRows.length" class="empty-state">
+            <strong>Данных нет</strong>
+            <span>За выбранный период не найдено заказов менеджера.</span>
           </div>
           <div v-else class="card-list">
             <article v-for="row in analyticsState.managerRows" :key="row.managerSubject" class="list-card">
@@ -1602,10 +1660,14 @@
                 <span>По</span>
                 <input v-model="analyticsState.to" type="datetime-local" />
               </label>
-              <label class="ops-field">
+              <label v-if="!isManagerRole" class="ops-field">
                 <span>Менеджер</span>
                 <input v-model.trim="analyticsState.manager" type="text" />
               </label>
+              <div v-else class="ops-field ops-field-readonly">
+                <span>Менеджер</span>
+                <strong>Только ваши показатели</strong>
+              </div>
             </div>
             <div class="sticky-actions sticky-actions-inline">
               <button class="button button-primary" type="button" :disabled="isSubmitting" @click="loadAnalytics">
@@ -1729,6 +1791,34 @@ const tabs = [
   { id: 'alerts', label: 'Алерты' },
 ];
 
+const ROLE_IDS = {
+  admin: ['admin', 'администратор cms', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001'],
+  manager: ['manager', 'менеджер', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006'],
+  picker: ['picker', 'сборщик', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007'],
+  content: [
+    'content_manager',
+    'content-manager',
+    'контент-менеджер',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004',
+    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005',
+  ],
+};
+
+const TAB_ACCESS = {
+  products: ['admin', 'content'],
+  categories: ['admin', 'content'],
+  brands: ['admin', 'content'],
+  inventory: ['admin', 'content'],
+  orders: ['admin', 'manager', 'picker'],
+  imports: ['admin', 'content'],
+  promotions: ['admin', 'content'],
+  tax: ['admin'],
+  analytics: ['admin', 'manager'],
+  alerts: ['admin', 'content'],
+};
+
 const productDetailTabs = [
   { id: 'main', label: 'Основное' },
   { id: 'variants', label: 'Варианты' },
@@ -1745,6 +1835,15 @@ const isSubmitting = ref(false);
 const isRefreshing = ref(false);
 const bootstrapped = ref(false);
 const navigationTarget = ref('');
+const accessState = reactive({
+  loaded: false,
+  userId: '',
+  email: '',
+  externalId: '',
+  roleId: '',
+  roleName: '',
+  roleAdminAccess: false,
+});
 const navigationCounts = reactive({
   products: 0,
   categories: 0,
@@ -1769,6 +1868,7 @@ const loading = reactive({
   tax: false,
   analytics: false,
   alerts: false,
+  activePromotions: false,
 });
 
 const productState = reactive({
@@ -1925,6 +2025,11 @@ const promotionState = reactive({
   mode: 'promotion',
 });
 
+const activePromotionState = reactive({
+  loaded: false,
+  items: [],
+});
+
 const promotionForm = reactive({
   id: '',
   name: '',
@@ -1985,6 +2090,27 @@ const alertState = reactive({
   threshold: 5,
   rows: [],
 });
+
+const roleKind = computed(() => resolveRoleKind(accessState));
+const isManagerRole = computed(() => roleKind.value === 'manager');
+const canViewActivePromotions = computed(() => ['admin', 'manager', 'picker', 'content'].includes(roleKind.value));
+const visibleTabs = computed(() => tabs.filter((tab) => canAccessTab(tab.id)));
+const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
+const accessRoleLabel = computed(() => {
+  if (accessState.roleName) {
+    return accessState.roleName;
+  }
+  if (roleKind.value === 'admin') return 'Администратор';
+  if (roleKind.value === 'manager') return 'Менеджер';
+  if (roleKind.value === 'picker') return 'Сборщик';
+  if (roleKind.value === 'content') return 'Контент-менеджер';
+  return 'Роль Directus';
+});
+const managerAnalyticsNotice = computed(() => (
+  isManagerRole.value
+    ? 'Доступны заказы, активные акции и только собственная аналитика.'
+    : 'Доступ разделов ограничен ролью пользователя.'
+));
 
 const filteredProducts = computed(() => filterCollection(productState.items, productState.query, [
   (item) => item.name,
@@ -2093,6 +2219,50 @@ function isTabLoading(tabId) {
   return loading[tabId];
 }
 
+function normalizeRoleToken(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function roleMatches(tokens, roleKey) {
+  return (ROLE_IDS[roleKey] || []).some((entry) => tokens.has(normalizeRoleToken(entry)));
+}
+
+function resolveRoleKind(state) {
+  const tokens = new Set([
+    normalizeRoleToken(state.roleId),
+    normalizeRoleToken(state.roleName),
+  ].filter(Boolean));
+  if (state.roleAdminAccess || roleMatches(tokens, 'admin')) {
+    return 'admin';
+  }
+  if (roleMatches(tokens, 'manager')) {
+    return 'manager';
+  }
+  if (roleMatches(tokens, 'picker')) {
+    return 'picker';
+  }
+  if (roleMatches(tokens, 'content')) {
+    return 'content';
+  }
+  return 'unknown';
+}
+
+function canAccessTab(tabId) {
+  const allowedRoles = TAB_ACCESS[tabId] || ['admin'];
+  return allowedRoles.includes(roleKind.value);
+}
+
+function normalizeActiveTab({ notify = false } = {}) {
+  if (canAccessTab(activeTab.value)) {
+    return;
+  }
+  const requestedTab = activeTab.value;
+  activeTab.value = defaultTab.value;
+  if (notify && requestedTab) {
+    setInfo('Раздел скрыт для вашей роли Directus. Открыт доступный раздел.');
+  }
+}
+
 function clearMessages() {
   pageError.value = '';
   pageNotice.type = '';
@@ -2131,6 +2301,31 @@ async function bridgeRequest(path, options = {}) {
     headers: options.headers,
   });
   return response.data;
+}
+
+async function loadAccessProfile() {
+  try {
+    const response = await api.request({
+      url: '/users/me',
+      method: 'GET',
+      params: {
+        fields: ['id', 'email', 'external_identifier', 'role.id', 'role.name', 'role.admin_access'].join(','),
+      },
+    });
+    const user = response?.data?.data || response?.data || {};
+    accessState.userId = user.id || '';
+    accessState.email = user.email || '';
+    accessState.externalId = user.external_identifier || user.externalIdentifier || '';
+    accessState.roleId = user.role?.id || user.role || '';
+    accessState.roleName = user.role?.name || '';
+    accessState.roleAdminAccess = Boolean(user.role?.admin_access);
+  } catch {
+    accessState.roleId = '';
+    accessState.roleName = '';
+    accessState.roleAdminAccess = false;
+  } finally {
+    accessState.loaded = true;
+  }
 }
 
 async function loadProducts({ reloadSelected = true } = {}) {
@@ -2372,6 +2567,23 @@ async function loadPromotions() {
   }
 }
 
+async function loadActivePromotions() {
+  if (!canViewActivePromotions.value) {
+    activePromotionState.items = [];
+    activePromotionState.loaded = true;
+    return;
+  }
+  loading.activePromotions = true;
+  try {
+    activePromotionState.items = await bridgeRequest('/admin/promotions/active') || [];
+    activePromotionState.loaded = true;
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.activePromotions = false;
+  }
+}
+
 async function loadTaxSettings() {
   loading.tax = true;
   try {
@@ -2394,7 +2606,7 @@ async function loadAnalytics() {
     const params = compactParams({
       from: toIsoDateTime(analyticsState.from),
       to: toIsoDateTime(analyticsState.to),
-      manager: analyticsState.manager,
+      manager: isManagerRole.value ? '' : analyticsState.manager,
     });
     const [managerResponse, paymentLinkResponse] = await Promise.all([
       bridgeRequest('/admin/analytics/managers', { params }),
@@ -2427,6 +2639,10 @@ async function loadAlerts() {
 }
 
 async function ensureActiveTabLoaded() {
+  if (!visibleTabs.value.length) {
+    return;
+  }
+  normalizeActiveTab();
   if (activeTab.value === 'products' && !productState.loaded) {
     await loadProducts({ reloadSelected: false });
     if (productState.selectedId) {
@@ -2453,7 +2669,7 @@ async function ensureActiveTabLoaded() {
     return;
   }
   if (activeTab.value === 'orders' && !orderState.loaded) {
-    await loadOrders();
+    await Promise.all([loadOrders(), activePromotionState.loaded ? Promise.resolve() : loadActivePromotions()]);
     return;
   }
   if (activeTab.value === 'imports' && !importState.loaded) {
@@ -2479,6 +2695,10 @@ async function ensureActiveTabLoaded() {
 
 async function setActiveTab(nextTab) {
   if (nextTab === activeTab.value) {
+    return;
+  }
+  if (!canAccessTab(nextTab)) {
+    setInfo('Раздел скрыт для вашей роли Directus.');
     return;
   }
   if (!confirmDiscardChanges()) {
@@ -3630,7 +3850,7 @@ async function refreshCurrentTab() {
     } else if (activeTab.value === 'inventory') {
       await loadInventory();
     } else if (activeTab.value === 'orders') {
-      await loadOrders();
+      await Promise.all([loadOrders(), loadActivePromotions()]);
     } else if (activeTab.value === 'imports') {
       await loadImports();
     } else if (activeTab.value === 'promotions') {
@@ -3692,6 +3912,13 @@ function formatMoney(price) {
   }
   const currency = price.currency || 'RUB';
   return `${price.amount} ${currency}`;
+}
+
+function formatMinorMoney(amount, currency = 'RUB') {
+  if (amount === null || amount === undefined || amount === '') {
+    return 'Не задано';
+  }
+  return formatMoney({ amount, currency });
 }
 
 function formatDateTime(value) {
@@ -3869,6 +4096,7 @@ function restoreInitialState() {
   brandState.selectedId = params.get('brand') || stored.brandId || '';
   inventoryState.selectedVariantId = params.get('variant') || stored.inventoryVariantId || '';
   productState.panel = params.get('panel') || stored.productPanel || 'main';
+  normalizeActiveTab({ notify: Boolean(params.get('tab')) });
 }
 
 async function mountModuleNavigation() {
@@ -3900,6 +4128,7 @@ watch(
 
 onMounted(async () => {
   syncEditorSnapshots();
+  await loadAccessProfile();
   restoreInitialState();
   document.body.classList.add('storefront-ops-view');
   window.addEventListener('beforeunload', handleBeforeUnload);
@@ -3965,6 +4194,10 @@ onBeforeUnmount(() => {
   padding: 12px 10px;
 }
 
+.pane-tabs-inline {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+}
+
 .pane-tab {
   align-items: center;
   background: var(--theme--background);
@@ -3993,6 +4226,22 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1px var(--theme--primary);
 }
 
+.access-context {
+  align-items: center;
+  background: var(--theme--background-subdued);
+  border: 1px solid var(--theme--border-color);
+  border-radius: 12px;
+  color: var(--theme--foreground-subdued);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.access-context strong {
+  color: var(--theme--foreground);
+}
+
 .workspace-shell {
   align-items: start;
   display: grid;
@@ -4011,6 +4260,15 @@ onBeforeUnmount(() => {
   min-inline-size: 0;
   overflow: auto;
   padding: 14px;
+}
+
+.section-block-compact {
+  gap: 8px;
+}
+
+.card-list-compact {
+  max-block-size: 220px;
+  overflow: auto;
 }
 
 .workspace-detail {

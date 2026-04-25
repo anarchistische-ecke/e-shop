@@ -12,6 +12,7 @@ public class DirectusBridgeSecurity {
     public static final String BRIDGE_TOKEN_HEADER = "X-Directus-Bridge-Token";
     public static final String USER_ID_HEADER = "X-Directus-User-Id";
     public static final String USER_EMAIL_HEADER = "X-Directus-User-Email";
+    public static final String USER_EXTERNAL_ID_HEADER = "X-Directus-User-External-Id";
     public static final String USER_ROLE_HEADER = "X-Directus-User-Role";
     public static final String USER_ROLES_HEADER = "X-Directus-User-Roles";
 
@@ -33,6 +34,7 @@ public class DirectusBridgeSecurity {
         return new DirectusBridgePrincipal(
                 normalize(request.getHeader(USER_ID_HEADER)),
                 normalize(request.getHeader(USER_EMAIL_HEADER)),
+                normalize(request.getHeader(USER_EXTERNAL_ID_HEADER)),
                 normalize(request.getHeader(USER_ROLE_HEADER)),
                 normalize(request.getHeader(USER_ROLES_HEADER))
         );
@@ -45,6 +47,7 @@ public class DirectusBridgeSecurity {
     public record DirectusBridgePrincipal(
             String userId,
             String email,
+            String externalId,
             String primaryRole,
             String roles
     ) {

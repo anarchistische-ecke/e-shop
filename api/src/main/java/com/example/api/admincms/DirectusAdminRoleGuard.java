@@ -39,26 +39,41 @@ public class DirectusAdminRoleGuard {
     }
 
     public void requireAnalytics(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
-        requireAny(principal, "analytics", adminTokens());
+        requireAny(principal, "analytics", adminTokens(), managerTokens());
     }
 
     public void requirePromotionsRead(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         requireAny(principal, "active promotions", adminTokens(), managerTokens(), pickerTokens(), contentManagerTokens());
     }
 
+    public boolean isAdmin(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        return hasAny(principal, adminTokens());
+    }
+
+    public boolean isManager(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        return hasAny(principal, managerTokens());
+    }
+
     @SafeVarargs
     private void requireAny(DirectusBridgeSecurity.DirectusBridgePrincipal principal,
                             String scope,
                             Collection<String>... allowedGroups) {
-        Set<String> actual = principalTokens(principal);
         for (Collection<String> allowedGroup : allowedGroups) {
-            for (String allowed : allowedGroup) {
-                if (actual.contains(allowed)) {
-                    return;
-                }
+            if (hasAny(principal, allowedGroup)) {
+                return;
             }
         }
         throw new AccessDeniedException("Directus role is not allowed to access " + scope);
+    }
+
+    private boolean hasAny(DirectusBridgeSecurity.DirectusBridgePrincipal principal, Collection<String> allowedTokens) {
+        Set<String> actual = principalTokens(principal);
+        for (String allowed : allowedTokens) {
+            if (actual.contains(allowed)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Set<String> principalTokens(DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
