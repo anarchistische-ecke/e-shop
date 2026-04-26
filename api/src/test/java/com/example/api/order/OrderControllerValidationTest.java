@@ -26,7 +26,8 @@ class OrderControllerValidationTest {
                 "https://example.test/order/{token}",
                 "https://example.test/order/{token}",
                 "EMBEDDED",
-                false
+                false,
+                null
         );
 
         Set<String> invalidFields = validator.validate(request).stream()

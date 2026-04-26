@@ -1,10 +1,15 @@
 package com.example.api.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -34,6 +39,19 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOrigins(splitAndTrim(allowedOrigins))
                 .allowedMethods(splitAndTrim(allowedMethods))
                 .allowedHeaders(resolveAllowedHeaders());
+    }
+
+    @Bean
+    CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(Arrays.asList(splitAndTrim(allowedOrigins)));
+        configuration.setAllowedMethods(Arrays.asList(splitAndTrim(allowedMethods)));
+        configuration.setAllowedHeaders(Arrays.asList(resolveAllowedHeaders()));
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 
     String[] resolveAllowedHeaders() {
