@@ -63,7 +63,11 @@
         <span>Проверьте роль пользователя в Directus и Keycloak.</span>
       </div>
 
-      <section v-else class="workspace-shell" :class="{ 'detail-open': activeDetailOpen }">
+      <section
+        v-else
+        class="workspace-shell"
+        :class="{ 'detail-open': activeDetailOpen, 'mobile-master-detail': activeTabHasMasterDetail }"
+      >
         <aside class="workspace-list surface-panel">
         <template v-if="activeTab === 'products'">
           <div class="pane-header">
@@ -554,6 +558,12 @@
         </aside>
 
         <main class="workspace-detail">
+          <div v-if="activeTabHasMasterDetail && activeDetailOpen" class="mobile-detail-toolbar">
+            <button class="button button-secondary" type="button" @click="closeActiveDetail">
+              ← К списку
+            </button>
+            <span>{{ activeTabLabel }}</span>
+          </div>
         <template v-if="activeTab === 'products'">
           <div v-if="!productState.isCreating && !productState.detail" class="empty-detail">
             <strong>Выберите товар</strong>
@@ -2260,6 +2270,8 @@ const promotionState = reactive({
   selectedId: '',
   selectedPromoCodeId: '',
   mode: 'promotion',
+  isCreating: false,
+  promoCodeCreating: false,
 });
 
 const activePromotionState = reactive({
@@ -2300,6 +2312,7 @@ const taxState = reactive({
   loaded: false,
   items: [],
   selectedId: '',
+  isCreating: false,
 });
 
 const taxForm = reactive({
@@ -2332,6 +2345,10 @@ const isManagerRole = computed(() => roleKind.value === 'manager');
 const canViewActivePromotions = computed(() => ['admin', 'manager', 'picker', 'content'].includes(roleKind.value));
 const visibleTabs = computed(() => tabs.filter((tab) => canAccessTab(tab.id)));
 const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
+const activeTabLabel = computed(() => visibleTabs.value.find((tab) => tab.id === activeTab.value)?.label || 'Раздел');
+const activeTabHasMasterDetail = computed(() => (
+  ['products', 'categories', 'brands', 'inventory', 'orders', 'promotions', 'tax'].includes(activeTab.value)
+));
 const selectedOrder = computed(() => orderState.detail?.order || null);
 const selectedOrderRmaRequests = computed(() => orderState.detail?.rmaRequests || []);
 const orderStatusOptions = computed(() => (
@@ -2493,6 +2510,17 @@ const activeDetailOpen = computed(() => {
   }
   if (activeTab.value === 'orders') {
     return Boolean(orderState.detail);
+  }
+  if (activeTab.value === 'promotions') {
+    return Boolean(
+      promotionState.selectedId ||
+        promotionState.selectedPromoCodeId ||
+        promotionState.isCreating ||
+        promotionState.promoCodeCreating
+    );
+  }
+  if (activeTab.value === 'tax') {
+    return taxState.isCreating || Boolean(taxState.selectedId);
   }
   return true;
 });
@@ -3315,10 +3343,23 @@ function closeActiveDetail() {
   if (!confirmDiscardChanges()) {
     return;
   }
+  clearMessages();
   if (activeTab.value === 'products') {
     productState.selectedId = '';
     productState.detail = null;
     productState.isCreating = false;
+    productState.panel = 'main';
+    Object.assign(productForm, {
+      id: '',
+      name: '',
+      slug: '',
+      description: '',
+      brandId: '',
+      categoryIds: [],
+      isActive: true,
+      specifications: [],
+    });
+    productSnapshot.value = serializeProductForm();
     resetVariantEditor();
     resetProductMediaEditor();
     return;
@@ -3327,6 +3368,16 @@ function closeActiveDetail() {
     categoryState.selectedId = '';
     categoryState.detail = null;
     categoryState.isCreating = false;
+    Object.assign(categoryForm, {
+      id: '',
+      name: '',
+      slug: '',
+      description: '',
+      parentId: '',
+      position: 0,
+      isActive: true,
+    });
+    categorySnapshot.value = serializeCategoryForm();
     categoryImageFile.value = null;
     return;
   }
@@ -3334,6 +3385,36 @@ function closeActiveDetail() {
     brandState.selectedId = '';
     brandState.detail = null;
     brandState.isCreating = false;
+    Object.assign(brandForm, {
+      id: '',
+      name: '',
+      slug: '',
+      description: '',
+    });
+    brandSnapshot.value = serializeBrandForm();
+    return;
+  }
+  if (activeTab.value === 'orders') {
+    orderState.selectedId = '';
+    orderState.detail = null;
+    orderState.nextStatus = '';
+    orderState.note = '';
+    orderState.rmaReason = '';
+    orderState.rmaDesiredResolution = '';
+    orderState.rmaDecisionForms = {};
+    orderState.refundForms = {};
+    return;
+  }
+  if (activeTab.value === 'promotions') {
+    promotionState.selectedId = '';
+    promotionState.selectedPromoCodeId = '';
+    promotionState.isCreating = false;
+    promotionState.promoCodeCreating = false;
+    return;
+  }
+  if (activeTab.value === 'tax') {
+    taxState.selectedId = '';
+    taxState.isCreating = false;
     return;
   }
   inventoryState.selectedVariantId = '';
@@ -3983,6 +4064,9 @@ async function commitImport() {
 function startCreatePromotion() {
   promotionState.mode = 'promotion';
   promotionState.selectedId = '';
+  promotionState.selectedPromoCodeId = '';
+  promotionState.isCreating = true;
+  promotionState.promoCodeCreating = false;
   Object.assign(promotionForm, {
     id: '',
     name: '',
@@ -4004,6 +4088,8 @@ function selectPromotion(promotion) {
   promotionState.mode = 'promotion';
   promotionState.selectedId = promotion.id;
   promotionState.selectedPromoCodeId = '';
+  promotionState.isCreating = false;
+  promotionState.promoCodeCreating = false;
   Object.assign(promotionForm, {
     id: promotion.id || '',
     name: promotion.name || '',
@@ -4024,6 +4110,9 @@ function selectPromotion(promotion) {
 function startCreatePromoCode() {
   promotionState.mode = 'promoCode';
   promotionState.selectedPromoCodeId = '';
+  promotionState.selectedId = '';
+  promotionState.isCreating = false;
+  promotionState.promoCodeCreating = true;
   Object.assign(promoCodeForm, {
     id: '',
     code: '',
@@ -4042,6 +4131,8 @@ function selectPromoCode(promoCode) {
   promotionState.mode = 'promoCode';
   promotionState.selectedPromoCodeId = promoCode.id;
   promotionState.selectedId = '';
+  promotionState.isCreating = false;
+  promotionState.promoCodeCreating = false;
   Object.assign(promoCodeForm, {
     id: promoCode.id || '',
     code: promoCode.code || '',
@@ -4179,6 +4270,7 @@ async function deletePromoCode() {
 
 function startCreateTax() {
   taxState.selectedId = '';
+  taxState.isCreating = true;
   Object.assign(taxForm, {
     id: '',
     name: '',
@@ -4192,6 +4284,7 @@ function startCreateTax() {
 
 function selectTax(tax) {
   taxState.selectedId = tax.id;
+  taxState.isCreating = false;
   Object.assign(taxForm, {
     id: tax.id || '',
     name: tax.name || '',
@@ -4866,6 +4959,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.mobile-detail-toolbar {
+  display: none;
+}
+
 .detail-card {
   inline-size: 100%;
   max-inline-size: none;
@@ -5414,6 +5511,107 @@ onBeforeUnmount(() => {
 @media (max-width: 719px) {
   .workspace {
     padding-inline: 8px;
+  }
+
+  .pane-tabs,
+  .pane-tabs-inline,
+  .pane-tabs-navigation {
+    display: flex;
+    gap: 8px;
+    grid-template-columns: none;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-block: 8px;
+    scroll-padding-inline: 8px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .pane-tabs-inline {
+    background: var(--theme--background);
+    border-bottom: 1px solid var(--theme--border-color-subdued);
+    position: sticky;
+    top: 0;
+    z-index: 4;
+  }
+
+  .pane-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    min-inline-size: 132px;
+    scroll-snap-align: start;
+  }
+
+  .workspace-shell {
+    display: block;
+  }
+
+  .workspace-list,
+  .workspace-detail,
+  .detail-card,
+  .empty-detail {
+    block-size: auto;
+    max-block-size: none;
+    min-block-size: 0;
+    overflow: visible;
+  }
+
+  .workspace-list {
+    padding: 12px;
+  }
+
+  .workspace-shell.mobile-master-detail.detail-open .workspace-list {
+    display: none;
+  }
+
+  .workspace-shell.mobile-master-detail:not(.detail-open) .workspace-detail {
+    display: none;
+  }
+
+  .mobile-detail-toolbar {
+    align-items: center;
+    background: var(--theme--background);
+    border: 1px solid var(--theme--border-color);
+    border-radius: 14px;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .mobile-detail-toolbar .button {
+    min-height: 44px;
+  }
+
+  .mobile-detail-toolbar span {
+    color: var(--theme--foreground-subdued);
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pane-header,
+  .detail-header,
+  .section-head,
+  .selector-card-head,
+  .merch-card-head,
+  .spec-section-head,
+  .spec-items-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pane-header .button,
+  .detail-header-actions,
+  .detail-header-actions .button,
+  .sticky-actions .button {
+    inline-size: 100%;
   }
 }
 </style>
