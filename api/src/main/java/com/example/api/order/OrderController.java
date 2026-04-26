@@ -83,17 +83,20 @@ public class OrderController {
         Customer customer = resolveCheckoutCustomer(request, jwt);
         UUID customerId = customer.getId();
         boolean savePaymentMethod = jwt != null && Boolean.TRUE.equals(request.savePaymentMethod());
-        if (!StringUtils.hasText(idempotencyKey)) {
-            throw new IllegalArgumentException("Idempotency-Key header is required");
+        String effectiveIdempotencyKey = StringUtils.hasText(idempotencyKey)
+                ? idempotencyKey
+                : request.idempotencyKey();
+        if (!StringUtils.hasText(effectiveIdempotencyKey)) {
+            throw new IllegalArgumentException("Idempotency key is required");
         }
 
         String requestHash = buildCheckoutRequestHash(request, customerId);
-        OrderService.CheckoutAttemptState attemptState = orderService.acquireCheckoutAttempt(idempotencyKey, requestHash);
+        OrderService.CheckoutAttemptState attemptState = orderService.acquireCheckoutAttempt(effectiveIdempotencyKey, requestHash);
         if (attemptState.status() == OrderService.CheckoutAttemptStatus.IN_PROGRESS) {
             throw new IllegalStateException("Checkout request is already being processed");
         }
         if (attemptState.status() == OrderService.CheckoutAttemptStatus.COMPLETED) {
-            Order existingOrder = orderService.findOrderByCheckoutAttempt(idempotencyKey, requestHash);
+            Order existingOrder = orderService.findOrderByCheckoutAttempt(effectiveIdempotencyKey, requestHash);
             String replayReturnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, existingOrder);
             if (!StringUtils.hasText(replayReturnUrl)) {
                 throw new IllegalArgumentException("Return URL is required");
@@ -120,7 +123,7 @@ public class OrderController {
                     null,
                     new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
             );
-            orderService.completeCheckoutAttempt(idempotencyKey, requestHash, order.getId());
+            orderService.completeCheckoutAttempt(effectiveIdempotencyKey, requestHash, order.getId());
             checkoutAttemptBound = true;
 
             String returnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, order);
@@ -142,7 +145,7 @@ public class OrderController {
                     .body(new OrderCheckoutResponse(attachPaymentSummary(order), toPaymentResponse(payment)));
         } catch (RuntimeException ex) {
             if (!checkoutAttemptBound) {
-                orderService.releaseCheckoutAttemptIfUnbound(idempotencyKey, requestHash);
+                orderService.releaseCheckoutAttemptIfUnbound(effectiveIdempotencyKey, requestHash);
             }
             throw ex;
         }
@@ -325,7 +328,8 @@ public class OrderController {
             String returnUrl,
             String orderPageUrl,
             String confirmationMode,
-            Boolean savePaymentMethod
+            Boolean savePaymentMethod,
+            String idempotencyKey
     ) {}
 
     public record AdminLinkRequest(
