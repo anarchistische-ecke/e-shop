@@ -12,7 +12,7 @@ spring:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/eshop}
-    username: ${SPRING_DATASOURCE_USERNAME:eshopUser}
+    username: ${SPRING_DATASOURCE_USERNAME:eshop_app}
     password: ${SPRING_DATASOURCE_PASSWORD:change-me}
     driver-class-name: org.postgresql.Driver
   jpa:
@@ -41,12 +41,29 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yug-postel.ru}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,Idempotency-Key}
+
+directus:
+  base-url: ${DIRECTUS_BASE_URL:?DIRECTUS_BASE_URL is required}
+  public-url: ${DIRECTUS_PUBLIC_URL:${DIRECTUS_BASE_URL:?DIRECTUS_BASE_URL is required}}
+  static-token: ${DIRECTUS_STATIC_TOKEN:}
+  cache-ttl: ${DIRECTUS_CACHE_TTL:PT5M}
+  cache-stale-ttl: ${DIRECTUS_CACHE_STALE_TTL:PT1H}
+  cache-key-prefix: ${DIRECTUS_CACHE_KEY_PREFIX:cms:content}
+  response-cache-max-age: ${DIRECTUS_RESPONSE_CACHE_MAX_AGE:PT1M}
+  response-cache-stale-while-revalidate: ${DIRECTUS_RESPONSE_CACHE_STALE_WHILE_REVALIDATE:PT5M}
+  response-cache-stale-if-error: ${DIRECTUS_RESPONSE_CACHE_STALE_IF_ERROR:PT1H}
+  connect-timeout: ${DIRECTUS_CONNECT_TIMEOUT:PT3S}
+  read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}
+  slow-request-threshold: ${DIRECTUS_SLOW_REQUEST_THRESHOLD:PT2S}
 
 yandex:
   storage:

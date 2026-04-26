@@ -1,12 +1,9 @@
 package com.example.api.catalog;
 
+import com.example.api.content.CatalogueContentModels;
 import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
-import com.example.catalog.domain.ProductImage;
-import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -19,10 +16,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -33,13 +28,20 @@ public class CatalogController {
 
     private final CatalogService catalogService;
     private final ProductImageStorageService imageStorageService;
-    private final ObjectMapper objectMapper;
+    private final CatalogueResponseFactory responseFactory;
+    private final CataloguePresentationService presentationService;
 
     @Autowired
-    public CatalogController(CatalogService catalogService, ProductImageStorageService imageStorageService, ObjectMapper objectMapper) {
+    public CatalogController(
+            CatalogService catalogService,
+            ProductImageStorageService imageStorageService,
+            CatalogueResponseFactory responseFactory,
+            CataloguePresentationService presentationService
+    ) {
         this.catalogService = catalogService;
         this.imageStorageService = imageStorageService;
-        this.objectMapper = objectMapper;
+        this.responseFactory = responseFactory;
+        this.presentationService = presentationService;
     }
 
     @PostMapping
@@ -47,10 +49,10 @@ public class CatalogController {
         // Create the product with basic fields
         Product product = catalogService.createProduct(request.getName(), request.getDescription(), request.getSlug());
         if (request.getSpecifications() != null) {
-            product.setSpecifications(serializeSpecifications(request.getSpecifications()));
+            product.setSpecifications(responseFactory.serializeSpecifications(request.getSpecifications()));
         }
         // If categories are provided, resolve them and assign
-        Set<Category> categories = resolveCategories(request);
+        Set<Category> categories = responseFactory.resolveCategories(request);
         if (!categories.isEmpty() || request.getCategories() != null || request.getCategory() != null) {
             product.setCategories(categories);
         }
@@ -61,7 +63,9 @@ public class CatalogController {
         // Persist the associations
         boolean categoriesProvided = request.getCategories() != null || request.getCategory() != null;
         product = catalogService.updateProduct(product.getId(), product, categoriesProvided, request.getIsActive());
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapProduct(product));
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                responseFactory.toProductResponse(product, presentationService.buildPublishedProductPresentation(product).presentation())
+        );
     }
 
     @PostMapping("/{productId}/variants")
@@ -79,7 +83,7 @@ public class CatalogController {
                 request.getWidthMm(),
                 request.getHeightMm()
         );
-        return ResponseEntity.status(HttpStatus.CREATED).body(mapVariant(variant));
+        return ResponseEntity.status(HttpStatus.CREATED).body(responseFactory.toVariantResponse(variant));
     }
 
     @PutMapping("/{productId}/variants/{variantId}")
@@ -98,7 +102,7 @@ public class CatalogController {
                 request.getWidthMm(),
                 request.getHeightMm()
         );
-        return ResponseEntity.ok(mapVariant(updated));
+        return ResponseEntity.ok(responseFactory.toVariantResponse(updated));
     }
 
     @PostMapping(value = "/{productId}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -116,7 +120,7 @@ public class CatalogController {
         for (MultipartFile file : files) {
             var stored = imageStorageService.upload(productId, file, startPosition + offset);
             var image = catalogService.addProductImage(productId, stored.url(), stored.objectKey(), stored.position(), variantId);
-            responses.add(mapImage(image));
+            responses.add(responseFactory.toImageResponse(image));
             offset++;
         }
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
@@ -125,7 +129,7 @@ public class CatalogController {
     @GetMapping("/{productId}/images")
     public ResponseEntity<List<ImageResponse>> listProductImages(@PathVariable UUID productId) {
         var images = catalogService.getProductImages(productId).stream()
-                .map(this::mapImage)
+                .map(responseFactory::toImageResponse)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(images);
     }
@@ -142,7 +146,7 @@ public class CatalogController {
                                                             @PathVariable UUID imageId,
                                                             @Valid @RequestBody ImageUpdateRequest request) {
         var updated = catalogService.updateProductImage(productId, imageId, request.getVariantId(), request.getPosition());
-        return ResponseEntity.ok(mapImage(updated));
+        return ResponseEntity.ok(responseFactory.toImageResponse(updated));
     }
 
     @GetMapping("/{id}")
@@ -152,7 +156,9 @@ public class CatalogController {
         if (!includeInactive && !product.isIsActive()) {
             throw new IllegalArgumentException("Product not found: " + id);
         }
-        return ResponseEntity.ok(mapProduct(product));
+        return ResponseEntity.ok(
+                responseFactory.toProductResponse(product, presentationService.buildPublishedProductPresentation(product).presentation())
+        );
     }
 
     @GetMapping
@@ -168,7 +174,16 @@ public class CatalogController {
         if (!includeInactive) {
             source = source.stream().filter(Product::isIsActive).collect(Collectors.toList());
         }
-        var response = source.stream().map(this::mapProduct).collect(Collectors.toList());
+        var presentations = presentationService.buildPublishedProductPresentationResults(source);
+        var response = source.stream()
+                .map(product -> responseFactory.toProductResponse(
+                        product,
+                        presentations.getOrDefault(
+                                product.getSlug() != null ? product.getSlug().trim().toLowerCase() : null,
+                                presentationService.buildPublishedProductPresentation(product)
+                        ).presentation()
+                ))
+                .collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
@@ -178,18 +193,20 @@ public class CatalogController {
         // Build the updates object
         Product updates = new Product(request.getName(), request.getDescription(), request.getSlug());
         if (request.getSpecifications() != null) {
-            updates.setSpecifications(serializeSpecifications(request.getSpecifications()));
+            updates.setSpecifications(responseFactory.serializeSpecifications(request.getSpecifications()));
         }
         // Resolve categories and brand if provided
         if (request.getCategories() != null || request.getCategory() != null) {
-            updates.setCategories(resolveCategories(request));
+            updates.setCategories(responseFactory.resolveCategories(request));
         }
         if (request.getBrand() != null && !request.getBrand().isBlank()) {
             catalogService.getByBrandSlug(request.getBrand()).ifPresent(updates::setBrand);
         }
         boolean categoriesProvided = request.getCategories() != null || request.getCategory() != null;
         var updated = catalogService.updateProduct(id, updates, categoriesProvided, request.getIsActive());
-        return ResponseEntity.ok(mapProduct(updated));
+        return ResponseEntity.ok(
+                responseFactory.toProductResponse(updated, presentationService.buildPublishedProductPresentation(updated).presentation())
+        );
     }
 
     @DeleteMapping("/{id}")
@@ -455,11 +472,16 @@ public class CatalogController {
         private List<CategorySummary> categories;
         private String brand;
         private boolean isActive;
+        private com.example.common.domain.Money price;
+        private com.example.common.domain.Money oldPrice;
+        private boolean onSale;
+        private Integer discountPercent;
         private List<ImageResponse> images;
         private OffsetDateTime createdAt;
         private OffsetDateTime updatedAt;
         private List<VariantResponse> variants;
         private List<SpecificationSection> specifications;
+        private CatalogueContentModels.CataloguePresentation presentation;
 
         public UUID getId() {
             return id;
@@ -525,6 +547,38 @@ public class CatalogController {
             this.isActive = isActive;
         }
 
+        public com.example.common.domain.Money getPrice() {
+            return price;
+        }
+
+        public void setPrice(com.example.common.domain.Money price) {
+            this.price = price;
+        }
+
+        public com.example.common.domain.Money getOldPrice() {
+            return oldPrice;
+        }
+
+        public void setOldPrice(com.example.common.domain.Money oldPrice) {
+            this.oldPrice = oldPrice;
+        }
+
+        public boolean isOnSale() {
+            return onSale;
+        }
+
+        public void setOnSale(boolean onSale) {
+            this.onSale = onSale;
+        }
+
+        public Integer getDiscountPercent() {
+            return discountPercent;
+        }
+
+        public void setDiscountPercent(Integer discountPercent) {
+            this.discountPercent = discountPercent;
+        }
+
         public OffsetDateTime getCreatedAt() {
             return createdAt;
         }
@@ -564,6 +618,14 @@ public class CatalogController {
         public void setSpecifications(List<SpecificationSection> specifications) {
             this.specifications = specifications;
         }
+
+        public CatalogueContentModels.CataloguePresentation getPresentation() {
+            return presentation;
+        }
+
+        public void setPresentation(CatalogueContentModels.CataloguePresentation presentation) {
+            this.presentation = presentation;
+        }
     }
 
     public static class VariantResponse {
@@ -571,6 +633,10 @@ public class CatalogController {
         private String sku;
         private String name;
         private com.example.common.domain.Money price;
+        private com.example.common.domain.Money oldPrice;
+        private boolean onSale;
+        private Integer discountPercent;
+        private String salePromotionName;
         private int stock;
         private Integer weightGrossG;
         private Integer lengthMm;
@@ -607,6 +673,38 @@ public class CatalogController {
 
         public void setPrice(com.example.common.domain.Money price) {
             this.price = price;
+        }
+
+        public com.example.common.domain.Money getOldPrice() {
+            return oldPrice;
+        }
+
+        public void setOldPrice(com.example.common.domain.Money oldPrice) {
+            this.oldPrice = oldPrice;
+        }
+
+        public boolean isOnSale() {
+            return onSale;
+        }
+
+        public void setOnSale(boolean onSale) {
+            this.onSale = onSale;
+        }
+
+        public Integer getDiscountPercent() {
+            return discountPercent;
+        }
+
+        public void setDiscountPercent(Integer discountPercent) {
+            this.discountPercent = discountPercent;
+        }
+
+        public String getSalePromotionName() {
+            return salePromotionName;
+        }
+
+        public void setSalePromotionName(String salePromotionName) {
+            this.salePromotionName = salePromotionName;
         }
 
         public int getStock() {
@@ -791,116 +889,4 @@ public class CatalogController {
         }
     }
 
-    private ProductResponse mapProduct(Product product) {
-        ProductResponse response = new ProductResponse();
-        response.setId(product.getId());
-        response.setName(product.getName());
-        response.setDescription(product.getDescription());
-        response.setSlug(product.getSlug());
-        response.setSpecifications(deserializeSpecifications(product.getSpecifications()));
-        List<CategorySummary> categories = mapCategories(product.getCategories());
-        response.setCategories(categories);
-        response.setCategory(categories.isEmpty() ? null : categories.get(0).getSlug());
-        response.setBrand(product.getBrand() != null ? product.getBrand().getSlug() : null);
-        response.setIsActive(product.isIsActive());
-        var images = catalogService.getProductImages(product.getId());
-        response.setImages(images != null
-                ? images.stream().map(this::mapImage).collect(Collectors.toList())
-                : List.of());
-        response.setCreatedAt(product.getCreatedAt());
-        response.setUpdatedAt(product.getUpdatedAt());
-        if (product.getVariants() != null) {
-            response.setVariants(product.getVariants().stream().map(this::mapVariant).collect(Collectors.toList()));
-        } else {
-            response.setVariants(List.of());
-        }
-        return response;
-    }
-
-    private VariantResponse mapVariant(ProductVariant variant) {
-        VariantResponse response = new VariantResponse();
-        response.setId(variant.getId());
-        response.setSku(variant.getSku());
-        response.setName(variant.getName());
-        response.setPrice(variant.getPrice());
-        response.setStock(variant.getStockQuantity());
-        response.setWeightGrossG(variant.getWeightGrossG());
-        response.setLengthMm(variant.getLengthMm());
-        response.setWidthMm(variant.getWidthMm());
-        response.setHeightMm(variant.getHeightMm());
-        return response;
-    }
-
-    private ImageResponse mapImage(ProductImage image) {
-        ImageResponse response = new ImageResponse();
-        response.setId(image.getId());
-        response.setUrl(image.getUrl());
-        response.setPosition(image.getPosition());
-        response.setVariantId(image.getVariant() != null ? image.getVariant().getId() : null);
-        return response;
-    }
-
-    private List<CategorySummary> mapCategories(Set<Category> categories) {
-        if (categories == null || categories.isEmpty()) {
-            return List.of();
-        }
-        return categories.stream()
-                .filter(cat -> cat != null)
-                .sorted(Comparator.comparing(cat -> Optional.ofNullable(cat.getFullPath()).orElse(cat.getSlug())))
-                .map(cat -> new CategorySummary(cat.getId(), cat.getName(), cat.getSlug(), cat.getFullPath()))
-                .collect(Collectors.toList());
-    }
-
-    private Set<Category> resolveCategories(ProductRequest request) {
-        Set<Category> categories = new HashSet<>();
-        if (request == null) {
-            return categories;
-        }
-        List<String> refs = request.getCategories();
-        if (refs != null) {
-            refs.forEach(ref -> resolveCategoryRef(ref).ifPresent(categories::add));
-            return categories;
-        }
-        if (request.getCategory() != null) {
-            resolveCategoryRef(request.getCategory()).ifPresent(categories::add);
-        }
-        return categories;
-    }
-
-    private Optional<Category> resolveCategoryRef(String reference) {
-        if (reference == null || reference.isBlank()) {
-            return Optional.empty();
-        }
-        Optional<Category> bySlug = catalogService.getBySlug(reference);
-        if (bySlug.isPresent()) {
-            return bySlug;
-        }
-        try {
-            return catalogService.getByCategoryId(UUID.fromString(reference));
-        } catch (IllegalArgumentException ignored) {
-            return Optional.empty();
-        }
-    }
-
-    private String serializeSpecifications(List<SpecificationSection> sections) {
-        if (sections == null) {
-            return null;
-        }
-        try {
-            return objectMapper.writeValueAsString(sections);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid specifications payload");
-        }
-    }
-
-    private List<SpecificationSection> deserializeSpecifications(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return List.of();
-        }
-        try {
-            return objectMapper.readValue(raw, new TypeReference<List<SpecificationSection>>() {});
-        } catch (Exception e) {
-            return List.of();
-        }
-    }
 }

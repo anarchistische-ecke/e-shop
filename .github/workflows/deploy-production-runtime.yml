@@ -1,0 +1,272 @@
+name: deploy-production-runtime
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to deploy to production
+        required: true
+        default: main
+        type: string
+      storefront_image_repository:
+        description: Optional storefront image repository override
+        required: false
+        default: ""
+        type: string
+      storefront_image_tag:
+        description: Optional storefront image tag override
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  classify:
+    runs-on: ubuntu-latest
+    outputs:
+      classification: ${{ steps.classify.outputs.classification }}
+      runtime_safe: ${{ steps.classify.outputs.runtime_safe }}
+      should_deploy: ${{ steps.classify.outputs.should_deploy }}
+      destructive_files: ${{ steps.classify.outputs.destructive_files }}
+      sha: ${{ steps.git.outputs.sha }}
+      image_repository: ${{ steps.image.outputs.repository }}
+      deploy_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || 'main' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+
+      - name: Capture git metadata
+        id: git
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute image coordinates
+        id: image
+        run: |
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "repository=ghcr.io/${owner_lc}/eshop-api" >> "$GITHUB_OUTPUT"
+
+      - name: Classify change set
+        id: classify
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "push" ]] && [[ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+            base_ref="${{ github.event.before }}"
+          elif git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            base_ref="HEAD^"
+          else
+            base_ref="$(git hash-object -t tree /dev/null)"
+          fi
+          bash ./scripts/classify-change-set.sh --base-ref "$base_ref" --head-ref HEAD >> "$GITHUB_OUTPUT"
+
+  gate:
+    needs: classify
+    if: ${{ needs.classify.outputs.classification == 'destructive' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warn about destructive production deploy
+        run: |
+          echo "::warning::Production deploy is classified as destructive and will use the in-place destructive apply path."
+          echo "Destructive files: ${{ needs.classify.outputs.destructive_files }}"
+          echo "Because no separate staging target is configured, destructive changes will be applied directly to production."
+
+  build:
+    needs: classify
+    if: ${{ needs.classify.outputs.classification != 'no-runtime-change' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    outputs:
+      image_repository: ${{ needs.classify.outputs.image_repository }}
+      image_tag: ${{ needs.classify.outputs.sha }}
+      sha: ${{ needs.classify.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate committed Directus schema snapshot
+        run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
+
+      - name: Build Directus extensions
+        run: bash ./scripts/directus-extensions-build.sh
+
+      - name: Verify committed Directus runtime extensions are up to date
+        run: git diff --exit-code -- directus/runtime-extensions
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B -ntp -pl api -am verify
+
+      - name: Package API jar
+        run: ./mvnw -B -ntp -pl api -am package -DskipTests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ needs.classify.outputs.image_repository }}:${{ needs.classify.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [classify, build]
+    if: ${{ needs.classify.outputs.classification != 'no-runtime-change' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: deploy-production-runtime
+      cancel-in-progress: false
+    env:
+      DEPLOY_CLASSIFICATION: ${{ needs.classify.outputs.classification }}
+      DEPLOY_REF: ${{ needs.classify.outputs.deploy_ref }}
+      DEPLOY_SHA: ${{ needs.build.outputs.sha }}
+      DEPLOY_RUN_ID: ${{ github.run_id }}
+      DESTRUCTIVE_FILES: ${{ needs.classify.outputs.destructive_files }}
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+      GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      API_IMAGE_REPOSITORY: ${{ needs.build.outputs.image_repository }}
+      API_IMAGE_TAG: ${{ needs.build.outputs.sha }}
+      STOREFRONT_IMAGE_REPOSITORY: ${{ github.event_name == 'workflow_dispatch' && inputs.storefront_image_repository || vars.STOREFRONT_IMAGE_REPOSITORY }}
+      STOREFRONT_IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.storefront_image_tag || vars.STOREFRONT_IMAGE_TAG }}
+    steps:
+      - name: Skip deploy when VM secrets are not configured
+        if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
+        run: |
+          echo "Skipping production deploy because one or more VM deployment secrets are missing."
+
+      - name: Warn about destructive production apply
+        if: ${{ env.DEPLOY_CLASSIFICATION == 'destructive' }}
+        run: |
+          echo "::warning::Applying destructive changes directly to production."
+          echo "Destructive files: ${DESTRUCTIVE_FILES}"
+
+      - name: Deploy on production VM
+        id: deploy_remote
+        if: ${{ env.YC_VM_HOST != '' && env.YC_VM_USER != '' && env.YC_VM_SSH_KEY != '' && env.YC_VM_DEPLOY_PATH != '' }}
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 45m
+          envs: DEPLOY_CLASSIFICATION,DEPLOY_REF,DEPLOY_SHA,DEPLOY_RUN_ID,API_IMAGE_REPOSITORY,API_IMAGE_TAG,STOREFRONT_IMAGE_REPOSITORY,STOREFRONT_IMAGE_TAG,GHCR_PULL_USERNAME,GHCR_PULL_TOKEN,DESTRUCTIVE_FILES
+          script: |
+            set -euo pipefail
+            if [ -n "${GHCR_PULL_USERNAME:-}" ] && [ -n "${GHCR_PULL_TOKEN:-}" ]; then
+              printf '%s' "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "$GHCR_PULL_USERNAME" --password-stdin
+            fi
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            git fetch origin "${DEPLOY_REF}"
+            git checkout "${DEPLOY_REF}" || git checkout -B "${DEPLOY_REF}" "origin/${DEPLOY_REF}"
+            git pull --ff-only origin "${DEPLOY_REF}"
+            if [ "${DEPLOY_CLASSIFICATION}" = "destructive" ]; then
+              echo "Warning: destructive production apply for files: ${DESTRUCTIVE_FILES}"
+              bash ./scripts/deploy-stack.sh \
+                --env-file .env \
+                --compose-file docker-compose.prod.yml
+            else
+              args=(
+                bash ./scripts/deploy-runtime-bluegreen.sh
+                --env-file .env
+                --compose-file docker-compose.prod.yml
+                --deploy-ref "${DEPLOY_REF}"
+                --deploy-sha "${DEPLOY_SHA}"
+                --api-image-repository "${API_IMAGE_REPOSITORY}"
+                --api-image-tag "${API_IMAGE_TAG}"
+                --run-id "${DEPLOY_RUN_ID}"
+              )
+              if [ -n "${STOREFRONT_IMAGE_REPOSITORY:-}" ]; then
+                args+=(--storefront-image-repository "${STOREFRONT_IMAGE_REPOSITORY}")
+              fi
+              if [ -n "${STOREFRONT_IMAGE_TAG:-}" ]; then
+                args+=(--storefront-image-tag "${STOREFRONT_IMAGE_TAG}")
+              fi
+              "${args[@]}"
+            fi
+
+      - name: Stage remote diagnostics
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            mkdir -p .deploy-state/export
+            cp .deploy-state/latest-runtime-summary.txt .deploy-state/export/runtime-summary.txt 2>/dev/null || true
+            latest_log="$(ls -1t .deploy-state/logs/*.log 2>/dev/null | head -n 1 || true)"
+            if [ -n "$latest_log" ]; then
+              cp "$latest_log" .deploy-state/export/
+            fi
+
+      - name: Download remote diagnostics
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          source: "${{ env.YC_VM_DEPLOY_PATH }}/.deploy-state/export/*"
+          target: "runtime-diagnostics-production"
+
+      - name: Upload diagnostics artifact
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deploy-diagnostics-${{ needs.build.outputs.sha }}
+          path: runtime-diagnostics-production
+          if-no-files-found: warn
+
+      - name: Fail workflow after remote deploy error
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        run: |
+          echo "Production deploy failed. See uploaded diagnostics."
+          exit 1
+
+  noop:
+    needs: classify
+    if: ${{ needs.classify.outputs.classification == 'no-runtime-change' && github.event_name != 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip no-op production deploy
+        run: echo "No runtime-affecting or destructive changes detected. Production deploy skipped."

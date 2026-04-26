@@ -23,11 +23,18 @@ import java.util.Locale;
 @Service
 public class EmailService {
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
+    private static final String MANAGER_DELIVERY_NOTICE =
+            "Финальную стоимость и варианты доставки согласует менеджер после оформления заказа.";
+    private static final String PAID_MANAGER_CONTACT_NOTICE =
+            "Наш менеджер свяжется с вами в ближайшее время.";
 
     private final JavaMailSender mailSender;
 
     @Value("${mail.from:yug-postel@yandex.ru}")
     private String fromAddress;
+
+    @Value("${mail.reply-to:}")
+    private String replyToAddress;
 
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
@@ -38,7 +45,7 @@ public class EmailService {
             return;
         }
         String subject = "Заказ создан";
-        String subtitle = "Спасибо за заказ в магазине Постельное Белье-ЮГ.";
+        String subtitle = "Спасибо за заказ в магазине Постельное Белье-ЮГ. " + MANAGER_DELIVERY_NOTICE;
         String html = buildEmailLayout(
                 subject,
                 subtitle,
@@ -53,7 +60,7 @@ public class EmailService {
         if (StringUtils.hasText(orderUrl)) {
             text.append('\n').append("Оплатить заказ: ").append(orderUrl).append('\n');
         }
-        sendEmail(toEmail, subject, html, text.toString());
+        sendEmail(toEmail, subject, html, text.toString(), true);
     }
 
     public void sendPaymentReceipt(Order order, Payment payment, String toEmail) {
@@ -61,21 +68,26 @@ public class EmailService {
             return;
         }
         String subject = "Ваш чек по заказу";
-        String subtitle = "Заказ успешно оплачен. Спасибо за покупку!";
+        String subtitle = "Заказ успешно оплачен. " + PAID_MANAGER_CONTACT_NOTICE;
         String extra = null;
         if (payment != null && StringUtils.hasText(payment.getProviderPaymentId())) {
             extra = "<p style=\"margin:0 0 16px;color:#4f4a46;font-size:14px;\">ID платежа: "
                     + escapeHtml(payment.getProviderPaymentId())
                     + "</p>";
         }
+        String paidNoticeHtml = "<p style=\"margin:0 0 16px;color:#4f4a46;font-size:14px;\">"
+                + escapeHtml(MANAGER_DELIVERY_NOTICE)
+                + "</p>";
+        extra = StringUtils.hasText(extra) ? extra + paidNoticeHtml : paidNoticeHtml;
         String html = buildEmailLayout(subject, subtitle, order, extra, null, null);
         StringBuilder text = new StringBuilder();
         text.append(subtitle).append('\n').append('\n');
         text.append(buildOrderSummaryText(order));
+        text.append('\n').append(MANAGER_DELIVERY_NOTICE).append('\n');
         if (payment != null && StringUtils.hasText(payment.getProviderPaymentId())) {
             text.append('\n').append("ID платежа: ").append(payment.getProviderPaymentId()).append('\n');
         }
-        sendEmail(toEmail, subject, html, text.toString());
+        sendEmail(toEmail, subject, html, text.toString(), true);
     }
 
     public void sendOrderStatusUpdatedEmail(Order order, String toEmail, String previousStatus) {
@@ -121,19 +133,29 @@ public class EmailService {
             text.append("Статус: ").append(currentStatus).append('\n');
         }
         text.append('\n').append(buildOrderSummaryText(order));
-        sendEmail(toEmail, subject, html, text.toString());
+        sendEmail(toEmail, subject, html, text.toString(), true);
     }
 
-    private void sendEmail(String toEmail, String subject, String htmlBody, String textBody) {
+    public void sendTransactionalEmail(String toEmail, String subject, String htmlBody, String textBody) {
+        sendEmail(toEmail, subject, htmlBody, textBody, false);
+    }
+
+    private void sendEmail(String toEmail, String subject, String htmlBody, String textBody, boolean swallowFailures) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromAddress);
+            if (StringUtils.hasText(replyToAddress)) {
+                helper.setReplyTo(replyToAddress);
+            }
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(textBody, htmlBody);
             mailSender.send(message);
         } catch (MessagingException | RuntimeException ex) {
+            if (!swallowFailures) {
+                throw new IllegalStateException("Failed to send email '" + subject + "' to " + toEmail, ex);
+            }
             log.warn("Failed to send email '{}' to {}", subject, toEmail, ex);
         }
     }
@@ -143,6 +165,16 @@ public class EmailService {
         body.append("Номер заказа: ").append(order.getId()).append('\n');
         body.append("Статус заказа: ").append(statusLabel(order.getStatus())).append('\n');
         body.append("Сумма: ").append(formatMoney(order.getTotalAmount())).append(" ").append(order.getTotalAmount().getCurrency()).append('\n');
+        if (StringUtils.hasText(order.getContactName())) {
+            body.append("Имя: ").append(order.getContactName()).append('\n');
+        }
+        if (StringUtils.hasText(order.getContactPhone())) {
+            body.append("Телефон: ").append(order.getContactPhone()).append('\n');
+        }
+        if (StringUtils.hasText(order.getHomeAddress())) {
+            body.append("Адрес: ").append(order.getHomeAddress()).append('\n');
+        }
+        body.append("Доставка: ").append(MANAGER_DELIVERY_NOTICE).append('\n');
         body.append("Товары:\n");
         for (OrderItem item : order.getItems()) {
             body.append("- ")
@@ -222,7 +254,38 @@ public class EmailService {
                 .append(escapeHtml(String.valueOf(order.getId())))
                 .append("&nbsp;&nbsp;|&nbsp;&nbsp;<strong>Статус:</strong> ")
                 .append(escapeHtml(statusLabel(order.getStatus())))
-                .append("</div>")
+                .append("</div>");
+
+        if (StringUtils.hasText(order.getContactName())
+                || StringUtils.hasText(order.getContactPhone())
+                || StringUtils.hasText(order.getHomeAddress())) {
+            html.append("<div style=\"padding:12px 16px;border-top:1px solid #f0ebe7;color:#5d5753;font-size:13px;line-height:1.45;\">");
+            if (StringUtils.hasText(order.getContactName())) {
+                html.append("<div><strong>Имя:</strong> ")
+                        .append(escapeHtml(order.getContactName()))
+                        .append("</div>");
+            }
+            if (StringUtils.hasText(order.getContactPhone())) {
+                html.append("<div><strong>Телефон:</strong> ")
+                        .append(escapeHtml(order.getContactPhone()))
+                        .append("</div>");
+            }
+            if (StringUtils.hasText(order.getHomeAddress())) {
+                html.append("<div><strong>Адрес:</strong> ")
+                        .append(escapeHtml(order.getHomeAddress()))
+                        .append("</div>");
+            }
+            html.append("<div><strong>Доставка:</strong> ")
+                    .append(escapeHtml(MANAGER_DELIVERY_NOTICE))
+                    .append("</div></div>");
+        } else {
+            html.append("<div style=\"padding:12px 16px;border-top:1px solid #f0ebe7;color:#5d5753;font-size:13px;line-height:1.45;\">")
+                    .append("<strong>Доставка:</strong> ")
+                    .append(escapeHtml(MANAGER_DELIVERY_NOTICE))
+                    .append("</div>");
+        }
+
+        html
                 .append("<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" ")
                 .append("style=\"border-collapse:collapse;font-size:14px;\">");
 
@@ -278,10 +341,13 @@ public class EmailService {
         return switch (status.toUpperCase(Locale.ROOT)) {
             case "PENDING" -> "Ожидает оплаты";
             case "PAID" -> "Оплачен";
+            case "PROCESSING" -> "В обработке";
+            case "READY_FOR_PICKUP" -> "Готов к выдаче";
             case "CANCELLED" -> "Отменен";
             case "REFUNDED" -> "Возвращен";
             case "SHIPPED" -> "Отгружен";
             case "DELIVERED" -> "Доставлен";
+            case "RECEIVED", "COMPLETED" -> "Получен";
             default -> status;
         };
     }

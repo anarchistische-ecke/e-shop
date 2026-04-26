@@ -4,7 +4,12 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 .env
+backups/
+directus/.env
+keycloak/.env
 .DS_Store
+directus/extensions/**/node_modules/
+directus/extensions/**/dist/
 
 ### STS ###
 .apt_generated
@@ -33,3 +38,5 @@ build/
 
 ### VS Code ###
 .vscode/
+.env
+.env.save*

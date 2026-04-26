@@ -1,0 +1,73 @@
+name: cms-governance
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, reopened, synchronize, ready_for_review, edited ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce CMS schema governance
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+
+            if (!pr) {
+              core.setFailed('cms-governance requires pull request context.');
+              return;
+            }
+
+            const governedPaths = [
+              'directus/schema/schema.snapshot.json',
+              'docs/directus-content-model.md',
+              'docs/directus-schema-versioning.md',
+              'scripts/directus-content-model-bootstrap.sh',
+              'scripts/directus-published-at-bootstrap.sh',
+              'scripts/directus-schema.js',
+              'scripts/directus-schema-apply.sh',
+              'scripts/directus-schema-check.sh',
+              'scripts/directus-schema-snapshot.sh',
+            ];
+
+            function isGovernedPath(filename) {
+              return governedPaths.some((path) => filename === path || filename.startsWith(`${path}/`));
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const governedFiles = files
+              .map((file) => file.filename)
+              .filter(isGovernedPath)
+              .sort();
+
+            if (governedFiles.length === 0) {
+              core.notice('No governed CMS schema/content-model files changed in this pull request.');
+              return;
+            }
+
+            if (pr.draft) {
+              core.notice(
+                `Governed CMS files changed (${governedFiles.join(', ')}), but the pull request is still draft. ` +
+                'No approval quorum is enforced for this repository.'
+              );
+              return;
+            }
+
+            const governedSummary = governedFiles.join(', ');
+
+            core.notice(
+              `Governed CMS schema/content-model files changed in this pull request: ${governedSummary}. ` +
+              'No approval quorum is enforced for this repository.'
+            );

@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.OffsetDateTime;
@@ -40,6 +41,70 @@ public class Order extends BaseEntity {
 
     @Embedded
     @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "original_subtotal_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "original_subtotal_currency", length = 3))
+    })
+    private Money originalSubtotal;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "sale_subtotal_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "sale_subtotal_currency", length = 3))
+    })
+    private Money saleSubtotal;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "eligible_discount_subtotal_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "eligible_discount_subtotal_currency", length = 3))
+    })
+    private Money eligibleDiscountSubtotal;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "product_sale_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "product_sale_discount_currency", length = 3))
+    })
+    private Money productSaleDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "cart_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "cart_discount_currency", length = 3))
+    })
+    private Money cartDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "promo_code_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "promo_code_discount_currency", length = 3))
+    })
+    private Money promoCodeDiscount;
+
+    @Embedded
+    @AttributeOverrides({
+            @AttributeOverride(name = "amount", column = @Column(name = "total_discount_amount")),
+            @AttributeOverride(name = "currency", column = @Column(name = "total_discount_currency", length = 3))
+    })
+    private Money totalDiscount;
+
+    @Column(name = "promo_code")
+    private String promoCode;
+
+    @Column(name = "promo_code_redemption_recorded", nullable = false)
+    private boolean promoCodeRedemptionRecorded;
+
+    @Column(name = "applied_cart_discount_type")
+    private String appliedCartDiscountType;
+
+    @Column(name = "applied_cart_discount_label")
+    private String appliedCartDiscountLabel;
+
+    @Column(name = "discount_summary", columnDefinition = "TEXT")
+    private String discountSummary;
+
+    @Embedded
+    @AttributeOverrides({
             @AttributeOverride(name = "amount", column = @Column(name = "delivery_amount")),
             @AttributeOverride(name = "currency", column = @Column(name = "delivery_currency", length = 3))
     })
@@ -56,6 +121,15 @@ public class Order extends BaseEntity {
 
     @Column(name = "receipt_email")
     private String receiptEmail;
+
+    @Column(name = "contact_name")
+    private String contactName;
+
+    @Column(name = "contact_phone")
+    private String contactPhone;
+
+    @Column(name = "home_address")
+    private String homeAddress;
 
     @Column(name = "delivery_provider")
     private String deliveryProvider;
@@ -93,9 +167,21 @@ public class Order extends BaseEntity {
     @Column(name = "manager_subject")
     private String managerSubject;
 
+    @Column(name = "manager_directus_user_id")
+    private String managerDirectusUserId;
+
+    @Column(name = "manager_email")
+    private String managerEmail;
+
+    @Column(name = "manager_claimed_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime managerClaimedAt;
+
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<OrderItem> items = new HashSet<>();
+
+    @Transient
+    private Object paymentSummary;
 
     public Order() {
     }
@@ -139,6 +225,102 @@ public class Order extends BaseEntity {
         this.totalAmount = totalAmount;
     }
 
+    public Money getOriginalSubtotal() {
+        return originalSubtotal;
+    }
+
+    public void setOriginalSubtotal(Money originalSubtotal) {
+        this.originalSubtotal = originalSubtotal;
+    }
+
+    public Money getSaleSubtotal() {
+        return saleSubtotal;
+    }
+
+    public void setSaleSubtotal(Money saleSubtotal) {
+        this.saleSubtotal = saleSubtotal;
+    }
+
+    public Money getEligibleDiscountSubtotal() {
+        return eligibleDiscountSubtotal;
+    }
+
+    public void setEligibleDiscountSubtotal(Money eligibleDiscountSubtotal) {
+        this.eligibleDiscountSubtotal = eligibleDiscountSubtotal;
+    }
+
+    public Money getProductSaleDiscount() {
+        return productSaleDiscount;
+    }
+
+    public void setProductSaleDiscount(Money productSaleDiscount) {
+        this.productSaleDiscount = productSaleDiscount;
+    }
+
+    public Money getCartDiscount() {
+        return cartDiscount;
+    }
+
+    public void setCartDiscount(Money cartDiscount) {
+        this.cartDiscount = cartDiscount;
+    }
+
+    public Money getPromoCodeDiscount() {
+        return promoCodeDiscount;
+    }
+
+    public void setPromoCodeDiscount(Money promoCodeDiscount) {
+        this.promoCodeDiscount = promoCodeDiscount;
+    }
+
+    public Money getTotalDiscount() {
+        return totalDiscount;
+    }
+
+    public void setTotalDiscount(Money totalDiscount) {
+        this.totalDiscount = totalDiscount;
+    }
+
+    public String getPromoCode() {
+        return promoCode;
+    }
+
+    public void setPromoCode(String promoCode) {
+        this.promoCode = promoCode;
+    }
+
+    public boolean isPromoCodeRedemptionRecorded() {
+        return promoCodeRedemptionRecorded;
+    }
+
+    public void setPromoCodeRedemptionRecorded(boolean promoCodeRedemptionRecorded) {
+        this.promoCodeRedemptionRecorded = promoCodeRedemptionRecorded;
+    }
+
+    public String getAppliedCartDiscountType() {
+        return appliedCartDiscountType;
+    }
+
+    public void setAppliedCartDiscountType(String appliedCartDiscountType) {
+        this.appliedCartDiscountType = appliedCartDiscountType;
+    }
+
+    public String getAppliedCartDiscountLabel() {
+        return appliedCartDiscountLabel;
+    }
+
+    public void setAppliedCartDiscountLabel(String appliedCartDiscountLabel) {
+        this.appliedCartDiscountLabel = appliedCartDiscountLabel;
+    }
+
+    public String getDiscountSummary() {
+        return discountSummary;
+    }
+
+    public void setDiscountSummary(String discountSummary) {
+        this.discountSummary = discountSummary;
+    }
+
     public Money getDeliveryAmount() {
         return deliveryAmount;
     }
@@ -169,6 +351,30 @@ public class Order extends BaseEntity {
 
     public void setReceiptEmail(String receiptEmail) {
         this.receiptEmail = receiptEmail;
+    }
+
+    public String getContactName() {
+        return contactName;
+    }
+
+    public void setContactName(String contactName) {
+        this.contactName = contactName;
+    }
+
+    public String getContactPhone() {
+        return contactPhone;
+    }
+
+    public void setContactPhone(String contactPhone) {
+        this.contactPhone = contactPhone;
+    }
+
+    public String getHomeAddress() {
+        return homeAddress;
+    }
+
+    public void setHomeAddress(String homeAddress) {
+        this.homeAddress = homeAddress;
     }
 
     public String getDeliveryProvider() {
@@ -265,6 +471,38 @@ public class Order extends BaseEntity {
 
     public void setManagerSubject(String managerSubject) {
         this.managerSubject = managerSubject;
+    }
+
+    public String getManagerDirectusUserId() {
+        return managerDirectusUserId;
+    }
+
+    public void setManagerDirectusUserId(String managerDirectusUserId) {
+        this.managerDirectusUserId = managerDirectusUserId;
+    }
+
+    public String getManagerEmail() {
+        return managerEmail;
+    }
+
+    public void setManagerEmail(String managerEmail) {
+        this.managerEmail = managerEmail;
+    }
+
+    public OffsetDateTime getManagerClaimedAt() {
+        return managerClaimedAt;
+    }
+
+    public void setManagerClaimedAt(OffsetDateTime managerClaimedAt) {
+        this.managerClaimedAt = managerClaimedAt;
+    }
+
+    public Object getPaymentSummary() {
+        return paymentSummary;
+    }
+
+    public void setPaymentSummary(Object paymentSummary) {
+        this.paymentSummary = paymentSummary;
     }
 
     public UUID getShipmentId() {

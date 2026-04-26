@@ -1,0 +1,294 @@
+{
+  "realm": "cozyhome",
+  "enabled": true,
+  "displayName": "Cozyhome Local",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "rememberMe": true,
+  "verifyEmail": false,
+  "loginTheme": "postel-yug",
+  "defaultRoles": [
+    "offline_access",
+    "uma_authorization"
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "admin"
+      },
+      {
+        "name": "manager"
+      },
+      {
+        "name": "publisher"
+      },
+      {
+        "name": "picker"
+      },
+      {
+        "name": "content_manager"
+      },
+      {
+        "name": "catalogue_operator"
+      },
+      {
+        "name": "inventory_operator"
+      },
+      {
+        "name": "customer"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "directus",
+      "name": "Directus Admin",
+      "description": "Local Directus Studio SSO client",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "directus-local-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://localhost:8055/auth/login/keycloak/callback",
+        "http://localhost:8055/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8055"
+      ],
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "protocolMappers": [
+        {
+          "name": "realm-roles-as-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "groups",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "cozyhome-web",
+      "name": "Cozyhome Web",
+      "description": "Local storefront client",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "web-origins",
+        "acr",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ],
+      "protocolMappers": [
+        {
+          "name": "acr-hardcoded",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-hardcoded-claim-mapper",
+          "consentRequired": false,
+          "config": {
+            "claim.name": "acr",
+            "claim.value": "1",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@example.com",
+      "email": "admin@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Admin123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ]
+    },
+    {
+      "username": "manager@example.com",
+      "email": "manager@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Manager",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Manager123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "manager"
+      ]
+    },
+    {
+      "username": "publisher@example.com",
+      "email": "publisher@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Publisher",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Publisher123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "publisher"
+      ]
+    },
+    {
+      "username": "picker@example.com",
+      "email": "picker@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Picker",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Picker123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "picker"
+      ]
+    },
+    {
+      "username": "content@example.com",
+      "email": "content@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Content",
+      "lastName": "Manager",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Content123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "content_manager"
+      ]
+    },
+    {
+      "username": "customer@example.com",
+      "email": "customer@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Customer",
+      "lastName": "Local",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Customer123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "customer"
+      ]
+    },
+    {
+      "username": "catalogue@example.com",
+      "email": "catalogue@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Catalogue",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Catalogue123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "catalogue_operator"
+      ]
+    },
+    {
+      "username": "inventory@example.com",
+      "email": "inventory@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Inventory",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Inventory123!",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "inventory_operator"
+      ]
+    }
+  ]
+}

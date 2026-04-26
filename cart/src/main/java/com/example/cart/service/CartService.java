@@ -7,13 +7,16 @@ import com.example.catalog.repository.ProductVariantRepository;
 import com.example.common.domain.Money;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -21,12 +24,16 @@ public class CartService {
     private static final Duration CART_TTL = Duration.ofDays(30);
     private final RedisTemplate<String, Cart> cartRedisTemplate;
     private final ProductVariantRepository variantRepository;
+    private final CartPricingService pricingService;
 
     @Autowired
     public CartService(RedisTemplate<String, Cart> cartRedisTemplate,
-                       ProductVariantRepository variantRepository) {
+                       ProductVariantRepository variantRepository,
+                       ObjectProvider<CartPricingService> pricingServiceProvider) {
         this.cartRedisTemplate = cartRedisTemplate;
         this.variantRepository = variantRepository;
+        this.pricingService = pricingServiceProvider.getIfAvailable(() -> new CartPricingService() {
+        });
     }
 
     private String key(UUID cartId) {
@@ -75,11 +82,12 @@ public class CartService {
         if (available > 0 && newQuantity > available) {
             throw new IllegalStateException("Недостаточно запаса на складе. Доступно: " + available);
         }
-        Money price = variant.getPrice();
+        Money price = pricingService.resolveUnitPrice(variant);
 
         if (existing.isPresent()) {
             CartItem item = existing.get();
             item.setQuantity(newQuantity);
+            item.setUnitPrice(price);
             stampBaseEntity(item, false);
         } else {
             CartItem item = new CartItem(variantId, quantity, price);
@@ -93,6 +101,7 @@ public class CartService {
 
     public Cart getCartById(UUID cartId) {
         Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
         persistCart(cart, false);
         return cart;
     }
@@ -123,16 +132,69 @@ public class CartService {
             throw new IllegalStateException("Недостаточно запаса на складе. Доступно: " + available);
         }
         item.setQuantity(quantity);
+        Money price = pricingService.resolveUnitPrice(variant);
+        item.setUnitPrice(price);
         stampBaseEntity(item, false);
         persistCart(cart, false);
     }
 
     public long calculateCartTotal(UUID cartId) {
         Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
+        persistCart(cart, false);
+        return pricingService.calculateCartTotal(cart);
+    }
+
+    public CartPricingSummary calculateCartPricing(UUID cartId) {
+        Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
+        persistCart(cart, false);
+        return pricingService.calculateCartPricing(cart);
+    }
+
+    public long calculateItemsTotal(UUID cartId) {
+        Cart cart = requireCart(cartId);
+        refreshCartItemPrices(cart);
+        persistCart(cart, false);
         return cart.getItems().stream().mapToLong(CartItem::getTotalAmount).sum();
+    }
+
+    public Cart applyPromoCode(UUID cartId, String promoCode) {
+        if (promoCode == null || promoCode.isBlank()) {
+            throw new IllegalArgumentException("Promo code is required");
+        }
+        Cart cart = requireCart(cartId);
+        cart.setPromoCode(promoCode.trim().toUpperCase());
+        return persistCart(cart, false);
+    }
+
+    public Cart removePromoCode(UUID cartId) {
+        Cart cart = requireCart(cartId);
+        cart.setPromoCode(null);
+        return persistCart(cart, false);
     }
 
     public void clearCart(UUID cartId) {
         cartRedisTemplate.delete(key(cartId));
+    }
+
+    private void refreshCartItemPrices(Cart cart) {
+        if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
+            return;
+        }
+        CartPricingSummary pricing = pricingService.calculateCartPricing(cart);
+        Map<UUID, CartPricingSummary.CartPricingLine> linesByVariant = pricing.items().stream()
+                .collect(Collectors.toMap(
+                        CartPricingSummary.CartPricingLine::variantId,
+                        line -> line,
+                        (left, right) -> left
+                ));
+        for (CartItem item : cart.getItems()) {
+            CartPricingSummary.CartPricingLine line = linesByVariant.get(item.getVariantId());
+            if (line != null && line.unitPrice() != null) {
+                item.setUnitPrice(line.unitPrice());
+                stampBaseEntity(item, false);
+            }
+        }
     }
 }

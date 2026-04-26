@@ -1,7 +1,6 @@
 services:
   api:
-    build: .
-    image: eshop-api:latest
+    image: ${API_IMAGE_REPOSITORY:-ghcr.io/anarchistische-ecke/eshop-api}:${API_IMAGE_TAG:-latest}
     env_file:
       - .env
     ports:
@@ -21,13 +20,54 @@ services:
       resources:
         limits:
           memory: 768m
+    networks:
+      default:
+      shared:
+
+  storefront:
+    image: ${STOREFRONT_IMAGE_REPOSITORY:?Set STOREFRONT_IMAGE_REPOSITORY}:${STOREFRONT_IMAGE_TAG:?Set STOREFRONT_IMAGE_TAG}
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:${STOREFRONT_HOST_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      SERVER_API_BASE: ${STOREFRONT_SERVER_API_BASE:-http://api:8080}
+      REACT_APP_API_BASE: ${REACT_APP_API_BASE:-https://api.yug-postel.ru}
+      REACT_APP_SITE_URL: ${REACT_APP_SITE_URL:-https://yug-postel.ru}
+      REACT_APP_KEYCLOAK_URL: ${REACT_APP_KEYCLOAK_URL:-https://yug-postel.ru/auth}
+      REACT_APP_KEYCLOAK_REALM: ${REACT_APP_KEYCLOAK_REALM:-cozyhome}
+      REACT_APP_KEYCLOAK_CLIENT_ID: ${REACT_APP_KEYCLOAK_CLIENT_ID:-cozyhome-web}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/healthz').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    networks:
+      default:
+      shared:
 
   postgres:
     image: postgres:15-alpine
     command: ["postgres", "-c", "max_connections=200"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-eshop}
-      POSTGRES_USER: ${POSTGRES_USER:-eshopUser}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     ports:
       - "5432:5432"
@@ -35,10 +75,15 @@ services:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eshopUser}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres_admin}"]
       interval: 30s
       timeout: 5s
       retries: 5
+    networks:
+      default:
+      shared:
+        aliases:
+          - postgres
 
   redis:
     image: redis:7-alpine
@@ -53,7 +98,102 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
+    networks:
+      default:
+      shared:
+        aliases:
+          - redis
+
+  directus:
+    image: directus/directus:${DIRECTUS_VERSION:-11.17.2}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8055:8055"
+    restart: unless-stopped
+    environment:
+      KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in the deployment .env}
+      SECRET: ${DIRECTUS_SECRET:?Set DIRECTUS_SECRET in the deployment .env}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL:?Set DIRECTUS_ADMIN_EMAIL in the deployment .env}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD:?Set DIRECTUS_ADMIN_PASSWORD in the deployment .env}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL:?Set DIRECTUS_PUBLIC_URL in the deployment .env}
+      IP_TRUST_PROXY: ${DIRECTUS_IP_TRUST_PROXY:-true}
+      DIRECTUS_SCHEMA_ADMIN_TOKEN: ${DIRECTUS_SCHEMA_ADMIN_TOKEN:-}
+      AUTH_PROVIDERS: ${DIRECTUS_AUTH_PROVIDERS:-keycloak}
+      AUTH_DISABLE_DEFAULT: ${DIRECTUS_AUTH_DISABLE_DEFAULT:-true}
+      AUTH_KEYCLOAK_DRIVER: ${DIRECTUS_AUTH_KEYCLOAK_DRIVER:-openid}
+      AUTH_KEYCLOAK_CLIENT_ID: ${DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID:?Set DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID in the deployment .env}
+      AUTH_KEYCLOAK_CLIENT_SECRET: ${DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET:?Set DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET in the deployment .env}
+      AUTH_KEYCLOAK_ISSUER_URL: ${DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL:?Set DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL in the deployment .env}
+      AUTH_KEYCLOAK_IDENTIFIER_KEY: ${DIRECTUS_AUTH_KEYCLOAK_IDENTIFIER_KEY:-email}
+      AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION: ${DIRECTUS_AUTH_KEYCLOAK_ALLOW_PUBLIC_REGISTRATION:-true}
+      AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL: ${DIRECTUS_AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL:-true}
+      AUTH_KEYCLOAK_SYNC_USER_INFO: ${DIRECTUS_AUTH_KEYCLOAK_SYNC_USER_INFO:-true}
+      AUTH_KEYCLOAK_ISSUER_DISCOVERY_MUST_SUCCEED: ${DIRECTUS_AUTH_KEYCLOAK_ISSUER_DISCOVERY_MUST_SUCCEED:-false}
+      AUTH_KEYCLOAK_GROUP_CLAIM_NAME: ${DIRECTUS_AUTH_KEYCLOAK_GROUP_CLAIM_NAME:-groups}
+      AUTH_KEYCLOAK_LABEL: ${DIRECTUS_AUTH_KEYCLOAK_LABEL:-Keycloak}
+      AUTH_KEYCLOAK_ICON: ${DIRECTUS_AUTH_KEYCLOAK_ICON:-vpn_key}
+      AUTH_KEYCLOAK_PARAMS__PROMPT: ${DIRECTUS_AUTH_KEYCLOAK_PARAMS_PROMPT:-login}
+      AUTH_KEYCLOAK_ROLE_MAPPING: 'json:{"admin":"${DIRECTUS_ROLE_CMS_ADMIN_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}","manager":"${DIRECTUS_ROLE_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006}","picker":"${DIRECTUS_ROLE_PICKER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007}","content_manager":"${DIRECTUS_ROLE_CONTENT_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008}","publisher":"${DIRECTUS_ROLE_CMS_PUBLISHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003}","catalogue_operator":"${DIRECTUS_ROLE_CATALOGUE_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}","inventory_operator":"${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}"}'
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${DIRECTUS_DB_DATABASE:?Set DIRECTUS_DB_DATABASE in the deployment .env}
+      DB_USER: ${DIRECTUS_DB_USER:?Set DIRECTUS_DB_USER in the deployment .env}
+      DB_PASSWORD: ${DIRECTUS_DB_PASSWORD:?Set DIRECTUS_DB_PASSWORD in the deployment .env}
+      CACHE_ENABLED: ${DIRECTUS_DATA_CACHE_ENABLED:-true}
+      CACHE_TTL: ${DIRECTUS_DATA_CACHE_TTL:-5m}
+      CACHE_AUTO_PURGE: ${DIRECTUS_DATA_CACHE_AUTO_PURGE:-true}
+      CACHE_STORE: ${DIRECTUS_DATA_CACHE_STORE:-redis}
+      CACHE_STATUS_HEADER: ${DIRECTUS_DATA_CACHE_STATUS_HEADER:-X-Directus-Cache}
+      REDIS: ${DIRECTUS_REDIS_URL:-redis://redis:6379}
+      STORAGE_LOCATIONS: ${DIRECTUS_STORAGE_LOCATIONS:-s3}
+      STORAGE_S3_DRIVER: ${DIRECTUS_STORAGE_S3_DRIVER:-s3}
+      STORAGE_S3_KEY: ${DIRECTUS_STORAGE_S3_KEY:?Set DIRECTUS_STORAGE_S3_KEY in the deployment .env}
+      STORAGE_S3_SECRET: ${DIRECTUS_STORAGE_S3_SECRET:?Set DIRECTUS_STORAGE_S3_SECRET in the deployment .env}
+      STORAGE_S3_BUCKET: ${DIRECTUS_STORAGE_S3_BUCKET:?Set DIRECTUS_STORAGE_S3_BUCKET in the deployment .env}
+      STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-ru-central1}
+      STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-https://storage.yandexcloud.net}
+      STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-false}
+      STOREFRONT_OPS_BACKEND_URL: ${DIRECTUS_STOREFRONT_OPS_BACKEND_URL:-http://api:8080}
+      STOREFRONT_OPS_BACKEND_TOKEN: ${DIRECTUS_BRIDGE_TOKEN:?Set DIRECTUS_BRIDGE_TOKEN in the deployment .env}
+      STOREFRONT_OPS_ADMIN_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_ADMIN_ROLE_IDS:-admin,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001}
+      STOREFRONT_OPS_CATALOGUE_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004}
+      STOREFRONT_OPS_INVENTORY_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}
+      STOREFRONT_OPS_MANAGER_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_MANAGER_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006}
+      STOREFRONT_OPS_PICKER_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_PICKER_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007}
+      STOREFRONT_OPS_CONTENT_ROLE_IDS: ${DIRECTUS_STOREFRONT_OPS_CONTENT_ROLE_IDS:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005}
+      WEBSOCKETS_ENABLED: "true"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8055/server/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./directus/runtime-extensions:/directus/extensions:ro
+      - directus-templates:/directus/templates
+      - ./directus:/opt/directus-deploy/directus:ro
+      - ./scripts:/opt/directus-deploy/scripts:ro
+    networks:
+      default:
+      shared:
 
 volumes:
   redisdata:
   pgdata:
+  directus-templates:
+
+networks:
+  shared:
+    name: ${DEPLOY_SHARED_DOCKER_NETWORK:-eshop-shared}

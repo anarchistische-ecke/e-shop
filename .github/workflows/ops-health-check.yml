@@ -1,0 +1,46 @@
+name: ops-health-check
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to check
+        required: true
+        default: production
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+    concurrency:
+      group: ops-health-check-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+      cancel-in-progress: false
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Skip health check when VM secrets are not configured
+        if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
+        run: |
+          echo "Skipping health check because one or more VM deployment secrets are missing."
+
+      - name: Run remote stack health checks
+        if: ${{ env.YC_VM_HOST != '' && env.YC_VM_USER != '' && env.YC_VM_SSH_KEY != '' && env.YC_VM_DEPLOY_PATH != '' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            cd ${{ env.YC_VM_DEPLOY_PATH }}
+            bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state

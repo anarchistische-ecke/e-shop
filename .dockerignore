@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.DS_Store
+
+docs
+monitoring
+keycloak
+directus
+
+**/target
+**/node_modules
+
+*.log
+*.zip

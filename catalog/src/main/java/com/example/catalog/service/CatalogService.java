@@ -101,6 +101,15 @@ public class CatalogService {
         return variantRepository.save(variant);
     }
 
+    public void deleteVariant(UUID productId, UUID variantId) {
+        ProductVariant variant = variantRepository.findWithProductById(variantId)
+                .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+        if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
+            throw new IllegalArgumentException("Variant does not belong to product: " + productId);
+        }
+        variantRepository.delete(variant);
+    }
+
     public ProductImage addProductImage(UUID productId, String url, String objectKey, int position, UUID variantId) {
         Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
         ProductVariant variant = null;
@@ -192,6 +201,22 @@ public class CatalogService {
         return product;
     }
 
+    @Transactional
+    public Optional<Product> getProductBySlug(String slug) {
+        Optional<Product> product = productRepository.findBySlug(slug);
+        product.ifPresent(this::hydrateProduct);
+        return product;
+    }
+
+    public List<Product> getProductsBySlugs(List<String> slugs) {
+        if (slugs == null || slugs.isEmpty()) {
+            return List.of();
+        }
+        List<Product> products = productRepository.findBySlugIn(slugs);
+        products.forEach(this::hydrateProduct);
+        return products;
+    }
+
     public List<Product> getAllProducts() {
         List<Product> products = productRepository.findAll();
         products.forEach(this::hydrateProduct);
@@ -268,6 +293,13 @@ public class CatalogService {
 
     public Optional<Category> getByCategoryId(UUID id) {
         return categoryRepository.findById(id);
+    }
+
+    public List<Category> getBySlugs(List<String> slugs) {
+        if (slugs == null || slugs.isEmpty()) {
+            return List.of();
+        }
+        return categoryRepository.findBySlugIn(slugs);
     }
 
     public Category create(Category category) {

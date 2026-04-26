@@ -1,0 +1,205 @@
+name: deploy-production-destructive
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to apply destructively in production
+        required: true
+        default: main
+        type: string
+      skip_backup:
+        description: Skip Directus backup (only for emergency/manual restore scenarios)
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.git.outputs.sha }}
+      image_repository: ${{ steps.image.outputs.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Capture git metadata
+        id: git
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Compute image coordinates
+        id: image
+        run: |
+          owner_lc="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "repository=ghcr.io/${owner_lc}/eshop-api" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    outputs:
+      image_repository: ${{ needs.prepare.outputs.image_repository }}
+      image_tag: ${{ needs.prepare.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate committed Directus schema snapshot
+        run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
+
+      - name: Build Directus extensions
+        run: bash ./scripts/directus-extensions-build.sh
+
+      - name: Verify committed Directus runtime extensions are up to date
+        run: git diff --exit-code -- directus/runtime-extensions
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - name: Build and test
+        run: ./mvnw -B -ntp -pl api -am verify
+
+      - name: Package API jar
+        run: ./mvnw -B -ntp -pl api -am package -DskipTests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ needs.prepare.outputs.image_repository }}:${{ needs.prepare.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment: production-destructive
+    concurrency:
+      group: deploy-production-destructive
+      cancel-in-progress: false
+    env:
+      DEPLOY_REF: ${{ inputs.ref }}
+      DEPLOY_SHA: ${{ needs.prepare.outputs.sha }}
+      DEPLOY_RUN_ID: ${{ github.run_id }}
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+      GHCR_PULL_USERNAME: ${{ secrets.GHCR_PULL_USERNAME }}
+      GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
+      API_IMAGE_REPOSITORY: ${{ needs.build.outputs.image_repository }}
+      API_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+      SKIP_BACKUP: ${{ inputs.skip_backup }}
+    steps:
+      - name: Skip deploy when VM secrets are not configured
+        if: ${{ env.YC_VM_HOST == '' || env.YC_VM_USER == '' || env.YC_VM_SSH_KEY == '' || env.YC_VM_DEPLOY_PATH == '' }}
+        run: |
+          echo "Skipping destructive production deploy because one or more VM deployment secrets are missing."
+
+      - name: Warn about direct destructive production apply
+        run: |
+          echo "::warning::This workflow applies destructive changes directly to production."
+          echo "::warning::No separate staging target is configured for this repository."
+
+      - name: Run destructive production apply
+        id: deploy_remote
+        if: ${{ env.YC_VM_HOST != '' && env.YC_VM_USER != '' && env.YC_VM_SSH_KEY != '' && env.YC_VM_DEPLOY_PATH != '' }}
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 45m
+          envs: DEPLOY_REF,DEPLOY_SHA,DEPLOY_RUN_ID,API_IMAGE_REPOSITORY,API_IMAGE_TAG,GHCR_PULL_USERNAME,GHCR_PULL_TOKEN,SKIP_BACKUP
+          script: |
+            set -euo pipefail
+            if [ -n "${GHCR_PULL_USERNAME:-}" ] && [ -n "${GHCR_PULL_TOKEN:-}" ]; then
+              printf '%s' "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "$GHCR_PULL_USERNAME" --password-stdin
+            fi
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            git fetch origin "${DEPLOY_REF}"
+            git checkout "${DEPLOY_REF}" || git checkout -B "${DEPLOY_REF}" "origin/${DEPLOY_REF}"
+            git pull --ff-only origin "${DEPLOY_REF}"
+            destructive_args=""
+            if [ "${SKIP_BACKUP}" = "true" ]; then
+              destructive_args="--skip-backup"
+            fi
+            bash ./scripts/deploy-stack.sh \
+              --env-file .env \
+              --compose-file docker-compose.prod.yml \
+              ${destructive_args}
+
+      - name: Stage remote diagnostics
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            mkdir -p .deploy-state/export
+            cp .deploy-state/latest-runtime-summary.txt .deploy-state/export/runtime-summary.txt 2>/dev/null || true
+            latest_log="$(ls -1t .deploy-state/logs/*.log 2>/dev/null | head -n 1 || true)"
+            if [ -n "$latest_log" ]; then
+              cp "$latest_log" .deploy-state/export/
+            fi
+
+      - name: Download remote diagnostics
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          source: "${{ env.YC_VM_DEPLOY_PATH }}/.deploy-state/export/*"
+          target: "destructive-diagnostics-production"
+
+      - name: Upload diagnostics artifact
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-destructive-diagnostics-${{ needs.prepare.outputs.sha }}
+          path: destructive-diagnostics-production
+          if-no-files-found: warn
+
+      - name: Fail workflow after destructive deploy error
+        if: ${{ steps.deploy_remote.outcome == 'failure' }}
+        run: |
+          echo "Destructive production apply failed. See uploaded diagnostics."
+          exit 1
