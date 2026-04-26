@@ -54,10 +54,33 @@ class PaymentControllerConfigTest {
         assertThat(config.providerCode()).isEqualTo("YOOKASSA");
         assertThat(config.methods()).containsExactly("CARD", "SBP");
         assertThat(config.fullPrepayment()).isTrue();
+        assertThat(config.confirmationMode()).isEqualTo("REDIRECT");
+        assertThat(config.supportsEmbedded()).isFalse();
         assertThat(config.splitPaymentsEnabled()).isFalse();
         assertThat(config.cashOnDeliveryEnabled()).isFalse();
         assertThat(config.fiscalConfig().id()).isEqualTo(configId);
         assertThat(config.fiscalConfig().taxSystemCode()).isEqualTo(6);
         assertThat(config.fiscalConfig().vatCode()).isEqualTo(2);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void publicConfigAdvertisesEmbeddedOnlyWhenConfigured() {
+        ObjectProvider<DirectusAdminService> directusProvider = mock(ObjectProvider.class);
+        PaymentController controller = new PaymentController(
+                mock(PaymentService.class),
+                mock(OrderService.class),
+                mock(NotificationOrchestrator.class),
+                mock(YooKassaWebhookVerifier.class),
+                directusProvider
+        );
+        ReflectionTestUtils.setField(controller, "yooKassaEnabled", true);
+        ReflectionTestUtils.setField(controller, "publicConfirmationMode", "EMBEDDED");
+
+        PaymentController.PublicPaymentConfig config = controller.getPublicConfig().getBody();
+
+        assertThat(config).isNotNull();
+        assertThat(config.confirmationMode()).isEqualTo("EMBEDDED");
+        assertThat(config.supportsEmbedded()).isTrue();
     }
 }

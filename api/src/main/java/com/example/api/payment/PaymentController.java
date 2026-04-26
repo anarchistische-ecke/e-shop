@@ -82,7 +82,7 @@ public class PaymentController {
                 resolveCheckoutDescription(providerName, confirmationMode),
                 resolveResumePaymentLabel(providerName, confirmationMode),
                 confirmationMode,
-                yooKassaEnabled,
+                yooKassaEnabled && "EMBEDDED".equals(confirmationMode),
                 safeValue(publicWidgetScriptUrl, "https://yookassa.ru/checkout-widget/v1/checkout-widget.js"),
                 List.of("CARD", "SBP"),
                 true,
