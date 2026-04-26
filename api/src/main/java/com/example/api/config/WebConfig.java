@@ -5,8 +5,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.LinkedHashSet;
+import java.util.Locale;
+import java.util.Set;
+
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    private static final String WILDCARD_HEADER = "*";
+    private static final String[] REQUIRED_ALLOWED_HEADERS = {
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key"
+    };
 
     @Value("${cors.allowed-origins:*}")
     private String allowedOrigins;
@@ -22,12 +33,34 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(splitAndTrim(allowedOrigins))
                 .allowedMethods(splitAndTrim(allowedMethods))
-                .allowedHeaders(splitAndTrim(allowedHeaders));
+                .allowedHeaders(resolveAllowedHeaders());
+    }
+
+    String[] resolveAllowedHeaders() {
+        Set<String> headers = new LinkedHashSet<>();
+        Set<String> normalizedHeaders = new LinkedHashSet<>();
+        for (String header : splitAndTrim(allowedHeaders)) {
+            if (WILDCARD_HEADER.equals(header)) {
+                return new String[] {WILDCARD_HEADER};
+            }
+            headers.add(header);
+            normalizedHeaders.add(header.toLowerCase(Locale.ROOT));
+        }
+        for (String requiredHeader : REQUIRED_ALLOWED_HEADERS) {
+            if (!normalizedHeaders.contains(requiredHeader.toLowerCase(Locale.ROOT))) {
+                headers.add(requiredHeader);
+            }
+        }
+        return headers.toArray(String[]::new);
     }
 
     private String[] splitAndTrim(String csv) {
+        if (csv == null || csv.isBlank()) {
+            return new String[0];
+        }
         return java.util.Arrays.stream(csv.split(","))
                 .map(String::trim)
+                .filter(value -> !value.isBlank())
                 .toArray(String[]::new);
     }
 }
