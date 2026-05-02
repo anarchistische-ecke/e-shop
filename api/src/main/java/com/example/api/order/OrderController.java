@@ -116,14 +116,15 @@ public class OrderController {
 
         boolean checkoutAttemptBound = false;
         try {
-            Order order = orderService.createOrderFromCart(
+            Order order = orderService.createOrderFromCartAndCompleteCheckoutAttempt(
+                    effectiveIdempotencyKey,
+                    requestHash,
                     request.cartId,
                     customerId,
                     request.receiptEmail,
                     null,
                     new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
             );
-            orderService.completeCheckoutAttempt(effectiveIdempotencyKey, requestHash, order.getId());
             checkoutAttemptBound = true;
 
             String returnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, order);

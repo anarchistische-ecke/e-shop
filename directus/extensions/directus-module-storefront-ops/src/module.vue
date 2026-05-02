@@ -288,6 +288,14 @@
               <span>Менеджер</span>
               <input v-model.trim="orderState.manager" type="text" @keyup.enter="loadOrders" />
             </label>
+            <label v-if="roleKind === 'admin'" class="ops-field">
+              <span>Архив</span>
+              <select v-model="orderState.archived" @change="loadOrders">
+                <option value="all">Все заказы</option>
+                <option value="active">Только активные</option>
+                <option value="archived">Только архив</option>
+              </select>
+            </label>
             <label class="ops-field">
               <span>С</span>
               <input v-model="orderState.from" type="datetime-local" @keyup.enter="loadOrders" />
@@ -343,13 +351,16 @@
             >
               <div class="list-card-head">
                 <strong>{{ order.receiptEmail || order.id }}</strong>
-                <span class="pill pill-neutral">{{ orderStatusLabel(order.status) }}</span>
+                <span class="pill" :class="isOrderArchived(order) ? 'pill-muted' : 'pill-neutral'">
+                  {{ isOrderArchived(order) ? 'В архиве' : orderStatusLabel(order.status) }}
+                </span>
               </div>
               <p class="list-card-slug">{{ order.id }}</p>
               <div class="list-card-meta">
                 <span>{{ formatMoney(order.totalAmount) }}</span>
                 <span>{{ orderManagerLabel(order) }}</span>
                 <span>{{ formatDateTime(order.orderDate) }}</span>
+                <span v-if="isOrderArchived(order)">Архив {{ formatDateTime(order.archivedAt) }}</span>
               </div>
             </button>
           </div>
@@ -1305,13 +1316,43 @@
                 >
                   Снять менеджера
                 </button>
+                <button
+                  v-if="canArchiveSelectedOrder"
+                  class="button button-danger"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="archiveOrder"
+                >
+                  Удалить заказ
+                </button>
+                <button
+                  v-if="canRestoreSelectedOrder"
+                  class="button button-secondary"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="restoreOrder"
+                >
+                  Восстановить
+                </button>
               </div>
             </header>
+
+            <p v-if="orderState.selectedFilteredOut" class="inline-note">
+              Выбранный заказ не попадает в текущий список из-за фильтров.
+              <button class="button button-secondary button-small" type="button" @click="resetOrderFiltersForSelected">
+                Сбросить фильтры
+              </button>
+            </p>
+
+            <p v-if="isOrderArchived(orderState.detail.order)" class="inline-note">
+              Заказ в архиве: {{ orderState.detail.order.archiveReason || 'причина не указана' }}.
+              Операции по заказу доступны после восстановления.
+            </p>
 
             <div class="metrics-row">
               <article class="metric-card">
                 <span>Статус</span>
-                <strong>{{ orderStatusLabel(orderState.detail.order.status) }}</strong>
+                <strong>{{ isOrderArchived(orderState.detail.order) ? 'В архиве' : orderStatusLabel(orderState.detail.order.status) }}</strong>
               </article>
               <article class="metric-card">
                 <span>Сумма</span>
@@ -1320,6 +1361,10 @@
               <article class="metric-card">
                 <span>Менеджер</span>
                 <strong>{{ orderManagerLabel(orderState.detail.order) }}</strong>
+              </article>
+              <article v-if="isOrderArchived(orderState.detail.order)" class="metric-card">
+                <span>Архивировал</span>
+                <strong>{{ orderState.detail.order.archivedBy || 'Не указано' }}</strong>
               </article>
             </div>
 
@@ -2219,10 +2264,12 @@ const orderState = reactive({
   query: '',
   status: '',
   manager: '',
+  archived: 'all',
   from: '',
   to: '',
   items: [],
   selectedId: '',
+  selectedFilteredOut: false,
   detail: null,
   nextStatus: '',
   note: '',
@@ -2358,14 +2405,20 @@ const orderStatusOptions = computed(() => (
 ));
 const canClaimSelectedOrder = computed(() => {
   const order = selectedOrder.value;
-  return Boolean(order && ['admin', 'manager'].includes(roleKind.value) && !isOrderAssigned(order));
+  return Boolean(order && !isOrderArchived(order) && ['admin', 'manager'].includes(roleKind.value) && !isOrderAssigned(order));
 });
 const canClearSelectedOrder = computed(() => Boolean(
-  selectedOrder.value && roleKind.value === 'admin' && isOrderAssigned(selectedOrder.value)
+  selectedOrder.value && !isOrderArchived(selectedOrder.value) && roleKind.value === 'admin' && isOrderAssigned(selectedOrder.value)
+));
+const canArchiveSelectedOrder = computed(() => Boolean(
+  selectedOrder.value && !isOrderArchived(selectedOrder.value) && roleKind.value === 'admin'
+));
+const canRestoreSelectedOrder = computed(() => Boolean(
+  selectedOrder.value && isOrderArchived(selectedOrder.value) && roleKind.value === 'admin'
 ));
 const canSubmitSelectedOrderStatus = computed(() => {
   const order = selectedOrder.value;
-  if (!order || !orderState.nextStatus) {
+  if (!order || isOrderArchived(order) || !orderState.nextStatus) {
     return false;
   }
   if (roleKind.value === 'admin') {
@@ -2381,7 +2434,7 @@ const canSubmitSelectedOrderStatus = computed(() => {
 });
 const canManageSelectedOrderRma = computed(() => {
   const order = selectedOrder.value;
-  if (!order) {
+  if (!order || isOrderArchived(order)) {
     return false;
   }
   if (roleKind.value === 'admin') {
@@ -2391,7 +2444,7 @@ const canManageSelectedOrderRma = computed(() => {
 });
 const canDecideSelectedOrderRma = computed(() => {
   const order = selectedOrder.value;
-  if (!order) {
+  if (!order || isOrderArchived(order)) {
     return false;
   }
   return roleKind.value === 'admin' || (roleKind.value === 'manager' && isOrderAssignedToCurrentUser(order));
@@ -2403,6 +2456,7 @@ const canRefundSelectedOrder = computed(() => {
     : false;
   return Boolean(
     roleKind.value === 'admin' &&
+    !isOrderArchived(selectedOrder.value) &&
     summary &&
     summary.status === 'COMPLETED' &&
     !hasPendingRefund &&
@@ -2549,6 +2603,10 @@ function normalizeRoleToken(value) {
 
 function orderManagerLabel(order) {
   return order?.managerEmail || order?.managerSubject || 'Не назначен';
+}
+
+function isOrderArchived(order) {
+  return Boolean(order?.archivedAt);
 }
 
 function orderStatusLabel(status) {
@@ -2908,6 +2966,7 @@ async function loadOrders() {
       params: compactParams({
         status: orderState.status,
         manager: orderState.manager,
+        archived: roleKind.value === 'admin' ? orderState.archived : '',
         from: toIsoDateTime(orderState.from),
         to: toIsoDateTime(orderState.to),
         q: orderState.query,
@@ -2919,10 +2978,10 @@ async function loadOrders() {
     if (orderState.selectedId) {
       const exists = orderState.items.some((order) => order.id === orderState.selectedId);
       if (exists) {
+        orderState.selectedFilteredOut = false;
         await loadOrderDetail(orderState.selectedId, { silent: true });
       } else {
-        orderState.selectedId = '';
-        orderState.detail = null;
+        orderState.selectedFilteredOut = Boolean(orderState.detail);
       }
     }
   } catch (error) {
@@ -2944,6 +3003,7 @@ async function loadOrderDetail(id, { silent = false } = {}) {
     const response = await bridgeRequest(`/admin/orders/${id}`);
     orderState.detail = response;
     orderState.selectedId = id;
+    orderState.selectedFilteredOut = false;
     orderState.nextStatus = nextAllowedOrderStatus(response?.order?.status || '');
     orderState.note = '';
     hydrateOrderRmaForms(response);
@@ -3396,6 +3456,7 @@ function closeActiveDetail() {
   }
   if (activeTab.value === 'orders') {
     orderState.selectedId = '';
+    orderState.selectedFilteredOut = false;
     orderState.detail = null;
     orderState.nextStatus = '';
     orderState.note = '';
@@ -3997,6 +4058,62 @@ async function clearOrderClaim() {
   } finally {
     isSubmitting.value = false;
   }
+}
+
+async function archiveOrder() {
+  const order = selectedOrder.value;
+  if (!orderState.selectedId || !canArchiveSelectedOrder.value || !order) {
+    return;
+  }
+  if (!window.confirm(`Удалить заказ «${order.receiptEmail || order.id}»? Заказ будет сохранён в архиве.`)) {
+    return;
+  }
+  const reason = window.prompt('Причина удаления', 'Удалён администратором в Directus') || 'Удалён администратором в Directus';
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}`, {
+      method: 'DELETE',
+      data: { reason: normalizeNullableText(reason) },
+    });
+    hydrateOrderRmaForms(orderState.detail);
+    hydrateOrderRefundForms(orderState.detail);
+    await loadOrders();
+    setSuccess('Заказ перемещён в архив.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function restoreOrder() {
+  if (!orderState.selectedId || !canRestoreSelectedOrder.value) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/restore`, { method: 'POST' });
+    hydrateOrderRmaForms(orderState.detail);
+    hydrateOrderRefundForms(orderState.detail);
+    await loadOrders();
+    setSuccess('Заказ восстановлен из архива.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function resetOrderFiltersForSelected() {
+  orderState.query = '';
+  orderState.status = '';
+  orderState.manager = '';
+  orderState.from = '';
+  orderState.to = '';
+  orderState.archived = 'all';
+  await loadOrders();
 }
 
 function selectImportJob(jobId) {

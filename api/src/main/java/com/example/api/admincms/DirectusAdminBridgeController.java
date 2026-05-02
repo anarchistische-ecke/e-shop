@@ -8,6 +8,7 @@ import com.example.api.admincms.DirectusAdminModels.ImportMapping;
 import com.example.api.admincms.DirectusAdminModels.LowStockAlertResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
+import com.example.api.admincms.DirectusAdminModels.OrderArchiveRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderSearchResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderStatusRequest;
@@ -80,11 +81,12 @@ public class DirectusAdminBridgeController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) String archived,
             HttpServletRequest request
     ) {
         var principal = authorize(request);
         roleGuard.requireOrders(principal);
-        return ResponseEntity.ok(adminService.searchOrders(status, manager, from, to, q, principal));
+        return ResponseEntity.ok(adminService.searchOrders(status, manager, from, to, q, archived, principal));
     }
 
     @GetMapping("/orders/{id}")
@@ -119,9 +121,31 @@ public class DirectusAdminBridgeController {
     @PostMapping("/orders/{id}/unclaim")
     public ResponseEntity<OrderDetail> clearOrderClaim(@PathVariable UUID id, HttpServletRequest request) {
         var principal = authorize(request);
-        roleGuard.requireOrders(principal);
+        roleGuard.requireAdmin(principal, "order assignment clearing");
         OrderDetail response = adminService.clearOrderClaim(id, principal);
         audit(principal, "admin.order.unclaim", Map.of("orderId", id));
+        return ResponseEntity.ok(response);
+    }
+
+    @DeleteMapping("/orders/{id}")
+    public ResponseEntity<OrderDetail> archiveOrder(
+            @PathVariable UUID id,
+            @RequestBody(required = false) OrderArchiveRequest requestBody,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireAdmin(principal, "order archive");
+        OrderDetail response = adminService.archiveOrder(id, requestBody != null ? requestBody.reason() : null, principal);
+        audit(principal, "admin.order.archive", Map.of("orderId", id));
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/orders/{id}/restore")
+    public ResponseEntity<OrderDetail> restoreOrder(@PathVariable UUID id, HttpServletRequest request) {
+        var principal = authorize(request);
+        roleGuard.requireAdmin(principal, "order restore");
+        OrderDetail response = adminService.restoreOrder(id, principal);
+        audit(principal, "admin.order.restore", Map.of("orderId", id));
         return ResponseEntity.ok(response);
     }
 

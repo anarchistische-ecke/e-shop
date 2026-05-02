@@ -287,6 +287,27 @@ public class OrderService {
         checkoutAttemptRepository.save(attempt);
     }
 
+    public Order createOrderFromCartAndCompleteCheckoutAttempt(String keyValue,
+                                                               String requestHash,
+                                                               UUID cartId,
+                                                               UUID customerIdOverride,
+                                                               String receiptEmail,
+                                                               String managerSubject,
+                                                               ContactSpec contactSpec) {
+        validateCheckoutAttemptInput(keyValue, requestHash);
+        OrderCheckoutAttempt attempt = checkoutAttemptRepository.findByKeyValue(keyValue)
+                .orElseThrow(() -> new IllegalStateException("Checkout idempotency key is not reserved"));
+        assertCheckoutAttemptHash(attempt, requestHash);
+        if (attempt.getOrderId() != null) {
+            return findById(attempt.getOrderId());
+        }
+
+        Order order = createOrderFromCart(cartId, customerIdOverride, receiptEmail, managerSubject, contactSpec);
+        attempt.setOrderId(order.getId());
+        checkoutAttemptRepository.save(attempt);
+        return order;
+    }
+
     public void releaseCheckoutAttemptIfUnbound(String keyValue, String requestHash) {
         if (!StringUtils.hasText(keyValue) || !StringUtils.hasText(requestHash)) {
             return;
