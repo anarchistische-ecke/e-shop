@@ -28,6 +28,9 @@ public final class DirectusAdminModels {
             String managerEmail,
             String managerDirectusUserId,
             OffsetDateTime managerClaimedAt,
+            OffsetDateTime archivedAt,
+            String archivedBy,
+            String archiveReason,
             OffsetDateTime orderDate,
             int itemCount,
             String publicToken
@@ -42,6 +45,9 @@ public final class DirectusAdminModels {
                     order.getManagerEmail(),
                     order.getManagerDirectusUserId(),
                     order.getManagerClaimedAt(),
+                    order.getArchivedAt(),
+                    order.getArchivedBy(),
+                    order.getArchiveReason(),
                     order.getOrderDate(),
                     order.getItems() != null ? order.getItems().size() : 0,
                     order.getPublicToken()
@@ -75,6 +81,9 @@ public final class DirectusAdminModels {
     }
 
     public record OrderStatusRequest(String status, String note) {
+    }
+
+    public record OrderArchiveRequest(String reason) {
     }
 
     public record OrderRefundRequest(List<OrderRefundLineRequest> items) {

@@ -188,7 +188,7 @@ class DirectusAdminServiceOrderWorkflowTest {
         when(roleGuard.isManager(principal)).thenReturn(true);
         when(orderRepository.findAllByOrderByOrderDateDesc()).thenReturn(List.of(own, unassigned, other));
 
-        DirectusAdminModels.OrderSearchResponse response = service.searchOrders(null, null, null, null, null, principal);
+        DirectusAdminModels.OrderSearchResponse response = service.searchOrders(null, null, null, null, null, null, principal);
 
         assertThat(response.items())
                 .extracting(DirectusAdminModels.OrderSummary::id)
@@ -291,6 +291,144 @@ class DirectusAdminServiceOrderWorkflowTest {
         assertThat(detail.order().getManagerClaimedAt()).isNull();
     }
 
+    @Test
+    void clearOrderClaim_rejectsManagerRole() {
+        UUID orderId = UUID.randomUUID();
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = managerPrincipal("manager-user-1", "manager@example.test");
+
+        when(roleGuard.isAdmin(principal)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.clearOrderClaim(orderId, principal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Only administrators");
+
+        verify(orderService, never()).findById(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void archiveOrder_isAdminOnlyAndPreservesOrderDetail() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, "PAID", null, null, null);
+        DirectusBridgeSecurity.DirectusBridgePrincipal admin = adminPrincipal();
+
+        when(roleGuard.isAdmin(admin)).thenReturn(true);
+        when(orderService.findById(orderId)).thenReturn(order);
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of());
+
+        DirectusAdminModels.OrderDetail detail = service.archiveOrder(orderId, "duplicate test", admin);
+
+        assertThat(detail.order().getArchivedAt()).isNotNull();
+        assertThat(detail.order().getArchivedBy()).isEqualTo("admin@example.test");
+        assertThat(detail.order().getArchiveReason()).isEqualTo("duplicate test");
+        assertThat(detail.order().getStatus()).isEqualTo("PAID");
+        verify(orderRepository).save(order);
+
+        ArgumentCaptor<OrderStatusHistory> eventCaptor = ArgumentCaptor.forClass(OrderStatusHistory.class);
+        verify(orderStatusHistoryRepository).save(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getNote()).isEqualTo("archived");
+        assertThat(eventCaptor.getValue().getNextStatus()).isEqualTo("PAID");
+    }
+
+    @Test
+    void archiveOrder_rejectsManagerRole() {
+        UUID orderId = UUID.randomUUID();
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = managerPrincipal("manager-user-1", "manager@example.test");
+
+        when(roleGuard.isAdmin(principal)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.archiveOrder(orderId, "test", principal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Only administrators");
+
+        verify(orderService, never()).findById(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void restoreOrder_isAdminOnlyAndClearsArchiveMetadata() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, "PAID", null, null, null);
+        order.setArchivedAt(OffsetDateTime.now());
+        order.setArchivedBy("admin@example.test");
+        order.setArchiveReason("duplicate test");
+        DirectusBridgeSecurity.DirectusBridgePrincipal admin = adminPrincipal();
+
+        when(roleGuard.isAdmin(admin)).thenReturn(true);
+        when(orderService.findById(orderId)).thenReturn(order);
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of());
+
+        DirectusAdminModels.OrderDetail detail = service.restoreOrder(orderId, admin);
+
+        assertThat(detail.order().getArchivedAt()).isNull();
+        assertThat(detail.order().getArchivedBy()).isNull();
+        assertThat(detail.order().getArchiveReason()).isNull();
+
+        ArgumentCaptor<OrderStatusHistory> eventCaptor = ArgumentCaptor.forClass(OrderStatusHistory.class);
+        verify(orderStatusHistoryRepository).save(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().getNote()).isEqualTo("archive-restored");
+    }
+
+    @Test
+    void restoreOrder_rejectsPickerRole() {
+        UUID orderId = UUID.randomUUID();
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = pickerPrincipal();
+
+        when(roleGuard.isAdmin(principal)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.restoreOrder(orderId, principal))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("Only administrators");
+
+        verify(orderService, never()).findById(any());
+        verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void searchOrders_adminCanSeeArchivedButManagerCannot() {
+        Order active = order(UUID.randomUUID(), "PENDING", null, null, null);
+        Order archived = order(UUID.randomUUID(), "PAID", null, null, null);
+        archived.setArchivedAt(OffsetDateTime.now());
+        DirectusBridgeSecurity.DirectusBridgePrincipal admin = adminPrincipal();
+        DirectusBridgeSecurity.DirectusBridgePrincipal manager = managerPrincipal("manager-user-1", "manager@example.test");
+
+        when(orderRepository.findAllByOrderByOrderDateDesc()).thenReturn(List.of(active, archived));
+        when(roleGuard.isAdmin(admin)).thenReturn(true);
+        when(roleGuard.isAdmin(manager)).thenReturn(false);
+        when(roleGuard.isManager(manager)).thenReturn(true);
+
+        DirectusAdminModels.OrderSearchResponse adminResponse = service.searchOrders(null, null, null, null, null, "all", admin);
+        DirectusAdminModels.OrderSearchResponse managerResponse = service.searchOrders(null, null, null, null, null, "all", manager);
+
+        assertThat(adminResponse.items())
+                .extracting(DirectusAdminModels.OrderSummary::id)
+                .containsExactly(active.getId(), archived.getId());
+        assertThat(managerResponse.items())
+                .extracting(DirectusAdminModels.OrderSummary::id)
+                .containsExactly(active.getId());
+    }
+
+    @Test
+    void archivedOrderRejectsOperationalMutations() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, "PAID", null, null, null);
+        order.setArchivedAt(OffsetDateTime.now());
+        DirectusBridgeSecurity.DirectusBridgePrincipal admin = adminPrincipal();
+
+        when(orderService.findById(orderId)).thenReturn(order);
+
+        assertThatThrownBy(() -> service.updateOrderStatus(orderId, "PROCESSING", null, admin))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Archived orders are read-only");
+        assertThatThrownBy(() -> service.claimOrder(orderId, admin))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Archived orders are read-only");
+
+        verify(orderRepository, never()).save(any());
+    }
+
     private Order order(UUID id, String status, String managerSubject, String managerDirectusUserId, String managerEmail) {
         Order order = new Order(UUID.randomUUID(), status, Money.of(10_000, "RUB"));
         order.setId(id);
@@ -313,6 +451,16 @@ class DirectusAdminServiceOrderWorkflowTest {
                 "picker@example.test",
                 "picker-role",
                 "picker-role"
+        );
+    }
+
+    private DirectusBridgeSecurity.DirectusBridgePrincipal adminPrincipal() {
+        return new DirectusBridgeSecurity.DirectusBridgePrincipal(
+                "admin-user-1",
+                "admin@example.test",
+                "admin@example.test",
+                "admin",
+                "admin"
         );
     }
 }

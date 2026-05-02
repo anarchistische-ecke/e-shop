@@ -176,6 +176,15 @@ public class Order extends BaseEntity {
     @Column(name = "manager_claimed_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private OffsetDateTime managerClaimedAt;
 
+    @Column(name = "archived_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private OffsetDateTime archivedAt;
+
+    @Column(name = "archived_by")
+    private String archivedBy;
+
+    @Column(name = "archive_reason")
+    private String archiveReason;
+
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
     private Set<OrderItem> items = new HashSet<>();
@@ -495,6 +504,30 @@ public class Order extends BaseEntity {
 
     public void setManagerClaimedAt(OffsetDateTime managerClaimedAt) {
         this.managerClaimedAt = managerClaimedAt;
+    }
+
+    public OffsetDateTime getArchivedAt() {
+        return archivedAt;
+    }
+
+    public void setArchivedAt(OffsetDateTime archivedAt) {
+        this.archivedAt = archivedAt;
+    }
+
+    public String getArchivedBy() {
+        return archivedBy;
+    }
+
+    public void setArchivedBy(String archivedBy) {
+        this.archivedBy = archivedBy;
+    }
+
+    public String getArchiveReason() {
+        return archiveReason;
+    }
+
+    public void setArchiveReason(String archiveReason) {
+        this.archiveReason = archiveReason;
     }
 
     public Object getPaymentSummary() {

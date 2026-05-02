@@ -93,9 +93,24 @@ function resolveAccountabilityRoleKind(accountability, roleSets, roleName = '') 
   return 'unknown';
 }
 
-function resolveAdminRoleSets(path, roleSets) {
+function isAdminOnlyOrderAction(path, method) {
+  const normalizedPath = String(path || '');
+  const normalizedMethod = String(method || '').toUpperCase();
+  if (!normalizedPath.startsWith('/admin/orders/')) {
+    return false;
+  }
+  if (normalizedMethod === 'DELETE') {
+    return true;
+  }
+  return /\/admin\/orders\/[^/]+\/(?:restore|unclaim|refunds)(?:\/|$)/.test(normalizedPath);
+}
+
+function resolveAdminRoleSets(path, roleSets, method = 'GET') {
   if (path === '/admin/promotions/active' || path.startsWith('/admin/promotions/active/')) {
     return [roleSets.admin, roleSets.manager, roleSets.picker, roleSets.content];
+  }
+  if (isAdminOnlyOrderAction(path, method)) {
+    return [roleSets.admin];
   }
   if (path.startsWith('/admin/orders')) {
     return [roleSets.admin, roleSets.manager, roleSets.picker];
@@ -299,7 +314,7 @@ export default {
     const path = String(req.path || '');
     const isAdminRoute = path === '/admin' || path.startsWith('/admin/');
     const adminTargetPath = isAdminRoute ? path.replace(/^\/admin/, '') || '/' : path;
-    const adminAllowedRoles = isAdminRoute ? resolveAdminRoleSets(path, roleSets) : [];
+    const adminAllowedRoles = isAdminRoute ? resolveAdminRoleSets(path, roleSets, req.method) : [];
 
     if (isAdminRoute && !hasAnyAllowedRole(req.accountability, adminAllowedRoles)) {
       res.status(403).json({ error: 'У этой роли Directus нет доступа к административному разделу витрины.' });

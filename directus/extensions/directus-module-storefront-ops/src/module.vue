@@ -63,7 +63,11 @@
         <span>Проверьте роль пользователя в Directus и Keycloak.</span>
       </div>
 
-      <section v-else class="workspace-shell" :class="{ 'detail-open': activeDetailOpen }">
+      <section
+        v-else
+        class="workspace-shell"
+        :class="{ 'detail-open': activeDetailOpen, 'mobile-master-detail': activeTabHasMasterDetail }"
+      >
         <aside class="workspace-list surface-panel">
         <template v-if="activeTab === 'products'">
           <div class="pane-header">
@@ -284,6 +288,14 @@
               <span>Менеджер</span>
               <input v-model.trim="orderState.manager" type="text" @keyup.enter="loadOrders" />
             </label>
+            <label v-if="roleKind === 'admin'" class="ops-field">
+              <span>Архив</span>
+              <select v-model="orderState.archived" @change="loadOrders">
+                <option value="all">Все заказы</option>
+                <option value="active">Только активные</option>
+                <option value="archived">Только архив</option>
+              </select>
+            </label>
             <label class="ops-field">
               <span>С</span>
               <input v-model="orderState.from" type="datetime-local" @keyup.enter="loadOrders" />
@@ -339,13 +351,16 @@
             >
               <div class="list-card-head">
                 <strong>{{ order.receiptEmail || order.id }}</strong>
-                <span class="pill pill-neutral">{{ orderStatusLabel(order.status) }}</span>
+                <span class="pill" :class="isOrderArchived(order) ? 'pill-muted' : 'pill-neutral'">
+                  {{ isOrderArchived(order) ? 'В архиве' : orderStatusLabel(order.status) }}
+                </span>
               </div>
               <p class="list-card-slug">{{ order.id }}</p>
               <div class="list-card-meta">
                 <span>{{ formatMoney(order.totalAmount) }}</span>
                 <span>{{ orderManagerLabel(order) }}</span>
                 <span>{{ formatDateTime(order.orderDate) }}</span>
+                <span v-if="isOrderArchived(order)">Архив {{ formatDateTime(order.archivedAt) }}</span>
               </div>
             </button>
           </div>
@@ -554,6 +569,12 @@
         </aside>
 
         <main class="workspace-detail">
+          <div v-if="activeTabHasMasterDetail && activeDetailOpen" class="mobile-detail-toolbar">
+            <button class="button button-secondary" type="button" @click="closeActiveDetail">
+              ← К списку
+            </button>
+            <span>{{ activeTabLabel }}</span>
+          </div>
         <template v-if="activeTab === 'products'">
           <div v-if="!productState.isCreating && !productState.detail" class="empty-detail">
             <strong>Выберите товар</strong>
@@ -1295,13 +1316,43 @@
                 >
                   Снять менеджера
                 </button>
+                <button
+                  v-if="canArchiveSelectedOrder"
+                  class="button button-danger"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="archiveOrder"
+                >
+                  Удалить заказ
+                </button>
+                <button
+                  v-if="canRestoreSelectedOrder"
+                  class="button button-secondary"
+                  type="button"
+                  :disabled="isSubmitting"
+                  @click="restoreOrder"
+                >
+                  Восстановить
+                </button>
               </div>
             </header>
+
+            <p v-if="orderState.selectedFilteredOut" class="inline-note">
+              Выбранный заказ не попадает в текущий список из-за фильтров.
+              <button class="button button-secondary button-small" type="button" @click="resetOrderFiltersForSelected">
+                Сбросить фильтры
+              </button>
+            </p>
+
+            <p v-if="isOrderArchived(orderState.detail.order)" class="inline-note">
+              Заказ в архиве: {{ orderState.detail.order.archiveReason || 'причина не указана' }}.
+              Операции по заказу доступны после восстановления.
+            </p>
 
             <div class="metrics-row">
               <article class="metric-card">
                 <span>Статус</span>
-                <strong>{{ orderStatusLabel(orderState.detail.order.status) }}</strong>
+                <strong>{{ isOrderArchived(orderState.detail.order) ? 'В архиве' : orderStatusLabel(orderState.detail.order.status) }}</strong>
               </article>
               <article class="metric-card">
                 <span>Сумма</span>
@@ -1310,6 +1361,10 @@
               <article class="metric-card">
                 <span>Менеджер</span>
                 <strong>{{ orderManagerLabel(orderState.detail.order) }}</strong>
+              </article>
+              <article v-if="isOrderArchived(orderState.detail.order)" class="metric-card">
+                <span>Архивировал</span>
+                <strong>{{ orderState.detail.order.archivedBy || 'Не указано' }}</strong>
               </article>
             </div>
 
@@ -2209,10 +2264,12 @@ const orderState = reactive({
   query: '',
   status: '',
   manager: '',
+  archived: 'all',
   from: '',
   to: '',
   items: [],
   selectedId: '',
+  selectedFilteredOut: false,
   detail: null,
   nextStatus: '',
   note: '',
@@ -2260,6 +2317,8 @@ const promotionState = reactive({
   selectedId: '',
   selectedPromoCodeId: '',
   mode: 'promotion',
+  isCreating: false,
+  promoCodeCreating: false,
 });
 
 const activePromotionState = reactive({
@@ -2300,6 +2359,7 @@ const taxState = reactive({
   loaded: false,
   items: [],
   selectedId: '',
+  isCreating: false,
 });
 
 const taxForm = reactive({
@@ -2332,6 +2392,10 @@ const isManagerRole = computed(() => roleKind.value === 'manager');
 const canViewActivePromotions = computed(() => ['admin', 'manager', 'picker', 'content'].includes(roleKind.value));
 const visibleTabs = computed(() => tabs.filter((tab) => canAccessTab(tab.id)));
 const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
+const activeTabLabel = computed(() => visibleTabs.value.find((tab) => tab.id === activeTab.value)?.label || 'Раздел');
+const activeTabHasMasterDetail = computed(() => (
+  ['products', 'categories', 'brands', 'inventory', 'orders', 'promotions', 'tax'].includes(activeTab.value)
+));
 const selectedOrder = computed(() => orderState.detail?.order || null);
 const selectedOrderRmaRequests = computed(() => orderState.detail?.rmaRequests || []);
 const orderStatusOptions = computed(() => (
@@ -2341,14 +2405,20 @@ const orderStatusOptions = computed(() => (
 ));
 const canClaimSelectedOrder = computed(() => {
   const order = selectedOrder.value;
-  return Boolean(order && ['admin', 'manager'].includes(roleKind.value) && !isOrderAssigned(order));
+  return Boolean(order && !isOrderArchived(order) && ['admin', 'manager'].includes(roleKind.value) && !isOrderAssigned(order));
 });
 const canClearSelectedOrder = computed(() => Boolean(
-  selectedOrder.value && roleKind.value === 'admin' && isOrderAssigned(selectedOrder.value)
+  selectedOrder.value && !isOrderArchived(selectedOrder.value) && roleKind.value === 'admin' && isOrderAssigned(selectedOrder.value)
+));
+const canArchiveSelectedOrder = computed(() => Boolean(
+  selectedOrder.value && !isOrderArchived(selectedOrder.value) && roleKind.value === 'admin'
+));
+const canRestoreSelectedOrder = computed(() => Boolean(
+  selectedOrder.value && isOrderArchived(selectedOrder.value) && roleKind.value === 'admin'
 ));
 const canSubmitSelectedOrderStatus = computed(() => {
   const order = selectedOrder.value;
-  if (!order || !orderState.nextStatus) {
+  if (!order || isOrderArchived(order) || !orderState.nextStatus) {
     return false;
   }
   if (roleKind.value === 'admin') {
@@ -2364,7 +2434,7 @@ const canSubmitSelectedOrderStatus = computed(() => {
 });
 const canManageSelectedOrderRma = computed(() => {
   const order = selectedOrder.value;
-  if (!order) {
+  if (!order || isOrderArchived(order)) {
     return false;
   }
   if (roleKind.value === 'admin') {
@@ -2374,7 +2444,7 @@ const canManageSelectedOrderRma = computed(() => {
 });
 const canDecideSelectedOrderRma = computed(() => {
   const order = selectedOrder.value;
-  if (!order) {
+  if (!order || isOrderArchived(order)) {
     return false;
   }
   return roleKind.value === 'admin' || (roleKind.value === 'manager' && isOrderAssignedToCurrentUser(order));
@@ -2386,6 +2456,7 @@ const canRefundSelectedOrder = computed(() => {
     : false;
   return Boolean(
     roleKind.value === 'admin' &&
+    !isOrderArchived(selectedOrder.value) &&
     summary &&
     summary.status === 'COMPLETED' &&
     !hasPendingRefund &&
@@ -2494,6 +2565,17 @@ const activeDetailOpen = computed(() => {
   if (activeTab.value === 'orders') {
     return Boolean(orderState.detail);
   }
+  if (activeTab.value === 'promotions') {
+    return Boolean(
+      promotionState.selectedId ||
+        promotionState.selectedPromoCodeId ||
+        promotionState.isCreating ||
+        promotionState.promoCodeCreating
+    );
+  }
+  if (activeTab.value === 'tax') {
+    return taxState.isCreating || Boolean(taxState.selectedId);
+  }
   return true;
 });
 
@@ -2521,6 +2603,10 @@ function normalizeRoleToken(value) {
 
 function orderManagerLabel(order) {
   return order?.managerEmail || order?.managerSubject || 'Не назначен';
+}
+
+function isOrderArchived(order) {
+  return Boolean(order?.archivedAt);
 }
 
 function orderStatusLabel(status) {
@@ -2880,6 +2966,7 @@ async function loadOrders() {
       params: compactParams({
         status: orderState.status,
         manager: orderState.manager,
+        archived: roleKind.value === 'admin' ? orderState.archived : '',
         from: toIsoDateTime(orderState.from),
         to: toIsoDateTime(orderState.to),
         q: orderState.query,
@@ -2891,10 +2978,10 @@ async function loadOrders() {
     if (orderState.selectedId) {
       const exists = orderState.items.some((order) => order.id === orderState.selectedId);
       if (exists) {
+        orderState.selectedFilteredOut = false;
         await loadOrderDetail(orderState.selectedId, { silent: true });
       } else {
-        orderState.selectedId = '';
-        orderState.detail = null;
+        orderState.selectedFilteredOut = Boolean(orderState.detail);
       }
     }
   } catch (error) {
@@ -2916,6 +3003,7 @@ async function loadOrderDetail(id, { silent = false } = {}) {
     const response = await bridgeRequest(`/admin/orders/${id}`);
     orderState.detail = response;
     orderState.selectedId = id;
+    orderState.selectedFilteredOut = false;
     orderState.nextStatus = nextAllowedOrderStatus(response?.order?.status || '');
     orderState.note = '';
     hydrateOrderRmaForms(response);
@@ -3315,10 +3403,23 @@ function closeActiveDetail() {
   if (!confirmDiscardChanges()) {
     return;
   }
+  clearMessages();
   if (activeTab.value === 'products') {
     productState.selectedId = '';
     productState.detail = null;
     productState.isCreating = false;
+    productState.panel = 'main';
+    Object.assign(productForm, {
+      id: '',
+      name: '',
+      slug: '',
+      description: '',
+      brandId: '',
+      categoryIds: [],
+      isActive: true,
+      specifications: [],
+    });
+    productSnapshot.value = serializeProductForm();
     resetVariantEditor();
     resetProductMediaEditor();
     return;
@@ -3327,6 +3428,16 @@ function closeActiveDetail() {
     categoryState.selectedId = '';
     categoryState.detail = null;
     categoryState.isCreating = false;
+    Object.assign(categoryForm, {
+      id: '',
+      name: '',
+      slug: '',
+      description: '',
+      parentId: '',
+      position: 0,
+      isActive: true,
+    });
+    categorySnapshot.value = serializeCategoryForm();
     categoryImageFile.value = null;
     return;
   }
@@ -3334,6 +3445,37 @@ function closeActiveDetail() {
     brandState.selectedId = '';
     brandState.detail = null;
     brandState.isCreating = false;
+    Object.assign(brandForm, {
+      id: '',
+      name: '',
+      slug: '',
+      description: '',
+    });
+    brandSnapshot.value = serializeBrandForm();
+    return;
+  }
+  if (activeTab.value === 'orders') {
+    orderState.selectedId = '';
+    orderState.selectedFilteredOut = false;
+    orderState.detail = null;
+    orderState.nextStatus = '';
+    orderState.note = '';
+    orderState.rmaReason = '';
+    orderState.rmaDesiredResolution = '';
+    orderState.rmaDecisionForms = {};
+    orderState.refundForms = {};
+    return;
+  }
+  if (activeTab.value === 'promotions') {
+    promotionState.selectedId = '';
+    promotionState.selectedPromoCodeId = '';
+    promotionState.isCreating = false;
+    promotionState.promoCodeCreating = false;
+    return;
+  }
+  if (activeTab.value === 'tax') {
+    taxState.selectedId = '';
+    taxState.isCreating = false;
     return;
   }
   inventoryState.selectedVariantId = '';
@@ -3918,6 +4060,62 @@ async function clearOrderClaim() {
   }
 }
 
+async function archiveOrder() {
+  const order = selectedOrder.value;
+  if (!orderState.selectedId || !canArchiveSelectedOrder.value || !order) {
+    return;
+  }
+  if (!window.confirm(`Удалить заказ «${order.receiptEmail || order.id}»? Заказ будет сохранён в архиве.`)) {
+    return;
+  }
+  const reason = window.prompt('Причина удаления', 'Удалён администратором в Directus') || 'Удалён администратором в Directus';
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}`, {
+      method: 'DELETE',
+      data: { reason: normalizeNullableText(reason) },
+    });
+    hydrateOrderRmaForms(orderState.detail);
+    hydrateOrderRefundForms(orderState.detail);
+    await loadOrders();
+    setSuccess('Заказ перемещён в архив.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function restoreOrder() {
+  if (!orderState.selectedId || !canRestoreSelectedOrder.value) {
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    orderState.detail = await bridgeRequest(`/admin/orders/${orderState.selectedId}/restore`, { method: 'POST' });
+    hydrateOrderRmaForms(orderState.detail);
+    hydrateOrderRefundForms(orderState.detail);
+    await loadOrders();
+    setSuccess('Заказ восстановлен из архива.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+async function resetOrderFiltersForSelected() {
+  orderState.query = '';
+  orderState.status = '';
+  orderState.manager = '';
+  orderState.from = '';
+  orderState.to = '';
+  orderState.archived = 'all';
+  await loadOrders();
+}
+
 function selectImportJob(jobId) {
   importState.selectedJobId = jobId;
   const job = importState.jobs.find((entry) => entry.id === jobId);
@@ -3983,6 +4181,9 @@ async function commitImport() {
 function startCreatePromotion() {
   promotionState.mode = 'promotion';
   promotionState.selectedId = '';
+  promotionState.selectedPromoCodeId = '';
+  promotionState.isCreating = true;
+  promotionState.promoCodeCreating = false;
   Object.assign(promotionForm, {
     id: '',
     name: '',
@@ -4004,6 +4205,8 @@ function selectPromotion(promotion) {
   promotionState.mode = 'promotion';
   promotionState.selectedId = promotion.id;
   promotionState.selectedPromoCodeId = '';
+  promotionState.isCreating = false;
+  promotionState.promoCodeCreating = false;
   Object.assign(promotionForm, {
     id: promotion.id || '',
     name: promotion.name || '',
@@ -4024,6 +4227,9 @@ function selectPromotion(promotion) {
 function startCreatePromoCode() {
   promotionState.mode = 'promoCode';
   promotionState.selectedPromoCodeId = '';
+  promotionState.selectedId = '';
+  promotionState.isCreating = false;
+  promotionState.promoCodeCreating = true;
   Object.assign(promoCodeForm, {
     id: '',
     code: '',
@@ -4042,6 +4248,8 @@ function selectPromoCode(promoCode) {
   promotionState.mode = 'promoCode';
   promotionState.selectedPromoCodeId = promoCode.id;
   promotionState.selectedId = '';
+  promotionState.isCreating = false;
+  promotionState.promoCodeCreating = false;
   Object.assign(promoCodeForm, {
     id: promoCode.id || '',
     code: promoCode.code || '',
@@ -4179,6 +4387,7 @@ async function deletePromoCode() {
 
 function startCreateTax() {
   taxState.selectedId = '';
+  taxState.isCreating = true;
   Object.assign(taxForm, {
     id: '',
     name: '',
@@ -4192,6 +4401,7 @@ function startCreateTax() {
 
 function selectTax(tax) {
   taxState.selectedId = tax.id;
+  taxState.isCreating = false;
   Object.assign(taxForm, {
     id: tax.id || '',
     name: tax.name || '',
@@ -4866,6 +5076,10 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+.mobile-detail-toolbar {
+  display: none;
+}
+
 .detail-card {
   inline-size: 100%;
   max-inline-size: none;
@@ -5414,6 +5628,107 @@ onBeforeUnmount(() => {
 @media (max-width: 719px) {
   .workspace {
     padding-inline: 8px;
+  }
+
+  .pane-tabs,
+  .pane-tabs-inline,
+  .pane-tabs-navigation {
+    display: flex;
+    gap: 8px;
+    grid-template-columns: none;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-block: 8px;
+    scroll-padding-inline: 8px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .pane-tabs-inline {
+    background: var(--theme--background);
+    border-bottom: 1px solid var(--theme--border-color-subdued);
+    position: sticky;
+    top: 0;
+    z-index: 4;
+  }
+
+  .pane-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    min-inline-size: 132px;
+    scroll-snap-align: start;
+  }
+
+  .workspace-shell {
+    display: block;
+  }
+
+  .workspace-list,
+  .workspace-detail,
+  .detail-card,
+  .empty-detail {
+    block-size: auto;
+    max-block-size: none;
+    min-block-size: 0;
+    overflow: visible;
+  }
+
+  .workspace-list {
+    padding: 12px;
+  }
+
+  .workspace-shell.mobile-master-detail.detail-open .workspace-list {
+    display: none;
+  }
+
+  .workspace-shell.mobile-master-detail:not(.detail-open) .workspace-detail {
+    display: none;
+  }
+
+  .mobile-detail-toolbar {
+    align-items: center;
+    background: var(--theme--background);
+    border: 1px solid var(--theme--border-color);
+    border-radius: 14px;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .mobile-detail-toolbar .button {
+    min-height: 44px;
+  }
+
+  .mobile-detail-toolbar span {
+    color: var(--theme--foreground-subdued);
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pane-header,
+  .detail-header,
+  .section-head,
+  .selector-card-head,
+  .merch-card-head,
+  .spec-section-head,
+  .spec-items-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pane-header .button,
+  .detail-header-actions,
+  .detail-header-actions .button,
+  .sticky-actions .button {
+    inline-size: 100%;
   }
 }
 </style>

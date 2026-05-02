@@ -261,12 +261,15 @@ public class DirectusAdminService {
                                             OffsetDateTime from,
                                             OffsetDateTime to,
                                             String query,
+                                            String archived,
                                             DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         String normalizedStatus = normalize(status);
         String normalizedManager = normalize(manager);
         String normalizedQuery = normalize(query);
+        String archiveMode = resolveArchiveMode(archived, principal);
         List<DirectusAdminModels.OrderSummary> items = orderRepository.findAllByOrderByOrderDateDesc().stream()
                 .filter(order -> canReadOrder(order, principal))
+                .filter(order -> archiveModeMatches(order, archiveMode))
                 .filter(order -> !StringUtils.hasText(normalizedStatus) || statusMatches(order.getStatus(), normalizedStatus))
                 .filter(order -> !StringUtils.hasText(normalizedManager) || matchesManager(order, normalizedManager))
                 .filter(order -> from == null || (order.getOrderDate() != null && !order.getOrderDate().isBefore(from)))
@@ -292,6 +295,7 @@ public class DirectusAdminService {
                                          String note,
                                          DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order before = orderService.findById(orderId);
+        requireActiveOrder(before);
         String nextStatus = normalizeStatusAlias(requireText(status, "status"));
         if (!ORDER_STATUSES.contains(nextStatus)) {
             throw new IllegalArgumentException("Unsupported order status: " + status);
@@ -314,6 +318,7 @@ public class DirectusAdminService {
 
     public OrderDetail claimOrder(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order order = orderService.findById(orderId);
+        requireActiveOrder(order);
         requireCanClaimOrder(order, principal);
         if (isAssignedToPrincipal(order, principal)) {
             return toOrderDetail(order);
@@ -351,6 +356,7 @@ public class DirectusAdminService {
             throw new AccessDeniedException("Only administrators can clear order assignment");
         }
         Order order = orderService.findById(orderId);
+        requireActiveOrder(order);
         if (!isAssigned(order)) {
             return toOrderDetail(order);
         }
@@ -371,6 +377,56 @@ public class DirectusAdminService {
         return toOrderDetail(order);
     }
 
+    public OrderDetail archiveOrder(UUID orderId,
+                                    String reason,
+                                    DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (!roleGuard.isAdmin(principal)) {
+            throw new AccessDeniedException("Only administrators can archive orders");
+        }
+        Order order = orderService.findById(orderId);
+        if (isArchived(order)) {
+            return toOrderDetail(order);
+        }
+        order.setArchivedAt(OffsetDateTime.now());
+        order.setArchivedBy(principal.actor());
+        order.setArchiveReason(StringUtils.hasText(reason) ? reason.trim() : "Archived from Directus");
+        order = orderRepository.save(order);
+
+        OrderStatusHistory event = new OrderStatusHistory();
+        event.setOrderId(orderId);
+        event.setPreviousStatus(order.getStatus());
+        event.setNextStatus(order.getStatus());
+        event.setActor(principal.actor());
+        event.setActorRole(principal.primaryRole());
+        event.setNote("archived");
+        orderStatusHistoryRepository.save(event);
+        return toOrderDetail(order);
+    }
+
+    public OrderDetail restoreOrder(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        if (!roleGuard.isAdmin(principal)) {
+            throw new AccessDeniedException("Only administrators can restore orders");
+        }
+        Order order = orderService.findById(orderId);
+        if (!isArchived(order)) {
+            return toOrderDetail(order);
+        }
+        order.setArchivedAt(null);
+        order.setArchivedBy(null);
+        order.setArchiveReason(null);
+        order = orderRepository.save(order);
+
+        OrderStatusHistory event = new OrderStatusHistory();
+        event.setOrderId(orderId);
+        event.setPreviousStatus(order.getStatus());
+        event.setNextStatus(order.getStatus());
+        event.setActor(principal.actor());
+        event.setActorRole(principal.primaryRole());
+        event.setNote("archive-restored");
+        orderStatusHistoryRepository.save(event);
+        return toOrderDetail(order);
+    }
+
     public OrderDetail refundOrder(UUID orderId,
                                    OrderRefundRequest request,
                                    DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
@@ -381,6 +437,7 @@ public class DirectusAdminService {
             throw new IllegalStateException("Payment service is not available");
         }
         Order order = orderService.findById(orderId);
+        requireActiveOrder(order);
         requireCanReadOrder(order, principal);
         List<PaymentService.RefundLineRequest> lines = request != null && request.items() != null
                 ? request.items().stream()
@@ -468,6 +525,7 @@ public class DirectusAdminService {
         }
         Order order = orderService.findById(orderId);
         requireCanReadOrder(order, principal);
+        requireActiveOrder(order);
 
         RmaRequest rma = new RmaRequest();
         rma.setRmaNumber(nextRmaNumber(repository));
@@ -486,6 +544,7 @@ public class DirectusAdminService {
         RmaRequest rma = repository.findById(rmaId)
                 .orElseThrow(() -> new IllegalArgumentException("RMA request not found: " + rmaId));
         Order order = orderService.findById(rma.getOrderId());
+        requireActiveOrder(order);
         requireCanDecideRma(order, principal);
         RmaStatus nextStatus = parseRmaStatus(request != null ? request.status() : null, true);
         if (nextStatus == RmaStatus.REQUESTED) {
@@ -575,6 +634,9 @@ public class DirectusAdminService {
         if (roleGuard.isAdmin(principal)) {
             return true;
         }
+        if (isArchived(order)) {
+            return false;
+        }
         if (roleGuard.isManager(principal)) {
             return !isAssigned(order) || isAssignedToPrincipal(order, principal);
         }
@@ -582,6 +644,42 @@ public class DirectusAdminService {
             return isPickerQueueOrder(order);
         }
         return false;
+    }
+
+    private void requireActiveOrder(Order order) {
+        if (isArchived(order)) {
+            throw new IllegalStateException("Archived orders are read-only. Restore the order before changing it.");
+        }
+    }
+
+    private boolean isArchived(Order order) {
+        return order != null && order.getArchivedAt() != null;
+    }
+
+    private String resolveArchiveMode(String archived, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
+        String mode = normalize(archived);
+        if (!StringUtils.hasText(mode)) {
+            return roleGuard.isAdmin(principal) ? "all" : "active";
+        }
+        String normalized = mode.toLowerCase(Locale.ROOT);
+        if (!Set.of("all", "active", "archived").contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported archived filter: " + archived);
+        }
+        if (!roleGuard.isAdmin(principal) && !"active".equals(normalized)) {
+            return "active";
+        }
+        return normalized;
+    }
+
+    private boolean archiveModeMatches(Order order, String archiveMode) {
+        if ("all".equals(archiveMode)) {
+            return true;
+        }
+        boolean archived = isArchived(order);
+        if ("archived".equals(archiveMode)) {
+            return archived;
+        }
+        return !archived;
     }
 
     private void requireCanUpdateOrder(Order order,
