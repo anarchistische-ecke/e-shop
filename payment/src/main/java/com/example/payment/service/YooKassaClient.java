@@ -95,6 +95,8 @@ public class YooKassaClient {
         public String description;
         public boolean capture = true;
         public Confirmation confirmation;
+        @JsonProperty("payment_method_data")
+        public PaymentMethodData paymentMethodData;
         public Receipt receipt;
         public Metadata metadata;
         @JsonProperty("save_payment_method")
@@ -106,6 +108,8 @@ public class YooKassaClient {
     public static class CreatePaymentResponse {
         public String id;
         public String status;
+        public Boolean paid;
+        public Boolean test;
         public Amount amount;
         public Confirmation confirmation;
         public Metadata metadata;
@@ -137,12 +141,58 @@ public class YooKassaClient {
     public static class RefundResponse {
         public String id;
         public String status;
+        public Boolean test;
         @JsonProperty("payment_id")
         public String paymentId;
         public Amount amount;
         public Metadata metadata;
+        @JsonProperty("receipt_registration")
+        public String receiptRegistration;
         @JsonProperty("created_at")
         public java.time.OffsetDateTime createdAt;
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class PaymentMethodData {
+        public String type;
+        public BankCardData card;
+
+        public static PaymentMethodData bankCard() {
+            PaymentMethodData data = new PaymentMethodData();
+            data.type = "bank_card";
+            return data;
+        }
+
+        public static PaymentMethodData bankCard(BankCardData card) {
+            PaymentMethodData data = bankCard();
+            data.card = card;
+            return data;
+        }
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class BankCardData {
+        public String number;
+        @JsonProperty("expiry_year")
+        public String expiryYear;
+        @JsonProperty("expiry_month")
+        public String expiryMonth;
+        public String csc;
+        public String cardholder;
+
+        public static BankCardData of(String number,
+                                      String expiryYear,
+                                      String expiryMonth,
+                                      String csc,
+                                      String cardholder) {
+            BankCardData card = new BankCardData();
+            card.number = number;
+            card.expiryYear = expiryYear;
+            card.expiryMonth = expiryMonth;
+            card.csc = csc;
+            card.cardholder = cardholder;
+            return card;
+        }
     }
 
     public static class PaymentMethod {

@@ -367,3 +367,4 @@ For the CMS rollout, do not change backend CORS just because Directus exists. On
 - Do not commit real Directus tokens.
 - Keep backend Directus tokens only in deployment env files or secret storage.
 - If public storefront reads can be served by Directus public permissions, leave both token variables empty.
+- Local YooKassa test-contour credentials are also secrets: keep `YOOKASSA_SECRET_KEY` only in ignored local env files or CI secrets. The dev profile defaults to the test shop id `1348143`, keeps `YOOKASSA_ENABLED=false`, and never enables YooKassa without an explicit env override.
