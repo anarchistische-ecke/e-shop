@@ -286,6 +286,7 @@ const choiceTranslations = {
     none: 'Нет',
     product_slug: 'Slug товара',
     category_slug: 'Slug категории',
+    storefront_collection: 'Подборка витрины',
     external_url: 'Внешний URL',
     product: 'Товар',
     category: 'Категория',

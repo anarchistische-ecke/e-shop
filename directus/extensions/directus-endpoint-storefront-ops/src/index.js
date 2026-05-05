@@ -125,6 +125,7 @@ function resolveAdminRoleSets(path, roleSets, method = 'GET') {
     return [roleSets.admin];
   }
   if (
+    path.startsWith('/admin/content/cache') ||
     path.startsWith('/admin/imports') ||
     path.startsWith('/admin/promotions') ||
     path.startsWith('/admin/promo-codes') ||

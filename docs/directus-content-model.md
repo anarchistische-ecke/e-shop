@@ -239,7 +239,7 @@ Recommended fields:
 | `status` | string enum | yes | Section-level publish control. |
 | `page` | M2O `page` | yes | Parent page. |
 | `internal_name` | string | yes | Editor label, not shown publicly. |
-| `section_type` | string enum | yes | `hero`, `rich_text`, `feature_list`, `banner_group`, `newsletter_cta`, `faq_list`, `legal_documents_list`, `post_list`, `product_reference_list`. |
+| `section_type` | string enum | yes | `hero`, `rich_text`, `feature_list`, `banner_group`, `collection_teaser`, `newsletter_cta`, `faq_list`, `legal_documents_list`, `post_list`, `product_reference_list`, `category_reference_list`. |
 | `sort` | integer | yes | Order on the page. |
 | `anchor_id` | string | no | For in-page navigation. |
 | `eyebrow` | string | no | Small uppercase label. |
@@ -285,7 +285,7 @@ Recommended fields:
 | `icon_name` | string | no | Optional icon token. |
 | `image` | file | no | Optional card image. |
 | `image_alt` | string | no | Alt text override for the item image. Falls back to file metadata if empty. |
-| `reference_kind` | string enum | no | `none`, `product_slug`, `category_slug`, `external_url`. |
+| `reference_kind` | string enum | no | `none`, `product_slug`, `category_slug`, `storefront_collection`, `external_url`. |
 | `reference_key` | string | no | Backend slug/id when the item points to commerce data. |
 | `sort` | integer | yes | Item order within the section. |
 
@@ -404,7 +404,9 @@ The initial `page_sections.section_type` values should map to current storefront
 | `faq_list` | future FAQ page or inline FAQ block |
 | `legal_documents_list` | legal hub cards |
 | `post_list` | optional blog/news teaser grid |
-| `product_reference_list` | curated references to backend products/categories by slug/id |
+| `collection_teaser` | homepage storefront collection rail |
+| `product_reference_list` | curated references to backend products by slug/id, including `layout_variant = shop_the_look` |
+| `category_reference_list` | curated references to backend categories by slug/id |
 
 ## Explicit Non-Goals
 

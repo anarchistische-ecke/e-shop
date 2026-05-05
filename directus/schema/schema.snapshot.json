@@ -3999,6 +3999,10 @@
               "value": "category_slug"
             },
             {
+              "text": "Подборка витрины",
+              "value": "storefront_collection"
+            },
+            {
               "text": "Внешний URL",
               "value": "external_url"
             }
@@ -4482,6 +4486,10 @@
               "value": "banner_group"
             },
             {
+              "text": "Анонс подборки",
+              "value": "collection_teaser"
+            },
+            {
               "text": "CTA подписки",
               "value": "newsletter_cta"
             },
@@ -4500,6 +4508,10 @@
             {
               "text": "Список товаров",
               "value": "product_reference_list"
+            },
+            {
+              "text": "Список категорий",
+              "value": "category_reference_list"
             }
           ]
         },

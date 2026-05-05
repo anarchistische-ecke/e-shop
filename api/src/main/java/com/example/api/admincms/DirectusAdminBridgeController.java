@@ -25,6 +25,7 @@ import com.example.api.admincms.DirectusAdminModels.StockAlertSettingsRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.api.catalog.DirectusBridgeSecurity;
+import com.example.api.content.DirectusContentCacheService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -47,6 +48,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -58,6 +60,7 @@ public class DirectusAdminBridgeController {
     private final DirectusBridgeSecurity bridgeSecurity;
     private final DirectusAdminRoleGuard roleGuard;
     private final AdminActivityService adminActivityService;
+    private final DirectusContentCacheService contentCacheService;
     private final ObjectMapper objectMapper;
 
     public DirectusAdminBridgeController(
@@ -65,12 +68,14 @@ public class DirectusAdminBridgeController {
             DirectusBridgeSecurity bridgeSecurity,
             DirectusAdminRoleGuard roleGuard,
             AdminActivityService adminActivityService,
+            DirectusContentCacheService contentCacheService,
             ObjectMapper objectMapper
     ) {
         this.adminService = adminService;
         this.bridgeSecurity = bridgeSecurity;
         this.roleGuard = roleGuard;
         this.adminActivityService = adminActivityService;
+        this.contentCacheService = contentCacheService;
         this.objectMapper = objectMapper;
     }
 
@@ -256,6 +261,35 @@ public class DirectusAdminBridgeController {
         var principal = authorize(request);
         roleGuard.requirePromotionsRead(principal);
         return ResponseEntity.ok(adminService.activePromotions());
+    }
+
+    @PostMapping("/content/cache/invalidate")
+    public ResponseEntity<DirectusContentCacheService.CacheInvalidationResult> invalidateContentCache(
+            @RequestBody(required = false) ContentCacheInvalidationRequest requestBody,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireContent(principal);
+
+        String scope = requestBody != null && StringUtils.hasText(requestBody.scope())
+                ? requestBody.scope().trim().toLowerCase(Locale.ROOT)
+                : "page";
+        DirectusContentCacheService.CacheInvalidationResult response = switch (scope) {
+            case "page" -> contentCacheService.invalidatePage(
+                    StringUtils.hasText(requestBody != null ? requestBody.slug() : null)
+                            ? requestBody.slug().trim()
+                            : "home"
+            );
+            case "site_settings", "site-settings" -> contentCacheService.invalidateSiteSettings();
+            case "navigation" -> contentCacheService.invalidateNavigation(requestBody != null ? requestBody.placement() : null);
+            case "all" -> contentCacheService.invalidateAll();
+            default -> throw new IllegalArgumentException("Unsupported content cache scope: " + scope);
+        };
+        audit(principal, "admin.content.cache.invalidate", Map.of(
+                "scope", response.scope(),
+                "deletedKeys", response.deletedKeys()
+        ));
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/promotions/{id}")
@@ -494,5 +528,8 @@ public class DirectusAdminBridgeController {
             payload.putAll(details);
         }
         return payload;
+    }
+
+    public record ContentCacheInvalidationRequest(String scope, String placement, String slug) {
     }
 }
