@@ -138,6 +138,8 @@ The Directus schema tooling validates the committed snapshot against `DIRECTUS_C
 
 The Directus operator extensions live in `directus/extensions/` as source packages and build into the committed runtime folder `directus/runtime-extensions/`, which is what the local and production Compose files mount at `/directus/extensions`.
 
+Before pushing changes under `directus/extensions/`, run `scripts/directus-extensions-build.sh` and commit the resulting `directus/runtime-extensions/` files. To catch this locally before GitHub Actions, run `scripts/install-git-hooks.sh` once per checkout; the pre-push hook runs `scripts/directus-extensions-build.sh --check` whenever Directus extension or runtime files are part of the push.
+
 ## Database Isolation Bootstrap
 
 The production shared-PostgreSQL hardening script `scripts/directus-db-init.sh` derives the commerce runtime connection from `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD` by default.

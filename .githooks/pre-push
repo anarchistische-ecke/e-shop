@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+needs_directus_runtime_check=false
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [[ "$local_sha" =~ ^0+$ ]]; then
+    continue
+  fi
+
+  if [[ "$remote_sha" =~ ^0+$ ]]; then
+    needs_directus_runtime_check=true
+    break
+  fi
+
+  if git -C "$ROOT_DIR" diff --name-only "${remote_sha}..${local_sha}" \
+    | grep -Eq '^(directus/extensions/|directus/runtime-extensions/)'; then
+    needs_directus_runtime_check=true
+    break
+  fi
+done
+
+if [[ "$needs_directus_runtime_check" != "true" ]]; then
+  exit 0
+fi
+
+echo "Checking committed Directus runtime extensions before push..."
+bash "$ROOT_DIR/scripts/directus-extensions-build.sh" --check
