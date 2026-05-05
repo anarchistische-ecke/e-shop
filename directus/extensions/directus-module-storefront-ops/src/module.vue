@@ -69,7 +69,44 @@
         :class="{ 'detail-open': activeDetailOpen, 'mobile-master-detail': activeTabHasMasterDetail }"
       >
         <aside class="workspace-list surface-panel">
-        <template v-if="activeTab === 'products'">
+        <template v-if="activeTab === 'home'">
+          <div class="pane-header">
+            <div>
+              <h2>Главная</h2>
+              <p>{{ homeForm.sections.length }} секций</p>
+            </div>
+            <button class="button button-primary" type="button" :disabled="isSubmitting || loading.home" @click="saveHomeContent">
+              Сохранить
+            </button>
+          </div>
+
+          <div v-if="isTabLoading('home')" class="empty-state">
+            <strong>Загружаю главную</strong>
+          </div>
+          <div v-else-if="!homeForm.sections.length" class="empty-state">
+            <strong>Секции не найдены</strong>
+            <span>Проверьте, что начальный контент Directus импортирован.</span>
+          </div>
+          <div v-else class="card-list">
+            <article
+              v-for="section in homeForm.sections"
+              :key="section.id || section.migrationKey || section.sort"
+              class="list-card"
+            >
+              <div class="list-card-head">
+                <strong>{{ homeSectionLabel(section) }}</strong>
+                <span class="pill pill-neutral">{{ homeSectionTypeLabel(section.sectionType) }}</span>
+              </div>
+              <p class="list-card-slug">{{ section.title || section.anchorId || 'Без заголовка' }}</p>
+              <div class="list-card-meta">
+                <span>{{ homeStatusLabel(section.status) }}</span>
+                <span>{{ section.items.length }} элементов</span>
+              </div>
+            </article>
+          </div>
+        </template>
+
+        <template v-else-if="activeTab === 'products'">
           <div class="pane-header">
             <div>
               <h2>Товары</h2>
@@ -575,7 +612,374 @@
             </button>
             <span>{{ activeTabLabel }}</span>
           </div>
-        <template v-if="activeTab === 'products'">
+        <template v-if="activeTab === 'home'">
+          <section class="detail-card">
+            <header class="detail-header">
+              <div>
+                <p class="detail-kicker">Главная</p>
+                <h2>Контент главной страницы</h2>
+                <p class="detail-subtitle">Hero, категории, подборки и повторяемые карточки редактируются здесь без сырых ключей Directus.</p>
+              </div>
+              <div class="detail-header-actions">
+                <button class="button button-primary" type="button" :disabled="isSubmitting || loading.home" @click="saveHomeContent">
+                  Сохранить главную
+                </button>
+              </div>
+            </header>
+
+            <div v-if="isTabLoading('home')" class="empty-state">
+              <strong>Загружаю контент главной</strong>
+            </div>
+
+            <form v-else class="editor-form" @submit.prevent="saveHomeContent">
+              <section class="section-block">
+                <div class="section-head">
+                  <div>
+                    <h3>Страница</h3>
+                    <p>Общие заголовки и SEO для маршрута /.</p>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <label class="ops-field">
+                    <span>Статус</span>
+                    <select v-model="homeForm.page.status">
+                      <option v-for="option in HOME_STATUS_OPTIONS" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="ops-field">
+                    <span>Заголовок страницы</span>
+                    <input v-model.trim="homeForm.page.title" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>SEO title</span>
+                    <input v-model.trim="homeForm.page.seoTitle" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>SEO description</span>
+                    <textarea v-model.trim="homeForm.page.seoDescription" rows="3"></textarea>
+                  </label>
+                  <label class="ops-field full-span">
+                    <span>Краткое описание</span>
+                    <textarea v-model.trim="homeForm.page.summary" rows="3"></textarea>
+                  </label>
+                </div>
+              </section>
+
+              <section
+                v-for="section in homeForm.sections"
+                :key="section.id || section.migrationKey || section.sort"
+                class="section-block"
+              >
+                <div class="section-head">
+                  <div>
+                    <h3>{{ homeSectionLabel(section) }}</h3>
+                    <p>{{ homeSectionTypeLabel(section.sectionType) }} · {{ homeStatusLabel(section.status) }}</p>
+                  </div>
+                </div>
+
+                <div class="form-grid">
+                  <label class="ops-field">
+                    <span>Статус секции</span>
+                    <select v-model="section.status">
+                      <option v-for="option in HOME_STATUS_OPTIONS" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="ops-field">
+                    <span>Название для редактора</span>
+                    <input v-model.trim="section.internalName" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Малый заголовок</span>
+                    <input v-model.trim="section.eyebrow" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Заголовок</span>
+                    <input v-model.trim="section.title" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Акцент hero</span>
+                    <input v-model.trim="section.accent" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Порядок</span>
+                    <input v-model.number="section.sort" type="number" min="1" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Основная кнопка</span>
+                    <input v-model.trim="section.primaryCtaLabel" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Ссылка основной кнопки</span>
+                    <input v-model.trim="section.primaryCtaUrl" type="text" placeholder="/catalog" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Вторичная кнопка</span>
+                    <input v-model.trim="section.secondaryCtaLabel" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Ссылка вторичной кнопки</span>
+                    <input v-model.trim="section.secondaryCtaUrl" type="text" />
+                  </label>
+                  <label class="ops-field">
+                    <span>Вариант стиля</span>
+                    <select v-model="section.styleVariant">
+                      <option v-for="option in HOME_STYLE_OPTIONS" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="ops-field">
+                    <span>Вариант макета</span>
+                    <select v-model="section.layoutVariant">
+                      <option v-for="option in HOME_LAYOUT_OPTIONS" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="ops-field full-span">
+                    <span>Текст блока</span>
+                    <textarea v-model.trim="section.body" rows="4"></textarea>
+                  </label>
+                </div>
+
+                <section v-if="section.sectionType === 'category_reference_list'" class="selector-card">
+                  <div class="selector-card-head">
+                    <div>
+                      <h3>Категории на главной</h3>
+                      <p>Выберите реальные категории backend-каталога. Публичное название берётся из категории, если поле «Название на карточке» пустое.</p>
+                    </div>
+                  </div>
+
+                  <div v-if="section.items.length" class="card-list">
+                    <article v-for="(item, index) in section.items" :key="item.id || item.referenceKey" class="list-card">
+                      <div class="list-card-head">
+                        <strong>{{ homeCategoryLabel(item.referenceKey) }}</strong>
+                        <span class="pill" :class="item.status === 'published' ? 'pill-positive' : 'pill-muted'">
+                          {{ homeStatusLabel(item.status) }}
+                        </span>
+                      </div>
+                      <img
+                        v-if="homeCategoryImage(item.referenceKey)"
+                        :src="homeCategoryImage(item.referenceKey)"
+                        :alt="homeCategoryLabel(item.referenceKey)"
+                        class="home-reference-thumb"
+                      />
+                      <p class="list-card-slug">{{ homeCategoryMeta(item.referenceKey) }}</p>
+                      <div class="form-grid">
+                        <label class="ops-field">
+                          <span>Статус карточки</span>
+                          <select v-model="item.status">
+                            <option v-for="option in HOME_STATUS_OPTIONS" :key="option.value" :value="option.value">
+                              {{ option.label }}
+                            </option>
+                          </select>
+                        </label>
+                        <label class="ops-field">
+                          <span>Название на карточке</span>
+                          <input v-model.trim="item.title" type="text" placeholder="Оставьте пустым, чтобы взять из категории" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Метка</span>
+                          <input v-model.trim="item.label" type="text" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Описание</span>
+                          <textarea v-model.trim="item.description" rows="2"></textarea>
+                        </label>
+                      </div>
+                      <div class="detail-header-actions">
+                        <button class="button button-secondary" type="button" :disabled="index === 0" @click="moveHomeItem(section, index, -1)">
+                          ↑
+                        </button>
+                        <button class="button button-secondary" type="button" :disabled="index === section.items.length - 1" @click="moveHomeItem(section, index, 1)">
+                          ↓
+                        </button>
+                        <button class="button button-danger" type="button" @click="removeHomeItem(section, index)">
+                          Убрать
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else class="empty-inline">Категории пока не выбраны.</div>
+
+                  <div class="form-grid">
+                    <label class="ops-field">
+                      <span>Поиск категории</span>
+                      <input v-model.trim="homeState.categoryQuery" type="search" placeholder="Название, slug или путь" />
+                    </label>
+                    <label class="ops-field">
+                      <span>Добавить категорию</span>
+                      <select v-model="homeState.categoryToAdd">
+                        <option value="">Выберите категорию</option>
+                        <option v-for="category in filteredHomeCategoryOptions" :key="category.id" :value="category.slug">
+                          {{ category.name }} · {{ category.fullPath || category.slug }}
+                        </option>
+                      </select>
+                    </label>
+                    <div class="ops-field">
+                      <span>&nbsp;</span>
+                      <button class="button button-secondary" type="button" :disabled="!homeState.categoryToAdd" @click="addHomeCategory(section)">
+                        Добавить
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section v-else-if="section.sectionType === 'product_reference_list'" class="selector-card">
+                  <div class="selector-card-head">
+                    <div>
+                      <h3>{{ section.layoutVariant === 'shop_the_look' ? 'Shop the look' : 'Товары в секции' }}</h3>
+                      <p>Выберите реальные товары backend-каталога. На сайте используются название, цена и фото товара.</p>
+                    </div>
+                  </div>
+                  <div v-if="section.items.length" class="card-list">
+                    <article v-for="(item, index) in section.items" :key="item.id || item.referenceKey || index" class="list-card">
+                      <div class="list-card-head">
+                        <strong>{{ homeProductLabel(item.referenceKey) }}</strong>
+                        <span class="pill" :class="item.status === 'published' ? 'pill-positive' : 'pill-muted'">
+                          {{ homeStatusLabel(item.status) }}
+                        </span>
+                      </div>
+                      <img
+                        v-if="homeProductImage(item.referenceKey)"
+                        :src="homeProductImage(item.referenceKey)"
+                        :alt="homeProductLabel(item.referenceKey)"
+                        class="home-reference-thumb"
+                      />
+                      <p class="list-card-slug">{{ homeProductMeta(item.referenceKey) }}</p>
+                      <div class="form-grid">
+                        <label class="ops-field">
+                          <span>Статус карточки</span>
+                          <select v-model="item.status">
+                            <option v-for="option in HOME_STATUS_OPTIONS" :key="option.value" :value="option.value">
+                              {{ option.label }}
+                            </option>
+                          </select>
+                        </label>
+                        <label class="ops-field">
+                          <span>Название на карточке</span>
+                          <input v-model.trim="item.title" type="text" placeholder="Оставьте пустым, чтобы взять из товара" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Метка</span>
+                          <input v-model.trim="item.label" type="text" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Описание</span>
+                          <textarea v-model.trim="item.description" rows="2"></textarea>
+                        </label>
+                      </div>
+                      <div class="detail-header-actions">
+                        <button class="button button-secondary" type="button" :disabled="index === 0" @click="moveHomeItem(section, index, -1)">
+                          ↑
+                        </button>
+                        <button class="button button-secondary" type="button" :disabled="index === section.items.length - 1" @click="moveHomeItem(section, index, 1)">
+                          ↓
+                        </button>
+                        <button class="button button-danger" type="button" @click="removeHomeItem(section, index)">
+                          Убрать
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else class="empty-inline">Товары пока не выбраны.</div>
+
+                  <div class="form-grid">
+                    <label class="ops-field">
+                      <span>Поиск товара</span>
+                      <input v-model.trim="section.productQuery" type="search" placeholder="Название, бренд, категория" />
+                    </label>
+                    <label class="ops-field">
+                      <span>Добавить товар</span>
+                      <select v-model="section.productToAdd">
+                        <option value="">Выберите товар</option>
+                        <option v-for="product in filteredHomeProductOptions(section)" :key="product.id" :value="product.slug">
+                          {{ product.name }} · {{ product.slug }}
+                        </option>
+                      </select>
+                    </label>
+                    <div class="ops-field">
+                      <span>&nbsp;</span>
+                      <button class="button button-secondary" type="button" :disabled="!section.productToAdd" @click="addHomeProduct(section)">
+                        Добавить
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section v-else-if="section.items.length || ['hero', 'feature_list', 'collection_teaser', 'banner_group'].includes(section.sectionType)" class="selector-card">
+                  <div class="selector-card-head">
+                    <div>
+                      <h3>Элементы секции</h3>
+                      <p>Карточки, преимущества и ссылки для этого блока.</p>
+                    </div>
+                    <button class="button button-secondary" type="button" @click="addHomeItem(section)">
+                      Добавить элемент
+                    </button>
+                  </div>
+                  <div v-if="section.items.length" class="card-list">
+                    <article v-for="(item, index) in section.items" :key="item.id || item.migrationKey || index" class="list-card">
+                      <div class="list-card-head">
+                        <strong>{{ item.title || item.label || `Элемент ${index + 1}` }}</strong>
+                        <span class="pill pill-neutral">{{ homeStatusLabel(item.status) }}</span>
+                      </div>
+                      <div class="form-grid">
+                        <label class="ops-field">
+                          <span>Статус</span>
+                          <select v-model="item.status">
+                            <option v-for="option in HOME_STATUS_OPTIONS" :key="option.value" :value="option.value">
+                              {{ option.label }}
+                            </option>
+                          </select>
+                        </label>
+                        <label class="ops-field">
+                          <span>Метка</span>
+                          <input v-model.trim="item.label" type="text" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Заголовок</span>
+                          <input v-model.trim="item.title" type="text" />
+                        </label>
+                        <label class="ops-field">
+                          <span>Ссылка</span>
+                          <input v-model.trim="item.url" type="text" />
+                        </label>
+                        <label class="ops-field full-span">
+                          <span>Описание</span>
+                          <textarea v-model.trim="item.description" rows="3"></textarea>
+                        </label>
+                      </div>
+                      <div class="detail-header-actions">
+                        <button class="button button-secondary" type="button" :disabled="index === 0" @click="moveHomeItem(section, index, -1)">
+                          ↑
+                        </button>
+                        <button class="button button-secondary" type="button" :disabled="index === section.items.length - 1" @click="moveHomeItem(section, index, 1)">
+                          ↓
+                        </button>
+                        <button class="button button-danger" type="button" @click="removeHomeItem(section, index)">
+                          Убрать
+                        </button>
+                      </div>
+                    </article>
+                  </div>
+                  <div v-else class="empty-inline">Элементы пока не добавлены.</div>
+                </section>
+              </section>
+
+              <div class="sticky-actions">
+                <button class="button button-primary" type="submit" :disabled="isSubmitting">
+                  Сохранить главную
+                </button>
+              </div>
+            </form>
+          </section>
+        </template>
+
+        <template v-else-if="activeTab === 'products'">
           <div v-if="!productState.isCreating && !productState.detail" class="empty-detail">
             <strong>Выберите товар</strong>
             <span>Откройте карточку из списка или создайте новую позицию.</span>
@@ -2047,6 +2451,7 @@ import { useApi } from '@directus/extensions-sdk';
 const api = useApi();
 
 const tabs = [
+  { id: 'home', label: 'Главная' },
   { id: 'products', label: 'Товары' },
   { id: 'categories', label: 'Категории' },
   { id: 'brands', label: 'Бренды' },
@@ -2081,6 +2486,7 @@ const ROLE_IDS = {
 };
 
 const TAB_ACCESS = {
+  home: ['admin', 'content'],
   products: ['admin', 'content'],
   categories: ['admin', 'content'],
   brands: ['admin', 'content'],
@@ -2114,8 +2520,38 @@ const ORDER_STATUS_OPTIONS = [
 const PICKER_TARGET_STATUS_OPTIONS = ['PROCESSING', 'READY_FOR_PICKUP', 'SHIPPED'];
 
 const STORAGE_KEY = 'storefront-ops.workspace-state';
+const HOME_PAGE_SLUG = 'home';
+const HOME_STATUS_OPTIONS = [
+  { value: 'draft', label: 'Черновик' },
+  { value: 'in_review', label: 'На проверке' },
+  { value: 'published', label: 'Опубликовано' },
+  { value: 'archived', label: 'В архиве' },
+];
+const HOME_STYLE_OPTIONS = [
+  { value: 'default', label: 'Обычный' },
+  { value: 'warm', label: 'Тёплый' },
+  { value: 'quiet', label: 'Спокойный' },
+  { value: 'highlight', label: 'Акцентный' },
+];
+const HOME_LAYOUT_OPTIONS = [
+  { value: 'contained', label: 'Обычный блок' },
+  { value: 'cards', label: 'Карточки' },
+  { value: 'grid', label: 'Сетка' },
+  { value: 'rail', label: 'Горизонтальная подборка' },
+  { value: 'shop_the_look', label: 'Shop the look' },
+];
+const HOME_SECTION_TYPE_LABELS = {
+  hero: 'Первый экран',
+  category_reference_list: 'Категории',
+  collection_teaser: 'Подборка',
+  product_reference_list: 'Товары',
+  feature_list: 'Список преимуществ',
+  banner_group: 'Баннеры',
+  newsletter_cta: 'Подписка',
+  rich_text: 'Текст',
+};
 
-const activeTab = ref('products');
+const activeTab = ref('home');
 const pageError = ref('');
 const pageNotice = reactive({ type: '', text: '' });
 const isSubmitting = ref(false);
@@ -2133,6 +2569,7 @@ const accessState = reactive({
   roleAdminAccess: false,
 });
 const navigationCounts = reactive({
+  home: 0,
   products: 0,
   categories: 0,
   brands: 0,
@@ -2146,6 +2583,7 @@ const navigationCounts = reactive({
 });
 
 const loading = reactive({
+  home: false,
   products: false,
   categories: false,
   brands: false,
@@ -2157,6 +2595,29 @@ const loading = reactive({
   analytics: false,
   alerts: false,
   activePromotions: false,
+});
+
+const homeState = reactive({
+  loaded: false,
+  page: null,
+  sections: [],
+  categoryOptions: [],
+  productOptions: [],
+  categoryQuery: '',
+  categoryToAdd: '',
+  originalItemIds: [],
+});
+
+const homeForm = reactive({
+  page: {
+    id: '',
+    status: 'draft',
+    title: '',
+    summary: '',
+    seoTitle: '',
+    seoDescription: '',
+  },
+  sections: [],
 });
 
 const productState = reactive({
@@ -2492,6 +2953,28 @@ const filteredCategories = computed(() => filterCollection(categoryState.items, 
   (item) => item.fullPath,
 ]));
 
+const homeCategorySection = computed(() => (
+  homeForm.sections.find((section) => section.sectionType === 'category_reference_list') || null
+));
+const homeSelectedCategoryKeys = computed(() => new Set(
+  (homeCategorySection.value?.items || [])
+    .filter((item) => normalizeHomeReferenceKind(item.referenceKind) === 'category_slug' && item.referenceKey)
+    .map((item) => normalizeHomeKey(item.referenceKey))
+));
+const filteredHomeCategoryOptions = computed(() => {
+  const query = homeState.categoryQuery.trim().toLowerCase();
+  return (homeState.categoryOptions || [])
+    .filter((category) => !homeSelectedCategoryKeys.value.has(normalizeHomeKey(category.slug)))
+    .filter((category) => {
+      if (!query) {
+        return true;
+      }
+      return [category.name, category.slug, category.fullPath]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+});
+
 const filteredBrands = computed(() => filterCollection(brandState.items, brandState.query, [
   (item) => item.name,
   (item) => item.slug,
@@ -2580,6 +3063,7 @@ const activeDetailOpen = computed(() => {
 });
 
 function tabCount(tabId) {
+  if (tabId === 'home') return homeState.loaded ? homeForm.sections.length : navigationCounts.home;
   if (tabId === 'products') return productState.loaded ? productState.items.length : navigationCounts.products;
   if (tabId === 'categories') return categoryState.loaded ? categoryState.items.length : navigationCounts.categories;
   if (tabId === 'brands') return brandState.loaded ? brandState.items.length : navigationCounts.brands;
@@ -2745,6 +3229,440 @@ async function bridgeRequest(path, options = {}) {
     headers: options.headers,
   });
   return response.data;
+}
+
+async function directusRequest(path, options = {}) {
+  const response = await api.request({
+    url: path,
+    method: options.method || 'GET',
+    params: options.params,
+    data: options.data,
+  });
+  return response?.data?.data ?? response?.data ?? null;
+}
+
+function normalizeHomeReferenceKind(value) {
+  return String(value || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+}
+
+function normalizeHomeKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function extractHomeSectionType(section) {
+  return section?.section_type || section?.sectionType || '';
+}
+
+function homeSectionTypeLabel(sectionType) {
+  return HOME_SECTION_TYPE_LABELS[sectionType] || sectionType || 'Секция';
+}
+
+function directusItemArray(payload) {
+  return Array.isArray(payload) ? payload : [];
+}
+
+function directusItemId(item) {
+  return item?.id || '';
+}
+
+function homeStatusLabel(status) {
+  return HOME_STATUS_OPTIONS.find((option) => option.value === status)?.label || overlayStatusLabel(status);
+}
+
+function createHomeFormItem(item = {}, index = 0) {
+  return {
+    id: directusItemId(item),
+    migrationKey: item.migration_key || '',
+    status: item.status || 'draft',
+    title: item.title || '',
+    description: item.description || '',
+    label: item.label || '',
+    url: item.url || '',
+    referenceKind: item.reference_kind || item.referenceKind || 'none',
+    referenceKey: item.reference_key || item.referenceKey || '',
+    sort: Number(item.sort ?? index + 1),
+  };
+}
+
+function createHomeFormSection(section = {}, items = [], index = 0) {
+  const sectionType = extractHomeSectionType(section);
+  const normalizedItems = sectionType === 'category_reference_list'
+    ? directusItemArray(items).filter((item) => (
+        normalizeHomeReferenceKind(item.reference_kind || item.referenceKind) === 'category_slug' &&
+        (item.reference_key || item.referenceKey)
+      ))
+    : directusItemArray(items);
+  return {
+    id: directusItemId(section),
+    migrationKey: section.migration_key || '',
+    status: section.status || 'draft',
+    internalName: section.internal_name || section.internalName || section.title || homeSectionTypeLabel(sectionType),
+    sectionType,
+    sort: Number(section.sort ?? index + 1),
+    anchorId: section.anchor_id || section.anchorId || '',
+    eyebrow: section.eyebrow || '',
+    title: section.title || '',
+    accent: section.accent || '',
+    body: section.body || '',
+    primaryCtaLabel: section.primary_cta_label || section.primaryCtaLabel || '',
+    primaryCtaUrl: section.primary_cta_url || section.primaryCtaUrl || '',
+    secondaryCtaLabel: section.secondary_cta_label || section.secondaryCtaLabel || '',
+    secondaryCtaUrl: section.secondary_cta_url || section.secondaryCtaUrl || '',
+    styleVariant: section.style_variant || section.styleVariant || 'default',
+    layoutVariant: section.layout_variant || section.layoutVariant || 'contained',
+    productQuery: '',
+    productToAdd: '',
+    items: normalizedItems.map(createHomeFormItem),
+  };
+}
+
+function resetHomeForm(page, sections, itemsBySection) {
+  Object.assign(homeForm.page, {
+    id: directusItemId(page),
+    status: page?.status || 'draft',
+    title: page?.title || '',
+    summary: page?.summary || '',
+    seoTitle: page?.seo_title || page?.seoTitle || '',
+    seoDescription: page?.seo_description || page?.seoDescription || '',
+  });
+  homeForm.sections.splice(
+    0,
+    homeForm.sections.length,
+    ...directusItemArray(sections).map((section, index) =>
+      createHomeFormSection(section, itemsBySection.get(section.id) || [], index)
+    )
+  );
+  homeState.originalItemIds = homeForm.sections.flatMap((section) =>
+    section.items.map((item) => item.id).filter(Boolean)
+  );
+}
+
+function encodeDirectusQuery(value) {
+  return encodeURIComponent(String(value));
+}
+
+async function loadHomeContent() {
+  loading.home = true;
+  try {
+    const pageRows = directusItemArray(await directusRequest(
+      `/items/page?filter[slug][_eq]=${encodeDirectusQuery(HOME_PAGE_SLUG)}&limit=1&fields=*`
+    ));
+    const page = pageRows[0] || null;
+    if (!page?.id) {
+      homeState.loaded = true;
+      homeState.page = null;
+      homeState.sections = [];
+      homeForm.sections.splice(0, homeForm.sections.length);
+      pageError.value = 'Страница home не найдена в Directus. Запустите импорт начального контента.';
+      return;
+    }
+
+    const sections = directusItemArray(await directusRequest(
+      `/items/page_sections?filter[page][_eq]=${encodeDirectusQuery(page.id)}&sort=sort,id&limit=-1&fields=*`
+    ));
+    const sectionIds = sections.map((section) => section.id).filter(Boolean);
+    const items = sectionIds.length
+      ? directusItemArray(await directusRequest(
+          `/items/page_section_items?filter[page_section][_in]=${encodeDirectusQuery(sectionIds.join(','))}&sort=sort,id&limit=-1&fields=*`
+        ))
+      : [];
+    const itemsBySection = items.reduce((acc, item) => {
+      const key = item.page_section;
+      if (!acc.has(key)) {
+        acc.set(key, []);
+      }
+      acc.get(key).push(item);
+      return acc;
+    }, new Map());
+
+    const [categoriesResponse, productsResponse] = await Promise.all([
+      bridgeRequest('/workspace/categories'),
+      bridgeRequest('/workspace/products'),
+    ]);
+    homeState.categoryOptions = categoriesResponse.items || [];
+    homeState.productOptions = productsResponse.items || [];
+    homeState.page = page;
+    homeState.sections = sections;
+    homeState.loaded = true;
+    resetHomeForm(page, sections, itemsBySection);
+    navigationCounts.home = homeForm.sections.length;
+  } catch (error) {
+    setError(error);
+  } finally {
+    loading.home = false;
+  }
+}
+
+function homeSectionLabel(section) {
+  return section.internalName || section.title || homeSectionTypeLabel(section.sectionType);
+}
+
+function homeCategoryLabel(slug) {
+  const normalizedSlug = normalizeHomeKey(slug);
+  const category = (homeState.categoryOptions || []).find((candidate) => normalizeHomeKey(candidate.slug) === normalizedSlug);
+  return category?.name || slug || 'Категория';
+}
+
+function homeCategoryMeta(slug) {
+  const normalizedSlug = normalizeHomeKey(slug);
+  const category = (homeState.categoryOptions || []).find((candidate) => normalizeHomeKey(candidate.slug) === normalizedSlug);
+  if (!category) {
+    return 'Категория не найдена в backend-каталоге';
+  }
+  return category.fullPath || category.slug;
+}
+
+function homeCategoryImage(slug) {
+  const normalizedSlug = normalizeHomeKey(slug);
+  const category = (homeState.categoryOptions || []).find((candidate) => normalizeHomeKey(candidate.slug) === normalizedSlug);
+  return category?.imageUrl || '';
+}
+
+function homeProductBySlug(slug) {
+  const normalizedSlug = normalizeHomeKey(slug);
+  return (homeState.productOptions || []).find((candidate) => normalizeHomeKey(candidate.slug) === normalizedSlug) || null;
+}
+
+function homeProductLabel(slug) {
+  const product = homeProductBySlug(slug);
+  return product?.name || slug || 'Товар';
+}
+
+function homeProductMeta(slug) {
+  const product = homeProductBySlug(slug);
+  if (!product) {
+    return 'Товар не найден в backend-каталоге';
+  }
+  const categoryPath = product.categories?.[0]?.fullPath || product.categories?.[0]?.slug || '';
+  return [product.slug, categoryPath, product.isActive ? 'активен' : 'скрыт'].filter(Boolean).join(' · ');
+}
+
+function homeProductImage(slug) {
+  return homeProductBySlug(slug)?.primaryImageUrl || '';
+}
+
+function homeSelectedProductKeys(section) {
+  return new Set(
+    (section?.items || [])
+      .filter((item) => normalizeHomeReferenceKind(item.referenceKind) === 'product_slug' && item.referenceKey)
+      .map((item) => normalizeHomeKey(item.referenceKey))
+  );
+}
+
+function filteredHomeProductOptions(section) {
+  const selectedKeys = homeSelectedProductKeys(section);
+  const query = String(section?.productQuery || '').trim().toLowerCase();
+  return (homeState.productOptions || [])
+    .filter((product) => !selectedKeys.has(normalizeHomeKey(product.slug)))
+    .filter((product) => {
+      if (!query) {
+        return true;
+      }
+      const categoryText = (product.categories || [])
+        .map((category) => category.fullPath || category.slug || category.name)
+        .filter(Boolean)
+        .join(' ');
+      return [product.name, product.slug, product.brand?.name, product.brand?.slug, categoryText]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+}
+
+function addHomeCategory(section) {
+  if (!section || !homeState.categoryToAdd) {
+    return;
+  }
+  const category = (homeState.categoryOptions || []).find((candidate) => candidate.slug === homeState.categoryToAdd);
+  if (!category) {
+    return;
+  }
+  section.items.push({
+    id: '',
+    migrationKey: `home:category:${category.slug}`,
+    status: section.status || homeForm.page.status || 'draft',
+    title: '',
+    description: category.description || '',
+    label: '',
+    url: '',
+    referenceKind: 'category_slug',
+    referenceKey: category.slug,
+    sort: section.items.length + 1,
+  });
+  homeState.categoryToAdd = '';
+  homeState.categoryQuery = '';
+  resequenceHomeItems(section);
+}
+
+function addHomeProduct(section) {
+  if (!section || !section.productToAdd) {
+    return;
+  }
+  const product = homeProductBySlug(section.productToAdd);
+  if (!product) {
+    return;
+  }
+  section.items.push({
+    id: '',
+    migrationKey: `home:product:${product.slug}:${Date.now()}`,
+    status: section.status || homeForm.page.status || 'draft',
+    title: '',
+    description: '',
+    label: '',
+    url: '',
+    referenceKind: 'product_slug',
+    referenceKey: product.slug,
+    sort: section.items.length + 1,
+  });
+  section.productToAdd = '';
+  section.productQuery = '';
+  resequenceHomeItems(section);
+}
+
+function addHomeItem(section) {
+  if (!section) {
+    return;
+  }
+  section.items.push({
+    id: '',
+    migrationKey: `home:${section.sectionType || 'section'}:${Date.now()}`,
+    status: section.status || homeForm.page.status || 'draft',
+    title: '',
+    description: '',
+    label: '',
+    url: '',
+    referenceKind: section.sectionType === 'product_reference_list' ? 'product_slug' : 'none',
+    referenceKey: '',
+    sort: section.items.length + 1,
+  });
+}
+
+function removeHomeItem(section, index) {
+  if (!section || index < 0) {
+    return;
+  }
+  section.items.splice(index, 1);
+  resequenceHomeItems(section);
+}
+
+function moveHomeItem(section, index, direction) {
+  if (!section) {
+    return;
+  }
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= section.items.length) {
+    return;
+  }
+  const [item] = section.items.splice(index, 1);
+  section.items.splice(nextIndex, 0, item);
+  resequenceHomeItems(section);
+}
+
+function resequenceHomeItems(section) {
+  (section?.items || []).forEach((item, index) => {
+    item.sort = index + 1;
+  });
+}
+
+function buildHomeSectionPayload(section) {
+  return {
+    status: section.status || homeForm.page.status || 'draft',
+    internal_name: section.internalName || homeSectionTypeLabel(section.sectionType),
+    section_type: section.sectionType,
+    sort: Number(section.sort || 0),
+    anchor_id: normalizeNullableText(section.anchorId),
+    eyebrow: normalizeNullableText(section.eyebrow),
+    title: normalizeNullableText(section.title),
+    accent: normalizeNullableText(section.accent),
+    body: normalizeNullableText(section.body),
+    primary_cta_label: normalizeNullableText(section.primaryCtaLabel),
+    primary_cta_url: normalizeNullableText(section.primaryCtaUrl),
+    secondary_cta_label: normalizeNullableText(section.secondaryCtaLabel),
+    secondary_cta_url: normalizeNullableText(section.secondaryCtaUrl),
+    style_variant: normalizeNullableText(section.styleVariant) || 'default',
+    layout_variant: normalizeNullableText(section.layoutVariant) || 'contained',
+  };
+}
+
+function buildHomeItemPayload(section, item, pageSectionId) {
+  return {
+    status: item.status || section.status || homeForm.page.status || 'draft',
+    page_section: pageSectionId,
+    migration_key: normalizeNullableText(item.migrationKey),
+    title: normalizeNullableText(item.title),
+    description: normalizeNullableText(item.description),
+    label: normalizeNullableText(item.label),
+    url: normalizeNullableText(item.url),
+    reference_kind: item.referenceKind || 'none',
+    reference_key: normalizeNullableText(item.referenceKey),
+    sort: Number(item.sort || 0),
+  };
+}
+
+async function saveHomeContent() {
+  if (!homeForm.page.id) {
+    pageError.value = 'Страница home не загружена.';
+    return;
+  }
+  isSubmitting.value = true;
+  clearMessages();
+  try {
+    await directusRequest(`/items/page/${homeForm.page.id}`, {
+      method: 'PATCH',
+      data: {
+        status: homeForm.page.status || 'draft',
+        title: normalizeNullableText(homeForm.page.title),
+        summary: normalizeNullableText(homeForm.page.summary),
+        seo_title: normalizeNullableText(homeForm.page.seoTitle),
+        seo_description: normalizeNullableText(homeForm.page.seoDescription),
+      },
+    });
+
+    const activeItemIds = new Set();
+    for (const section of homeForm.sections) {
+      const sectionPayload = buildHomeSectionPayload(section);
+      const sectionRecord = section.id
+        ? await directusRequest(`/items/page_sections/${section.id}`, { method: 'PATCH', data: sectionPayload })
+        : await directusRequest('/items/page_sections', {
+            method: 'POST',
+            data: { ...sectionPayload, page: homeForm.page.id, migration_key: normalizeNullableText(section.migrationKey) },
+          });
+      section.id = sectionRecord?.id || section.id;
+
+      for (const item of section.items) {
+        const itemPayload = buildHomeItemPayload(section, item, section.id);
+        const itemRecord = item.id
+          ? await directusRequest(`/items/page_section_items/${item.id}`, { method: 'PATCH', data: itemPayload })
+          : await directusRequest('/items/page_section_items', { method: 'POST', data: itemPayload });
+        item.id = itemRecord?.id || item.id;
+        if (item.id) {
+          activeItemIds.add(String(item.id));
+        }
+      }
+    }
+
+    const removedIds = homeState.originalItemIds.filter((id) => id && !activeItemIds.has(String(id)));
+    for (const removedId of removedIds) {
+      await directusRequest(`/items/page_section_items/${removedId}`, {
+        method: 'PATCH',
+        data: {
+          reference_kind: 'none',
+          reference_key: null,
+          sort: 999,
+        },
+      });
+    }
+
+    await bridgeRequest('/admin/content/cache/invalidate', {
+      method: 'POST',
+      data: { scope: 'page', slug: HOME_PAGE_SLUG },
+    });
+    await loadHomeContent();
+    setSuccess('Главная обновлена. Если изменения в статусе draft или in_review, они появятся после публикации.');
+  } catch (error) {
+    setError(error);
+  } finally {
+    isSubmitting.value = false;
+  }
 }
 
 async function loadAccessProfile() {
@@ -3125,6 +4043,10 @@ async function ensureActiveTabLoaded() {
     return;
   }
   normalizeActiveTab();
+  if (activeTab.value === 'home' && !homeState.loaded) {
+    await loadHomeContent();
+    return;
+  }
   if (activeTab.value === 'products' && !productState.loaded) {
     await loadProducts({ reloadSelected: false });
     if (productState.selectedId) {
@@ -4616,7 +5538,9 @@ async function refreshCurrentTab() {
   isRefreshing.value = true;
   clearMessages();
   try {
-    if (activeTab.value === 'products') {
+    if (activeTab.value === 'home') {
+      await loadHomeContent();
+    } else if (activeTab.value === 'products') {
       await loadProducts({ reloadSelected: true });
     } else if (activeTab.value === 'categories') {
       await loadCategories({ reloadSelected: true });
@@ -4884,7 +5808,7 @@ function restoreInitialState() {
   }
 
   const params = new URLSearchParams(window.location.search);
-  activeTab.value = params.get('tab') || stored.activeTab || 'products';
+  activeTab.value = params.get('tab') || stored.activeTab || 'home';
   productState.selectedId = params.get('product') || stored.productId || '';
   categoryState.selectedId = params.get('category') || stored.categoryId || '';
   brandState.selectedId = params.get('brand') || stored.brandId || '';
@@ -5333,6 +6257,10 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr;
 }
 
+.full-span {
+  grid-column: 1 / -1;
+}
+
 .selector-card,
 .merch-card,
 .media-inline-panel,
@@ -5403,6 +6331,7 @@ onBeforeUnmount(() => {
 }
 
 .media-preview,
+.home-reference-thumb,
 .category-image-preview img {
   background: var(--theme--background-subdued);
   border-radius: 10px;
@@ -5414,6 +6343,10 @@ onBeforeUnmount(() => {
 
 .media-preview {
   aspect-ratio: 16 / 10;
+}
+
+.home-reference-thumb {
+  aspect-ratio: 16 / 7;
 }
 
 .media-card-body {

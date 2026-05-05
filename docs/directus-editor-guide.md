@@ -35,6 +35,8 @@ Use these collections for the common content tasks:
 
 Do not edit commerce data in Directus. Products, categories, stock, orders, customers, and pricing stay in the backend.
 
+For the homepage, prefer `Управление витриной` -> `Главная`. It shows the home page sections in one editor and lets you switch the visible catalogue categories by choosing real backend categories from a searchable list.
+
 ## 3. Edit A Page
 
 Open `Page` from the left sidebar to see the available CMS pages.
@@ -61,6 +63,19 @@ Rules:
 - Change to `in_review` when the content is ready for approval.
 - Only a publisher should move content to `published`.
 - Avoid editing `Slug` and `Path` unless the change is planned, because they affect storefront routing.
+
+### Edit The Homepage
+
+Open `Управление витриной` and choose the `Главная` tab.
+
+Use this screen for:
+
+- hero title, text, accent, and CTA buttons
+- the homepage category section heading and “Смотреть весь каталог” CTA
+- adding, removing, and reordering category cards from backend categories
+- homepage feature cards, collection references, product references, and newsletter copy
+
+When a category card has an empty custom title, the storefront shows the backend category name automatically. Use a custom title only when the homepage needs wording that differs from the catalogue name.
 
 ## 4. Edit Site-Wide Settings
 
