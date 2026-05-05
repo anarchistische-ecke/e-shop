@@ -3175,7 +3175,14 @@ function resolveRoleKind(state) {
   return 'unknown';
 }
 
+function isKnownTab(tabId) {
+  return tabs.some((tab) => tab.id === tabId);
+}
+
 function canAccessTab(tabId) {
+  if (!isKnownTab(tabId)) {
+    return false;
+  }
   const allowedRoles = TAB_ACCESS[tabId] || ['admin'];
   return allowedRoles.includes(roleKind.value);
 }
