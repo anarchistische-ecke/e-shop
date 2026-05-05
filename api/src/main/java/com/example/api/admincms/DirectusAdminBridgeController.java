@@ -28,6 +28,7 @@ import com.example.api.catalog.DirectusBridgeSecurity;
 import com.example.api.content.DirectusContentCacheService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -60,23 +61,26 @@ public class DirectusAdminBridgeController {
     private final DirectusBridgeSecurity bridgeSecurity;
     private final DirectusAdminRoleGuard roleGuard;
     private final AdminActivityService adminActivityService;
-    private final DirectusContentCacheService contentCacheService;
     private final ObjectMapper objectMapper;
+    private DirectusContentCacheService contentCacheService;
 
     public DirectusAdminBridgeController(
             DirectusAdminService adminService,
             DirectusBridgeSecurity bridgeSecurity,
             DirectusAdminRoleGuard roleGuard,
             AdminActivityService adminActivityService,
-            DirectusContentCacheService contentCacheService,
             ObjectMapper objectMapper
     ) {
         this.adminService = adminService;
         this.bridgeSecurity = bridgeSecurity;
         this.roleGuard = roleGuard;
         this.adminActivityService = adminActivityService;
-        this.contentCacheService = contentCacheService;
         this.objectMapper = objectMapper;
+    }
+
+    @Autowired
+    public void setContentCacheService(DirectusContentCacheService contentCacheService) {
+        this.contentCacheService = contentCacheService;
     }
 
     @GetMapping("/orders")
@@ -274,15 +278,16 @@ public class DirectusAdminBridgeController {
         String scope = requestBody != null && StringUtils.hasText(requestBody.scope())
                 ? requestBody.scope().trim().toLowerCase(Locale.ROOT)
                 : "page";
+        DirectusContentCacheService cacheService = requireContentCacheService();
         DirectusContentCacheService.CacheInvalidationResult response = switch (scope) {
-            case "page" -> contentCacheService.invalidatePage(
+            case "page" -> cacheService.invalidatePage(
                     StringUtils.hasText(requestBody != null ? requestBody.slug() : null)
                             ? requestBody.slug().trim()
                             : "home"
             );
-            case "site_settings", "site-settings" -> contentCacheService.invalidateSiteSettings();
-            case "navigation" -> contentCacheService.invalidateNavigation(requestBody != null ? requestBody.placement() : null);
-            case "all" -> contentCacheService.invalidateAll();
+            case "site_settings", "site-settings" -> cacheService.invalidateSiteSettings();
+            case "navigation" -> cacheService.invalidateNavigation(requestBody != null ? requestBody.placement() : null);
+            case "all" -> cacheService.invalidateAll();
             default -> throw new IllegalArgumentException("Unsupported content cache scope: " + scope);
         };
         audit(principal, "admin.content.cache.invalidate", Map.of(
@@ -290,6 +295,13 @@ public class DirectusAdminBridgeController {
                 "deletedKeys", response.deletedKeys()
         ));
         return ResponseEntity.ok(response);
+    }
+
+    private DirectusContentCacheService requireContentCacheService() {
+        if (contentCacheService == null) {
+            throw new IllegalStateException("Directus content cache service is not configured.");
+        }
+        return contentCacheService;
     }
 
     @GetMapping("/promotions/{id}")
