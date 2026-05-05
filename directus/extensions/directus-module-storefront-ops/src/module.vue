@@ -4941,7 +4941,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .workspace {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   inline-size: 100%;
   min-block-size: calc(100vh - 54px);
@@ -4954,6 +4955,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--theme--primary) 10%, var(--theme--background-subdued));
   border: 1px solid color-mix(in srgb, var(--theme--primary) 24%, var(--theme--border-color));
   border-radius: 14px;
+  block-size: fit-content;
   display: grid;
   gap: 4px;
   padding: 12px 14px;
@@ -5039,6 +5041,7 @@ onBeforeUnmount(() => {
 .workspace-shell {
   align-items: start;
   display: grid;
+  flex: 1 1 auto;
   gap: 14px;
   inline-size: 100%;
   min-block-size: 0;
@@ -5615,7 +5618,6 @@ onBeforeUnmount(() => {
 
   .workspace-shell {
     align-items: stretch;
-    block-size: 100%;
     grid-template-columns: minmax(304px, 348px) minmax(0, 1fr);
   }
 
