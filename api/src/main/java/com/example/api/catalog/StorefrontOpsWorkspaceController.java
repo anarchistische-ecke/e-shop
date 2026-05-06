@@ -116,10 +116,6 @@ public class StorefrontOpsWorkspaceController {
         List<Category> categories = catalogService.listAllInCategory().stream()
                 .filter(category -> includeInactive || category.isIsActive())
                 .filter(category -> matchesQuery(query, category.getName(), category.getSlug(), category.getFullPath(), category.getDescription()))
-                .sorted((left, right) -> compareNullableStrings(
-                        left.getFullPath() != null ? left.getFullPath() : left.getSlug(),
-                        right.getFullPath() != null ? right.getFullPath() : right.getSlug()
-                ))
                 .toList();
         OverlayLookupResult categoryOverlays = loadPreviewCategoryOverlays(categories);
         audit(principal, "catalogue.workspace.categories.list", detailMap(

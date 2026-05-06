@@ -48,7 +48,6 @@ public class StorefrontOpsWorkspaceFactory {
         }
         return categories.stream()
                 .filter(category -> category != null)
-                .sorted(Comparator.comparing(category -> Optional.ofNullable(category.getFullPath()).orElse(category.getSlug()), String.CASE_INSENSITIVE_ORDER))
                 .map(this::toCategoryOption)
                 .toList();
     }
