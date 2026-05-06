@@ -1476,10 +1476,37 @@
                   </select>
                 </label>
 
-                <label class="ops-field">
+                <div class="ops-field">
                   <span>Позиция</span>
-                  <input v-model.number="categoryForm.position" type="number" min="0" step="1" />
-                </label>
+                  <div class="position-control">
+                    <button
+                      class="button button-secondary button-small"
+                      type="button"
+                      :disabled="isSubmitting || Number(categoryForm.position || 0) <= 0"
+                      @click="adjustCategoryPosition(-1)"
+                    >
+                      Раньше
+                    </button>
+                    <input
+                      v-model.number="categoryForm.position"
+                      type="number"
+                      min="0"
+                      step="1"
+                      aria-describedby="category-position-help"
+                    />
+                    <button
+                      class="button button-secondary button-small"
+                      type="button"
+                      :disabled="isSubmitting"
+                      @click="adjustCategoryPosition(1)"
+                    >
+                      Позже
+                    </button>
+                  </div>
+                  <small id="category-position-help" class="field-help">
+                    Меньшее число поднимает категорию выше среди категорий того же родителя.
+                  </small>
+                </div>
               </div>
 
               <label class="ops-field ops-field-boolean">
@@ -4218,6 +4245,12 @@ function resetCategoryEditor() {
   categoryImageFile.value = null;
 }
 
+function adjustCategoryPosition(delta) {
+  const current = Number(categoryForm.position || 0);
+  const next = current + Number(delta || 0);
+  categoryForm.position = Math.max(0, Number.isFinite(next) ? next : 0);
+}
+
 function resetBrandEditor() {
   brandState.detail = null;
   brandState.selectedId = '';
@@ -6093,6 +6126,23 @@ onBeforeUnmount(() => {
 .ops-field textarea {
   min-height: 112px;
   resize: vertical;
+}
+
+.position-control {
+  align-items: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(92px, 1fr) auto;
+}
+
+.position-control input {
+  min-width: 0;
+}
+
+.field-help {
+  color: var(--theme--foreground-subdued);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .ops-field-boolean {

@@ -228,4 +228,57 @@ class StorefrontOpsWorkspaceControllerTest {
                 .andExpect(jsonPath("$.item.overlay.status").value("published"))
                 .andExpect(jsonPath("$.parentOptions[0].name").value("Sofas"));
     }
+
+    @Test
+    void listCategories_preservesCataloguePositionOrder() throws Exception {
+        Category beta = new Category("Beta", "Second alphabetically, first in catalogue", "beta", null);
+        beta.setId(UUID.fromString("44444444-4444-4444-8444-444444444444"));
+        beta.setFullPath("beta");
+        beta.setPosition(1);
+
+        Category alpha = new Category("Alpha", "First alphabetically, second in catalogue", "alpha", null);
+        alpha.setId(UUID.fromString("55555555-5555-4555-8555-555555555555"));
+        alpha.setFullPath("alpha");
+        alpha.setPosition(2);
+
+        List<Category> catalogueOrder = List.of(beta, alpha);
+
+        when(catalogService.listAllInCategory()).thenReturn(catalogueOrder);
+        when(catalogueContentService.getPreviewCategoryOverlays(List.of("beta", "alpha"))).thenReturn(Map.of());
+        when(workspaceFactory.toCategorySummary(beta, null)).thenReturn(new StorefrontOpsWorkspaceModels.CategorySummary(
+                beta.getId(),
+                beta.getName(),
+                beta.getSlug(),
+                beta.getFullPath(),
+                null,
+                0,
+                beta.getPosition(),
+                true,
+                null,
+                null
+        ));
+        when(workspaceFactory.toCategorySummary(alpha, null)).thenReturn(new StorefrontOpsWorkspaceModels.CategorySummary(
+                alpha.getId(),
+                alpha.getName(),
+                alpha.getSlug(),
+                alpha.getFullPath(),
+                null,
+                0,
+                alpha.getPosition(),
+                true,
+                null,
+                null
+        ));
+        when(workspaceFactory.toCategoryOptions(catalogueOrder)).thenReturn(List.of(
+                new StorefrontOpsWorkspaceModels.CategoryOption(beta.getId(), beta.getName(), beta.getSlug(), beta.getFullPath(), null, 0),
+                new StorefrontOpsWorkspaceModels.CategoryOption(alpha.getId(), alpha.getName(), alpha.getSlug(), alpha.getFullPath(), null, 0)
+        ));
+
+        mockMvc.perform(get("/internal/directus/catalogue/workspace/categories"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].slug").value("beta"))
+                .andExpect(jsonPath("$.items[0].position").value(1))
+                .andExpect(jsonPath("$.items[1].slug").value("alpha"))
+                .andExpect(jsonPath("$.parentOptions[0].slug").value("beta"));
+    }
 }

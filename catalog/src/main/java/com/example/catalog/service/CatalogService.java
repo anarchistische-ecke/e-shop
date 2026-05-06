@@ -15,6 +15,10 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -284,7 +288,88 @@ public class CatalogService {
     //
 
     public List<Category> listAllInCategory() {
-        return categoryRepository.findAll();
+        return sortCategoriesForCatalogue(categoryRepository.findAll());
+    }
+
+    private List<Category> sortCategoriesForCatalogue(Collection<Category> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return List.of();
+        }
+        return categories.stream()
+                .filter(category -> category != null)
+                .sorted(this::compareCategoriesForCatalogue)
+                .toList();
+    }
+
+    private int compareCategoriesForCatalogue(Category left, Category right) {
+        if (left == right) {
+            return 0;
+        }
+        if (left == null) {
+            return 1;
+        }
+        if (right == null) {
+            return -1;
+        }
+
+        List<Category> leftPath = categorySortPath(left);
+        List<Category> rightPath = categorySortPath(right);
+        int sharedLength = Math.min(leftPath.size(), rightPath.size());
+
+        for (int index = 0; index < sharedLength; index++) {
+            int compared = compareCategoryNode(leftPath.get(index), rightPath.get(index));
+            if (compared != 0) {
+                return compared;
+            }
+        }
+
+        return Integer.compare(leftPath.size(), rightPath.size());
+    }
+
+    private List<Category> categorySortPath(Category category) {
+        List<Category> path = new ArrayList<>();
+        Set<UUID> visited = new HashSet<>();
+        Category current = category;
+        int guard = 0;
+
+        while (current != null && guard < 50) {
+            UUID id = current.getId();
+            if (id != null && !visited.add(id)) {
+                break;
+            }
+            path.add(current);
+            current = current.getParent();
+            guard++;
+        }
+
+        Collections.reverse(path);
+        return path;
+    }
+
+    private int compareCategoryNode(Category left, Category right) {
+        int positionCompare = Integer.compare(Math.max(0, left.getPosition()), Math.max(0, right.getPosition()));
+        if (positionCompare != 0) {
+            return positionCompare;
+        }
+
+        int nameCompare = compareNullableStrings(left.getName(), right.getName());
+        if (nameCompare != 0) {
+            return nameCompare;
+        }
+
+        int slugCompare = compareNullableStrings(left.getSlug(), right.getSlug());
+        if (slugCompare != 0) {
+            return slugCompare;
+        }
+
+        return compareNullableStrings(
+                left.getId() != null ? left.getId().toString() : null,
+                right.getId() != null ? right.getId().toString() : null
+        );
+    }
+
+    private int compareNullableStrings(String left, String right) {
+        return Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER).compare(left, right);
     }
 
     public Optional<Category> getBySlug(String slug) {
