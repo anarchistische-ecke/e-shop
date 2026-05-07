@@ -150,6 +150,7 @@ public class CategoryController {
         private final int position;
         private final boolean isActive;
         private final String fullPath;
+        private final MediaModels.MediaManifest media;
         private final CatalogueContentModels.CataloguePresentation presentation;
 
         public CategoryResponse(
@@ -162,6 +163,7 @@ public class CategoryController {
                 int position,
                 boolean isActive,
                 String fullPath,
+                MediaModels.MediaManifest media,
                 CatalogueContentModels.CataloguePresentation presentation
         ) {
             this.id = id;
@@ -173,6 +175,7 @@ public class CategoryController {
             this.position = position;
             this.isActive = isActive;
             this.fullPath = fullPath;
+            this.media = media;
             this.presentation = presentation;
         }
 
@@ -210,6 +213,10 @@ public class CategoryController {
 
         public String getFullPath() {
             return fullPath;
+        }
+
+        public MediaModels.MediaManifest getMedia() {
+            return media;
         }
 
         public CatalogueContentModels.CataloguePresentation getPresentation() {

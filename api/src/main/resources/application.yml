@@ -37,3 +37,8 @@ app:
     directus-bridge-token: ${DIRECTUS_BRIDGE_TOKEN:}
   observability:
     prometheus-token: ${APP_OBSERVABILITY_PROMETHEUS_TOKEN:}
+
+media:
+  derivatives:
+    public-base-url: ${MEDIA_DERIVATIVES_PUBLIC_BASE_URL:https://img.yug-postel.ru}
+    path-prefix: ${MEDIA_DERIVATIVES_PATH_PREFIX:media}

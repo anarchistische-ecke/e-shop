@@ -6,6 +6,7 @@ import com.example.api.content.ContentModels;
 import com.example.api.content.ContentAccessMode;
 import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
+import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.repository.ProductVariantRepository;
 import com.example.catalog.service.CatalogService;
@@ -36,17 +37,20 @@ public class CataloguePresentationService {
     private final CatalogService catalogService;
     private final OrderItemRepository orderItemRepository;
     private final ProductVariantRepository productVariantRepository;
+    private final StorefrontMediaService mediaService;
 
     public CataloguePresentationService(
             CatalogueContentService catalogueContentService,
             CatalogService catalogService,
             OrderItemRepository orderItemRepository,
-            ProductVariantRepository productVariantRepository
+            ProductVariantRepository productVariantRepository,
+            StorefrontMediaService mediaService
     ) {
         this.catalogueContentService = catalogueContentService;
         this.catalogService = catalogService;
         this.orderItemRepository = orderItemRepository;
         this.productVariantRepository = productVariantRepository;
+        this.mediaService = mediaService;
     }
 
     public CataloguePresentationModels.OverlayMergeResult buildPublishedProductPresentation(Product product) {
@@ -494,8 +498,9 @@ public class CataloguePresentationService {
                     ref.entityKey(),
                     fallbackCategoryResult(category, false, false)
             ).presentation();
-            ContentModels.MediaAsset image = StringUtils.hasText(category.getImageUrl())
-                    ? new ContentModels.MediaAsset(null, category.getImageUrl(), null, null, category.getName(), null)
+            MediaModels.MediaManifest imageManifest = mediaService.imageUrl(category.getImageUrl(), category.getName());
+            ContentModels.MediaAsset image = imageManifest != null
+                    ? new ContentModels.MediaAsset(null, imageManifest.url(), imageManifest.width(), imageManifest.height(), category.getName(), null)
                     : null;
             return new CatalogueContentModels.StorefrontCollectionEntry(
                     "category",
@@ -522,16 +527,13 @@ public class CataloguePresentationService {
                 ref.entityKey(),
                 fallbackProductResult(product, false, false)
         ).presentation();
-        ContentModels.MediaAsset image = product.getImages() != null && !product.getImages().isEmpty()
-                ? null
-                : null;
-        String imageUrl = catalogService.getProductImages(product.getId()).stream()
+        ProductImage productImage = catalogService.getProductImages(product.getId()).stream()
                 .findFirst()
-                .map(productImage -> productImage.getUrl())
                 .orElse(null);
-        if (StringUtils.hasText(imageUrl)) {
-            image = new ContentModels.MediaAsset(null, imageUrl, null, null, product.getName(), null);
-        }
+        MediaModels.MediaManifest imageManifest = mediaService.productImage(productImage, product.getName());
+        ContentModels.MediaAsset image = imageManifest != null
+                ? new ContentModels.MediaAsset(null, imageManifest.url(), imageManifest.width(), imageManifest.height(), product.getName(), null)
+                : null;
         Money price = product.getVariants() == null
                 ? null
                 : product.getVariants().stream()

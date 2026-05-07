@@ -753,6 +753,7 @@ public class CatalogController {
         private String url;
         private int position;
         private UUID variantId;
+        private MediaModels.MediaManifest media;
 
         public UUID getId() {
             return id;
@@ -784,6 +785,14 @@ public class CatalogController {
 
         public void setVariantId(UUID variantId) {
             this.variantId = variantId;
+        }
+
+        public MediaModels.MediaManifest getMedia() {
+            return media;
+        }
+
+        public void setMedia(MediaModels.MediaManifest media) {
+            this.media = media;
         }
     }
 

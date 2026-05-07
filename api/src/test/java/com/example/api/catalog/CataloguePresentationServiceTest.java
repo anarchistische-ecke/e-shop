@@ -48,7 +48,8 @@ class CataloguePresentationServiceTest {
                 catalogueContentService,
                 catalogService,
                 orderItemRepository,
-                productVariantRepository
+                productVariantRepository,
+                new StorefrontMediaService("https://img.example.test", "media")
         );
     }
 

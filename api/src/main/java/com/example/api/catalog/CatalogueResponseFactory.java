@@ -28,14 +28,17 @@ public class CatalogueResponseFactory {
     private final CatalogService catalogService;
     private final ObjectMapper objectMapper;
     private final CartPricingService pricingService;
+    private final StorefrontMediaService mediaService;
 
     public CatalogueResponseFactory(CatalogService catalogService,
                                     ObjectMapper objectMapper,
-                                    ObjectProvider<CartPricingService> pricingServiceProvider) {
+                                    ObjectProvider<CartPricingService> pricingServiceProvider,
+                                    StorefrontMediaService mediaService) {
         this.catalogService = catalogService;
         this.objectMapper = objectMapper;
         this.pricingService = pricingServiceProvider.getIfAvailable(() -> new CartPricingService() {
         });
+        this.mediaService = mediaService;
     }
 
     public CatalogController.ProductResponse toProductResponse(Product product) {
@@ -99,6 +102,7 @@ public class CatalogueResponseFactory {
                 category.getPosition(),
                 category.isIsActive(),
                 category.getFullPath(),
+                mediaService.imageUrl(category.getImageUrl(), category.getName()),
                 presentation
         );
     }
@@ -135,7 +139,19 @@ public class CatalogueResponseFactory {
         response.setUrl(image.getUrl());
         response.setPosition(image.getPosition());
         response.setVariantId(image.getVariant() != null ? image.getVariant().getId() : null);
+        response.setMedia(mediaService.productImage(
+                image,
+                image.getProduct() != null ? image.getProduct().getName() : ""
+        ));
         return response;
+    }
+
+    public MediaModels.MediaManifest toMediaManifest(ProductImage image, String alt) {
+        return mediaService.productImage(image, alt);
+    }
+
+    public MediaModels.MediaManifest toMediaManifest(String imageUrl, String alt) {
+        return mediaService.imageUrl(imageUrl, alt);
     }
 
     public Set<Category> resolveCategories(CatalogController.ProductRequest request) {
