@@ -31,6 +31,7 @@ public class ContentCacheAdminController {
             case "site_settings", "site-settings" -> contentCacheService.invalidateSiteSettings();
             case "navigation" -> contentCacheService.invalidateNavigation(request != null ? request.placement() : null);
             case "page" -> contentCacheService.invalidatePage(requireSlug(request));
+            case "collection", "storefront_collection", "storefront-collection" -> contentCacheService.invalidateCollection(requireKey(request));
             default -> throw new IllegalArgumentException("Unsupported content cache scope: " + scope);
         };
     }
@@ -43,6 +44,14 @@ public class ContentCacheAdminController {
         return request.slug();
     }
 
-    public record CacheInvalidationRequest(String scope, String placement, String slug) {
+    private String requireKey(CacheInvalidationRequest request) {
+        if (request == null || !StringUtils.hasText(request.key())) {
+            throw new IllegalArgumentException("key is required when invalidating collection cache");
+        }
+
+        return request.key();
+    }
+
+    public record CacheInvalidationRequest(String scope, String placement, String slug, String key) {
     }
 }

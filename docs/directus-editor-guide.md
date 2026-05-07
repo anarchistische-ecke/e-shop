@@ -71,9 +71,11 @@ Open `Управление витриной` and choose the `Главная` tab
 Use this screen for:
 
 - hero title, text, accent, and CTA buttons
-- the homepage category section heading and “Смотреть весь каталог” CTA
-- adding, removing, and reordering category cards from backend categories
-- homepage feature cards, collection references, product references, and newsletter copy
+- adding, duplicating, archiving, and reordering homepage sections
+- safe layout presets such as cards, horizontal rails, media-left/media-right, full-width blocks, and shop-the-look
+- adding, removing, and reordering backend category cards and product cards
+- creating or editing reusable storefront collections with manual pins, backend rules, excludes, limits, sort mode, and CTA
+- homepage feature cards, collection references, product references, banners, and newsletter copy
 
 When a category card has an empty custom title, the storefront shows the backend category name automatically. Use a custom title only when the homepage needs wording that differs from the catalogue name.
 

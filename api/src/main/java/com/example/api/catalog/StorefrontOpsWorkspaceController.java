@@ -19,12 +19,15 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RestController
@@ -57,13 +60,16 @@ public class StorefrontOpsWorkspaceController {
     @GetMapping("/products")
     public ResponseEntity<StorefrontOpsWorkspaceModels.ProductWorkspaceList> listProducts(
             @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "keys", required = false) String keys,
+            @RequestParam(name = "limit", defaultValue = "120") int limit,
             @RequestParam(name = "includeInactive", defaultValue = "true") boolean includeInactive,
             HttpServletRequest request
     ) {
         DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        Set<String> selectedKeys = parseKeySet(keys);
         List<Product> products = catalogService.getAllProducts().stream()
                 .filter(product -> includeInactive || product.isIsActive())
-                .filter(product -> matchesQuery(query,
+                .filter(product -> selectedKeys.contains(normalize(product.getSlug())) || matchesQuery(query,
                         product.getName(),
                         product.getSlug(),
                         product.getDescription(),
@@ -71,11 +77,16 @@ public class StorefrontOpsWorkspaceController {
                         product.getBrand() != null ? product.getBrand().getSlug() : null,
                         joinCategoryValues(product.getCategories())
                 ))
-                .sorted((left, right) -> compareNullableStrings(left.getName(), right.getName()))
+                .sorted(Comparator
+                        .comparing((Product product) -> !selectedKeys.contains(normalize(product.getSlug())))
+                        .thenComparing(Product::getName, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .limit(clampWorkspaceLimit(limit))
                 .toList();
         OverlayLookupResult productOverlays = loadPreviewProductOverlays(products);
         audit(principal, "catalogue.workspace.products.list", detailMap(
                 "query", query,
+                "keys", selectedKeys,
+                "limit", clampWorkspaceLimit(limit),
                 "includeInactive", includeInactive,
                 "count", products.size()
         ));
@@ -109,17 +120,25 @@ public class StorefrontOpsWorkspaceController {
     @GetMapping("/categories")
     public ResponseEntity<StorefrontOpsWorkspaceModels.CategoryWorkspaceList> listCategories(
             @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "keys", required = false) String keys,
+            @RequestParam(name = "limit", defaultValue = "120") int limit,
             @RequestParam(name = "includeInactive", defaultValue = "true") boolean includeInactive,
             HttpServletRequest request
     ) {
         DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        Set<String> selectedKeys = parseKeySet(keys);
         List<Category> categories = catalogService.listAllInCategory().stream()
                 .filter(category -> includeInactive || category.isIsActive())
-                .filter(category -> matchesQuery(query, category.getName(), category.getSlug(), category.getFullPath(), category.getDescription()))
+                .filter(category -> selectedKeys.contains(normalize(category.getSlug())) ||
+                        matchesQuery(query, category.getName(), category.getSlug(), category.getFullPath(), category.getDescription()))
+                .sorted(Comparator.comparing((Category category) -> !selectedKeys.contains(normalize(category.getSlug()))))
+                .limit(clampWorkspaceLimit(limit))
                 .toList();
         OverlayLookupResult categoryOverlays = loadPreviewCategoryOverlays(categories);
         audit(principal, "catalogue.workspace.categories.list", detailMap(
                 "query", query,
+                "keys", selectedKeys,
+                "limit", clampWorkspaceLimit(limit),
                 "includeInactive", includeInactive,
                 "count", categories.size()
         ));
@@ -313,13 +332,27 @@ public class StorefrontOpsWorkspaceController {
         if (!StringUtils.hasText(query)) {
             return true;
         }
-        String normalizedQuery = query.trim().toLowerCase();
+        String normalizedQuery = query.trim().toLowerCase(Locale.ROOT);
         for (String value : values) {
-            if (StringUtils.hasText(value) && value.toLowerCase().contains(normalizedQuery)) {
+            if (StringUtils.hasText(value) && value.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private Set<String> parseKeySet(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Set.of();
+        }
+        return java.util.Arrays.stream(value.split(","))
+                .map(this::normalize)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private int clampWorkspaceLimit(int limit) {
+        return Math.max(1, Math.min(limit, 500));
     }
 
     private String joinCategoryValues(Collection<Category> categories) {

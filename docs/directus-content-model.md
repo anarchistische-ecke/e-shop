@@ -21,6 +21,8 @@ Revisit many-to-any reusable blocks only if marketing needs a materially larger 
 - All public-facing collections include `published_at`.
 - Routable collections use unique `slug` and, where needed, unique `path`.
 - Ordered collections use a `sort` integer.
+- Homepage section layout variants are constrained to safe responsive presets: `contained`, `full`, `media_right`, `media_left`, `cards`, `rail`, and `shop_the_look`.
+- Style variants are shared across page sections, overlay blocks, and collection heroes: `default`, `warm`, `sage`, `quiet`, `legal`, and `accent`.
 - Directus system fields `date_created`, `date_updated`, `user_created`, and `user_updated` should remain enabled for auditability.
 - Public storefront reads should filter to `status = published`.
 - Do not model commerce data in Directus. Product/category references remain opaque backend IDs or slugs only.
@@ -254,8 +256,8 @@ Recommended fields:
 | `primary_cta_url` | string | no | |
 | `secondary_cta_label` | string | no | |
 | `secondary_cta_url` | string | no | |
-| `style_variant` | string enum | no | Example: `default`, `warm`, `sage`, `quiet`, `legal`. |
-| `layout_variant` | string enum | no | Example: `contained`, `full`, `two_column`, `cards`. |
+| `style_variant` | string enum | no | Example: `default`, `warm`, `sage`, `quiet`, `legal`, `accent`. |
+| `layout_variant` | string enum | no | Example: `contained`, `full`, `media_right`, `media_left`, `cards`, `rail`, `shop_the_look`. |
 | `items` | O2M alias | no | Relation to `page_section_items`. |
 | `banners` | M2M `banner` | no | Used when `section_type = banner_group`. |
 | `faqs` | M2M `faq` | no | Used when `section_type = faq_list`. |

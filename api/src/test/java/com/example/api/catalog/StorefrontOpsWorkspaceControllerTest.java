@@ -160,6 +160,40 @@ class StorefrontOpsWorkspaceControllerTest {
     }
 
     @Test
+    void listProducts_prioritizesSelectedKeysBeforeApplyingLimit() throws Exception {
+        Product cloud = new Product("Cloud Sofa", "Soft", "cloud-sofa");
+        Product linen = new Product("Linen Set", "Fresh linen", "linen-set");
+
+        when(catalogService.getAllProducts()).thenReturn(List.of(linen, cloud));
+        when(catalogService.listAllInBrand()).thenReturn(List.of());
+        when(catalogService.listAllInCategory()).thenReturn(List.of());
+        when(catalogueContentService.getPreviewProductOverlays(List.of("cloud-sofa"))).thenReturn(Map.of());
+        when(workspaceFactory.toProductSummary(cloud, null)).thenReturn(new StorefrontOpsWorkspaceModels.ProductSummary(
+                UUID.fromString("11111111-1111-4111-8111-111111111111"),
+                "Cloud Sofa",
+                "cloud-sofa",
+                true,
+                null,
+                List.of(),
+                0,
+                0,
+                null,
+                null,
+                null
+        ));
+        when(workspaceFactory.toBrandOptions(List.of())).thenReturn(List.of());
+        when(workspaceFactory.toCategoryOptions(List.of())).thenReturn(List.of());
+
+        mockMvc.perform(get("/internal/directus/catalogue/workspace/products")
+                        .param("q", "linen")
+                        .param("keys", "cloud-sofa")
+                        .param("limit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].slug").value("cloud-sofa"))
+                .andExpect(jsonPath("$.items.length()").value(1));
+    }
+
+    @Test
     void getCategory_returnsDetailPayloadWithOverlayState() throws Exception {
         Category category = new Category("Sofas", "Living room seating", "sofas", null);
         category.setFullPath("living/sofas");
