@@ -136,4 +136,23 @@ class DirectusContentCacheServiceTest {
         );
         verify(observabilityService).recordCacheInvalidation("page", 2);
     }
+
+    @Test
+    void invalidateCollection_deletesFreshAndStaleKeys() {
+        store.put("cms:content:collection:home-bestsellers", "{\"title\":\"Bestsellers\"}");
+        store.put("cms:content:collection:home-bestsellers:stale", "{\"title\":\"Cached bestsellers\"}");
+
+        DirectusContentCacheService.CacheInvalidationResult result = service.invalidateCollection("home-bestsellers");
+
+        assertThat(store).doesNotContainKeys(
+                "cms:content:collection:home-bestsellers",
+                "cms:content:collection:home-bestsellers:stale"
+        );
+        assertThat(result.deletedKeys()).isEqualTo(2);
+        assertThat(result.selectors()).containsExactlyInAnyOrder(
+                "cms:content:collection:home-bestsellers",
+                "cms:content:collection:home-bestsellers:stale"
+        );
+        verify(observabilityService).recordCacheInvalidation("collection", 2);
+    }
 }

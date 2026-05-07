@@ -97,6 +97,10 @@ public class DirectusContentCacheService {
         return invalidateByKeys("page", List.of(ContentCacheKeys.page(slug)));
     }
 
+    public CacheInvalidationResult invalidateCollection(String key) {
+        return invalidateByKeys("collection", List.of(ContentCacheKeys.collection(key)));
+    }
+
     public record CacheInvalidationResult(
             String scope,
             String keyPrefix,

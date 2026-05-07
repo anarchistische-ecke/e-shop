@@ -5105,7 +5105,7 @@
         "options": {
           "choices": [
             {
-              "text": "По умолчанию",
+              "text": "Обычный",
               "value": "default"
             },
             {
@@ -5113,7 +5113,7 @@
               "value": "warm"
             },
             {
-              "text": "Шалфей",
+              "text": "Шалфейный",
               "value": "sage"
             },
             {
@@ -5123,6 +5123,10 @@
             {
               "text": "Юридический",
               "value": "legal"
+            },
+            {
+              "text": "Акцентный",
+              "value": "accent"
             }
           ]
         },
@@ -5177,20 +5181,32 @@
         "options": {
           "choices": [
             {
-              "text": "По контейнеру",
+              "text": "Обычный блок",
               "value": "contained"
             },
             {
-              "text": "Во всю ширину",
+              "text": "На всю ширину",
               "value": "full"
             },
             {
-              "text": "Две колонки",
-              "value": "two_column"
+              "text": "Медиа справа",
+              "value": "media_right"
+            },
+            {
+              "text": "Медиа слева",
+              "value": "media_left"
             },
             {
               "text": "Карточки",
               "value": "cards"
+            },
+            {
+              "text": "Горизонтальная лента",
+              "value": "rail"
+            },
+            {
+              "text": "Shop the look",
+              "value": "shop_the_look"
             }
           ]
         },
@@ -7801,7 +7817,7 @@
         "options": {
           "choices": [
             {
-              "text": "По умолчанию",
+              "text": "Обычный",
               "value": "default"
             },
             {
@@ -7809,7 +7825,7 @@
               "value": "warm"
             },
             {
-              "text": "Шалфей",
+              "text": "Шалфейный",
               "value": "sage"
             },
             {
@@ -7819,6 +7835,10 @@
             {
               "text": "Юридический",
               "value": "legal"
+            },
+            {
+              "text": "Акцентный",
+              "value": "accent"
             }
           ]
         },
@@ -7873,20 +7893,32 @@
         "options": {
           "choices": [
             {
-              "text": "По контейнеру",
+              "text": "Обычный блок",
               "value": "contained"
             },
             {
-              "text": "Во всю ширину",
+              "text": "На всю ширину",
               "value": "full"
             },
             {
-              "text": "Две колонки",
-              "value": "two_column"
+              "text": "Медиа справа",
+              "value": "media_right"
+            },
+            {
+              "text": "Медиа слева",
+              "value": "media_left"
             },
             {
               "text": "Карточки",
               "value": "cards"
+            },
+            {
+              "text": "Горизонтальная лента",
+              "value": "rail"
+            },
+            {
+              "text": "Shop the look",
+              "value": "shop_the_look"
             }
           ]
         },
@@ -9234,7 +9266,7 @@
         "options": {
           "choices": [
             {
-              "text": "По умолчанию",
+              "text": "Обычный",
               "value": "default"
             },
             {
@@ -9242,7 +9274,7 @@
               "value": "warm"
             },
             {
-              "text": "Шалфей",
+              "text": "Шалфейный",
               "value": "sage"
             },
             {
@@ -9252,6 +9284,10 @@
             {
               "text": "Юридический",
               "value": "legal"
+            },
+            {
+              "text": "Акцентный",
+              "value": "accent"
             }
           ]
         },
@@ -9306,20 +9342,32 @@
         "options": {
           "choices": [
             {
-              "text": "По контейнеру",
+              "text": "Обычный блок",
               "value": "contained"
             },
             {
-              "text": "Во всю ширину",
+              "text": "На всю ширину",
               "value": "full"
             },
             {
-              "text": "Две колонки",
-              "value": "two_column"
+              "text": "Медиа справа",
+              "value": "media_right"
+            },
+            {
+              "text": "Медиа слева",
+              "value": "media_left"
             },
             {
               "text": "Карточки",
               "value": "cards"
+            },
+            {
+              "text": "Горизонтальная лента",
+              "value": "rail"
+            },
+            {
+              "text": "Shop the look",
+              "value": "shop_the_look"
             }
           ]
         },
@@ -10562,7 +10610,7 @@
         "options": {
           "choices": [
             {
-              "text": "По умолчанию",
+              "text": "Обычный",
               "value": "default"
             },
             {
@@ -10570,7 +10618,7 @@
               "value": "warm"
             },
             {
-              "text": "Шалфей",
+              "text": "Шалфейный",
               "value": "sage"
             },
             {
@@ -10580,6 +10628,10 @@
             {
               "text": "Юридический",
               "value": "legal"
+            },
+            {
+              "text": "Акцентный",
+              "value": "accent"
             }
           ]
         },
@@ -10634,20 +10686,32 @@
         "options": {
           "choices": [
             {
-              "text": "По контейнеру",
+              "text": "Обычный блок",
               "value": "contained"
             },
             {
-              "text": "Во всю ширину",
+              "text": "На всю ширину",
               "value": "full"
             },
             {
-              "text": "Две колонки",
-              "value": "two_column"
+              "text": "Медиа справа",
+              "value": "media_right"
+            },
+            {
+              "text": "Медиа слева",
+              "value": "media_left"
             },
             {
               "text": "Карточки",
               "value": "cards"
+            },
+            {
+              "text": "Горизонтальная лента",
+              "value": "rail"
+            },
+            {
+              "text": "Shop the look",
+              "value": "shop_the_look"
             }
           ]
         },
@@ -12995,7 +13059,7 @@
         "options": {
           "choices": [
             {
-              "text": "По умолчанию",
+              "text": "Обычный",
               "value": "default"
             },
             {
@@ -13003,7 +13067,7 @@
               "value": "warm"
             },
             {
-              "text": "Шалфей",
+              "text": "Шалфейный",
               "value": "sage"
             },
             {
@@ -13013,6 +13077,10 @@
             {
               "text": "Юридический",
               "value": "legal"
+            },
+            {
+              "text": "Акцентный",
+              "value": "accent"
             }
           ]
         },
@@ -13067,20 +13135,32 @@
         "options": {
           "choices": [
             {
-              "text": "По контейнеру",
+              "text": "Обычный блок",
               "value": "contained"
             },
             {
-              "text": "Во всю ширину",
+              "text": "На всю ширину",
               "value": "full"
             },
             {
-              "text": "Две колонки",
-              "value": "two_column"
+              "text": "Медиа справа",
+              "value": "media_right"
+            },
+            {
+              "text": "Медиа слева",
+              "value": "media_left"
             },
             {
               "text": "Карточки",
               "value": "cards"
+            },
+            {
+              "text": "Горизонтальная лента",
+              "value": "rail"
+            },
+            {
+              "text": "Shop the look",
+              "value": "shop_the_look"
             }
           ]
         },

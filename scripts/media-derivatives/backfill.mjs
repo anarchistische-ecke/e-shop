@@ -1,5 +1,6 @@
 import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
+import { Agent, setGlobalDispatcher } from 'undici';
 
 const WIDTHS = [96, 160, 320, 480, 640, 768, 960, 1280, 1600];
 const FORMATS = {
@@ -21,6 +22,16 @@ const accessKeyId = readEnv('YANDEX_STORAGE_KEY');
 const secretAccessKey = readEnv('YANDEX_STORAGE_SECRET');
 const pathPrefix = readEnv('MEDIA_DERIVATIVES_PATH_PREFIX', 'media').replace(/^\/+|\/+$/g, '') || 'media';
 const dryRun = process.argv.includes('--dry-run') || readEnv('DRY_RUN') === 'true';
+const fetchTimeoutMs = Number(readEnv('FETCH_TIMEOUT_MS', '600000'));
+const fetchAttempts = Math.max(1, Number(readEnv('FETCH_ATTEMPTS', '3')));
+
+setGlobalDispatcher(new Agent({
+  bodyTimeout: fetchTimeoutMs,
+  headersTimeout: Math.min(fetchTimeoutMs, 120000),
+  connect: {
+    timeout: 30000,
+  },
+}));
 
 if (!bucket || !accessKeyId || !secretAccessKey) {
   throw new Error('Set MEDIA_DERIVATIVES_BUCKET or YANDEX_STORAGE_BUCKET, plus YANDEX_STORAGE_KEY and YANDEX_STORAGE_SECRET.');
@@ -32,10 +43,40 @@ const s3 = new S3Client({
   credentials: { accessKeyId, secretAccessKey },
 });
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(url, options = {}, label = url) {
+  let lastError;
+  for (let attempt = 1; attempt <= fetchAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      return response;
+    } catch (error) {
+      clearTimeout(timeout);
+      lastError = error;
+      const message = error?.cause?.code || error?.message || String(error);
+      console.warn(`[warn] ${label} failed attempt ${attempt}/${fetchAttempts}: ${message}`);
+      if (attempt < fetchAttempts) {
+        await sleep(1000 * attempt);
+      }
+    }
+  }
+  throw lastError;
+}
+
 async function fetchJson(path) {
-  const response = await fetch(`${apiBase}${path}`, {
+  console.log(`fetching ${path}`);
+  const response = await fetchWithRetry(`${apiBase}${path}`, {
     headers: apiToken ? { Authorization: `Bearer ${apiToken}` } : {},
-  });
+  }, path);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
   }
@@ -105,7 +146,8 @@ async function processImage(image) {
     return;
   }
 
-  const response = await fetch(originalUrl);
+  console.log(`processing ${objectKey}`);
+  const response = await fetchWithRetry(originalUrl, {}, objectKey);
   if (!response.ok) {
     throw new Error(`Failed to download ${originalUrl}: ${response.status}`);
   }

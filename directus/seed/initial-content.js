@@ -120,7 +120,7 @@ const pages = [
         secondary_cta_label: 'Условия доставки',
         secondary_cta_url: '/info/delivery',
         style_variant: 'warm',
-        layout_variant: 'split_media',
+        layout_variant: 'media_right',
         items: [
           {
             migration_key: 'initial:page:home:hero:delivery',

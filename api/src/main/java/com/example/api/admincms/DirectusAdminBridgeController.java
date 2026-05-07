@@ -285,6 +285,9 @@ public class DirectusAdminBridgeController {
                             ? requestBody.slug().trim()
                             : "home"
             );
+            case "collection", "storefront_collection", "storefront-collection" -> cacheService.invalidateCollection(
+                    requireCollectionKey(requestBody)
+            );
             case "site_settings", "site-settings" -> cacheService.invalidateSiteSettings();
             case "navigation" -> cacheService.invalidateNavigation(requestBody != null ? requestBody.placement() : null);
             case "all" -> cacheService.invalidateAll();
@@ -302,6 +305,13 @@ public class DirectusAdminBridgeController {
             throw new IllegalStateException("Directus content cache service is not configured.");
         }
         return contentCacheService;
+    }
+
+    private String requireCollectionKey(ContentCacheInvalidationRequest requestBody) {
+        if (requestBody == null || !StringUtils.hasText(requestBody.key())) {
+            throw new IllegalArgumentException("key is required when invalidating collection cache");
+        }
+        return requestBody.key().trim();
     }
 
     @GetMapping("/promotions/{id}")
@@ -542,6 +552,6 @@ public class DirectusAdminBridgeController {
         return payload;
     }
 
-    public record ContentCacheInvalidationRequest(String scope, String placement, String slug) {
+    public record ContentCacheInvalidationRequest(String scope, String placement, String slug, String key) {
     }
 }
