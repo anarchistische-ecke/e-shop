@@ -35,6 +35,7 @@ services:
       SERVER_API_BASE: ${STOREFRONT_SERVER_API_BASE:-http://api:8080}
       REACT_APP_API_BASE: ${REACT_APP_API_BASE:-https://api.yug-postel.ru}
       REACT_APP_SITE_URL: ${REACT_APP_SITE_URL:-https://yug-postel.ru}
+      REACT_APP_IMAGE_CDN_BASE: ${REACT_APP_IMAGE_CDN_BASE:-https://img.yug-postel.ru}
       REACT_APP_KEYCLOAK_URL: ${REACT_APP_KEYCLOAK_URL:-https://yug-postel.ru/auth}
       REACT_APP_KEYCLOAK_REALM: ${REACT_APP_KEYCLOAK_REALM:-cozyhome}
       REACT_APP_KEYCLOAK_CLIENT_ID: ${REACT_APP_KEYCLOAK_CLIENT_ID:-cozyhome-web}

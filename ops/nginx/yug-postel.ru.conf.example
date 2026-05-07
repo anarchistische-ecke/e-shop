@@ -1,5 +1,7 @@
 # Origin-side nginx for the storefront/CDN path.
 # TLS terminates at Yandex CDN, so the VM origin listens on port 80 only.
+# CDN rules must preserve origin Cache-Control for SSR HTML and force
+# immutable caching only for fingerprinted /assets/* and image derivatives.
 
 server {
     listen 80;

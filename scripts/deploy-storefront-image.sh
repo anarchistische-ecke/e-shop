@@ -236,6 +236,24 @@ check_url() {
   done
 }
 
+purge_storefront_cdn() {
+  local purge_command purge_paths purge_origin
+
+  purge_command="${STOREFRONT_CDN_PURGE_COMMAND:-}"
+  if [[ -z "$purge_command" ]]; then
+    echo "[skip] Storefront CDN purge command is not configured."
+    return 0
+  fi
+
+  purge_paths="${STOREFRONT_CDN_PURGE_PATHS:-/,/content/*}"
+  purge_origin="${STOREFRONT_CDN_PURGE_ORIGIN:-https://yug-postel.ru}"
+
+  echo "Purging storefront CDN paths: $purge_paths"
+  STOREFRONT_CDN_PURGE_PATHS="$purge_paths" \
+    STOREFRONT_CDN_PURGE_ORIGIN="$purge_origin" \
+    bash -lc "$purge_command"
+}
+
 runtime_load_state
 require_env CURRENT_LIVE_PROJECT "$(runtime_state_file)"
 require_env CURRENT_LIVE_SLOT "$(runtime_state_file)"
@@ -276,6 +294,9 @@ CURRENT_PHASE="verify-live-storefront"
 check_url "Storefront health" "$(runtime_internal_storefront_url "$CURRENT_LIVE_STOREFRONT_PORT")"
 check_url "Storefront root" "http://127.0.0.1:${CURRENT_LIVE_STOREFRONT_PORT}/"
 check_url "Nginx storefront root" "http://127.0.0.1/" --header "Host: yug-postel.ru"
+
+CURRENT_PHASE="purge-storefront-cdn"
+purge_storefront_cdn
 
 CURRENT_PHASE="complete"
 write_summary success

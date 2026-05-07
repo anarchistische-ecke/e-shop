@@ -60,6 +60,11 @@ yandex:
     endpoint: ${YANDEX_STORAGE_ENDPOINT:http://localhost:9000}
     public-base-url: ${YANDEX_STORAGE_PUBLIC_BASE_URL:http://localhost:9000/directus}
 
+media:
+  derivatives:
+    public-base-url: ${MEDIA_DERIVATIVES_PUBLIC_BASE_URL:http://localhost:9000/directus}
+    path-prefix: ${MEDIA_DERIVATIVES_PATH_PREFIX:media}
+
 management:
   endpoints:
     web:
