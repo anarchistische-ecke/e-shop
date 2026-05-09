@@ -22,6 +22,21 @@ public final class ContentModels {
             String defaultSeoTitleSuffix,
             String defaultSeoDescription,
             MediaAsset defaultOgImage,
+            AnnouncementBanner announcementBanner,
+            OffsetDateTime publishedAt
+    ) {
+    }
+
+    public record AnnouncementBanner(
+            String id,
+            String shortText,
+            String styleVariant,
+            String primaryCtaLabel,
+            String primaryCtaUrl,
+            String secondaryCtaLabel,
+            String secondaryCtaUrl,
+            OffsetDateTime activeFrom,
+            OffsetDateTime activeTo,
             OffsetDateTime publishedAt
     ) {
     }

@@ -80,6 +80,17 @@ public class DirectusContentClient {
                         "default_seo_title_suffix",
                         "default_seo_description",
                         "default_og_image",
+                        "announcement_banner.id",
+                        "announcement_banner.status",
+                        "announcement_banner.short_text",
+                        "announcement_banner.style_variant",
+                        "announcement_banner.primary_cta_label",
+                        "announcement_banner.primary_cta_url",
+                        "announcement_banner.secondary_cta_label",
+                        "announcement_banner.secondary_cta_url",
+                        "announcement_banner.active_from",
+                        "announcement_banner.active_to",
+                        "announcement_banner.published_at",
                         "status",
                         "published_at"
                 ))
@@ -436,7 +447,24 @@ public class DirectusContentClient {
             @JsonProperty("default_seo_title_suffix") String defaultSeoTitleSuffix,
             @JsonProperty("default_seo_description") String defaultSeoDescription,
             @JsonProperty("default_og_image") String defaultOgImage,
+            @JsonProperty("announcement_banner") DirectusBanner announcementBanner,
             String status,
+            @JsonProperty("published_at") OffsetDateTime publishedAt
+    ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DirectusBanner(
+            String id,
+            String status,
+            @JsonProperty("short_text") String shortText,
+            @JsonProperty("style_variant") String styleVariant,
+            @JsonProperty("primary_cta_label") String primaryCtaLabel,
+            @JsonProperty("primary_cta_url") String primaryCtaUrl,
+            @JsonProperty("secondary_cta_label") String secondaryCtaLabel,
+            @JsonProperty("secondary_cta_url") String secondaryCtaUrl,
+            @JsonProperty("active_from") OffsetDateTime activeFrom,
+            @JsonProperty("active_to") OffsetDateTime activeTo,
             @JsonProperty("published_at") OffsetDateTime publishedAt
     ) {
     }

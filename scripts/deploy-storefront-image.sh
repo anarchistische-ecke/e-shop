@@ -248,10 +248,21 @@ purge_storefront_cdn() {
   purge_paths="${STOREFRONT_CDN_PURGE_PATHS:-/,/content/*}"
   purge_origin="${STOREFRONT_CDN_PURGE_ORIGIN:-https://yug-postel.ru}"
 
+  if [[ "$purge_command" == *"yc"* ]] && ! command -v yc >/dev/null 2>&1; then
+    local yc_bin_dir
+    for yc_bin_dir in "$HOME/yandex-cloud/bin" "$HOME/.yandex-cloud/bin" "$HOME/.local/bin"; do
+      if [[ -x "$yc_bin_dir/yc" ]]; then
+        export PATH="$yc_bin_dir:$PATH"
+        break
+      fi
+    done
+  fi
+
   echo "Purging storefront CDN paths: $purge_paths"
   STOREFRONT_CDN_PURGE_PATHS="$purge_paths" \
     STOREFRONT_CDN_PURGE_ORIGIN="$purge_origin" \
-    bash -lc "$purge_command"
+    PATH="$PATH" \
+    bash -c "$purge_command"
 }
 
 runtime_load_state

@@ -648,6 +648,33 @@
                 </div>
               </section>
 
+              <section class="section-block">
+                <div class="section-head">
+                  <div>
+                    <h3>Баннер в шапке</h3>
+                    <p>Текст верхней плашки сайта. Если текст пустой или статус не опубликован, плашка не показывается.</p>
+                  </div>
+                </div>
+                <div class="form-grid">
+                  <label class="ops-field">
+                    <span>Статус</span>
+                    <select v-model="homeForm.announcementBanner.status">
+                      <option v-for="option in HOME_STATUS_OPTIONS" :key="option.value" :value="option.value">
+                        {{ option.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label class="ops-field">
+                    <span>Название для редактора</span>
+                    <input v-model.trim="homeForm.announcementBanner.internalName" type="text" />
+                  </label>
+                  <label class="ops-field full-span">
+                    <span>Текст баннера</span>
+                    <input v-model.trim="homeForm.announcementBanner.shortText" type="text" placeholder="Например: Новые условия доставки опубликованы" />
+                  </label>
+                </div>
+              </section>
+
               <div v-if="!selectedHomeSection" class="empty-inline">Выберите секцию или добавьте новый блок.</div>
 
               <section
@@ -749,6 +776,64 @@
                     <textarea v-model.trim="section.body" rows="4"></textarea>
                   </label>
                 </div>
+
+                <section v-if="section.sectionType === 'hero'" class="selector-card">
+                  <div class="selector-card-head">
+                    <div>
+                      <h3>Товар под фото</h3>
+                      <p>Выберите товар для кнопки «Выбор недели» под hero-фотографией.</p>
+                    </div>
+                  </div>
+
+                  <article v-if="section.featuredProductKey" class="list-card">
+                    <div class="list-card-head">
+                      <strong>{{ homeProductLabel(section.featuredProductKey) }}</strong>
+                      <span class="pill pill-neutral">Выбор недели</span>
+                    </div>
+                    <img
+                      v-if="homeProductImage(section.featuredProductKey)"
+                      :src="homeProductImage(section.featuredProductKey)"
+                      :alt="homeProductLabel(section.featuredProductKey)"
+                      class="home-reference-thumb"
+                    />
+                    <p class="list-card-slug">{{ homeProductMeta(section.featuredProductKey) }}</p>
+                  </article>
+                  <div v-else class="empty-inline">Товар для hero пока не выбран.</div>
+
+                  <div class="form-grid">
+                    <label class="ops-field">
+                      <span>Поиск товара</span>
+                      <input v-model.trim="section.featuredProductQuery" type="search" placeholder="Название, бренд, категория" @keyup.enter="searchHomeHeroProducts(section)" />
+                    </label>
+                    <label class="ops-field">
+                      <span>Выбрать товар</span>
+                      <select v-model="section.featuredProductToAdd">
+                        <option value="">Выберите товар</option>
+                        <option v-for="product in filteredHomeFeaturedProductOptions(section)" :key="product.id" :value="product.slug">
+                          {{ product.name }} · {{ product.slug }}
+                        </option>
+                      </select>
+                    </label>
+                    <div class="ops-field">
+                      <span>&nbsp;</span>
+                      <button class="button button-secondary" type="button" @click="searchHomeHeroProducts(section)">
+                        Найти
+                      </button>
+                    </div>
+                    <div class="ops-field">
+                      <span>&nbsp;</span>
+                      <button class="button button-secondary" type="button" :disabled="!section.featuredProductToAdd" @click="setHomeHeroFeaturedProduct(section)">
+                        Выбрать
+                      </button>
+                    </div>
+                    <div class="ops-field">
+                      <span>&nbsp;</span>
+                      <button class="button button-danger" type="button" :disabled="!section.featuredProductKey" @click="clearHomeHeroFeaturedProduct(section)">
+                        Убрать
+                      </button>
+                    </div>
+                  </div>
+                </section>
 
                 <section v-if="section.sectionType === 'category_reference_list'" class="selector-card">
                   <div class="selector-card-head">
@@ -2177,8 +2262,20 @@
               </div>
               <dl class="definition-list">
                 <div>
+                  <dt>Имя</dt>
+                  <dd>{{ orderState.detail.order.contactName || 'Не указано' }}</dd>
+                </div>
+                <div>
                   <dt>Email</dt>
                   <dd>{{ orderState.detail.order.receiptEmail || 'Не указан' }}</dd>
+                </div>
+                <div>
+                  <dt>Телефон</dt>
+                  <dd>{{ orderState.detail.order.contactPhone || 'Не указан' }}</dd>
+                </div>
+                <div>
+                  <dt>Адрес</dt>
+                  <dd>{{ orderState.detail.order.homeAddress || orderState.detail.order.deliveryAddress || 'Не указан' }}</dd>
                 </div>
                 <div>
                   <dt>Отправление</dt>
@@ -2934,6 +3031,12 @@ const homeForm = reactive({
     seoTitle: '',
     seoDescription: '',
   },
+  announcementBanner: {
+    id: '',
+    status: 'draft',
+    internalName: 'Баннер в шапке',
+    shortText: '',
+  },
   sections: [],
 });
 
@@ -3688,13 +3791,36 @@ function createHomeFormItem(item = {}, index = 0) {
   };
 }
 
+function isHomeHeroFeaturedItem(item = {}) {
+  return Boolean(
+    normalizeHomeReferenceKind(item.reference_kind || item.referenceKind) === 'product_slug' &&
+      (item.reference_key || item.referenceKey)
+  );
+}
+
+function createHomeAnnouncementBannerForm(siteSettings = {}) {
+  const banner = siteSettings?.announcement_banner || siteSettings?.announcementBanner || null;
+  const bannerObject = banner && typeof banner === 'object' ? banner : null;
+  return {
+    id: bannerObject?.id || (typeof banner === 'string' ? banner : ''),
+    status: bannerObject?.status || 'draft',
+    internalName: bannerObject?.internal_name || bannerObject?.internalName || 'Баннер в шапке',
+    shortText: bannerObject?.short_text || bannerObject?.shortText || '',
+  };
+}
+
 function createHomeFormSection(section = {}, items = [], index = 0) {
   const sectionType = extractHomeSectionType(section);
+  const heroFeaturedItem = sectionType === 'hero'
+    ? directusItemArray(items).find(isHomeHeroFeaturedItem)
+    : null;
   const normalizedItems = sectionType === 'category_reference_list'
     ? directusItemArray(items).filter((item) => (
         normalizeHomeReferenceKind(item.reference_kind || item.referenceKind) === 'category_slug' &&
         (item.reference_key || item.referenceKey)
       ))
+    : sectionType === 'hero'
+    ? directusItemArray(items).filter((item) => !isHomeHeroFeaturedItem(item))
     : directusItemArray(items);
   return {
     clientId: nextHomeClientId('section'),
@@ -3717,11 +3843,17 @@ function createHomeFormSection(section = {}, items = [], index = 0) {
     layoutVariant: normalizeHomeLayoutVariant(section.layout_variant || section.layoutVariant || 'contained'),
     productQuery: '',
     productToAdd: '',
+    featuredProductKey: heroFeaturedItem?.reference_key || heroFeaturedItem?.referenceKey || '',
+    featuredProductToAdd: '',
+    featuredProductQuery: '',
+    featuredProductItemId: directusItemId(heroFeaturedItem),
+    featuredProductMigrationKey: heroFeaturedItem?.migration_key || '',
+    featuredProductStatus: heroFeaturedItem?.status || section.status || 'draft',
     items: normalizedItems.map(createHomeFormItem),
   };
 }
 
-function resetHomeForm(page, sections, itemsBySection) {
+function resetHomeForm(page, sections, itemsBySection, siteSettings = null) {
   Object.assign(homeForm.page, {
     id: directusItemId(page),
     status: page?.status || 'draft',
@@ -3730,6 +3862,7 @@ function resetHomeForm(page, sections, itemsBySection) {
     seoTitle: page?.seo_title || page?.seoTitle || '',
     seoDescription: page?.seo_description || page?.seoDescription || '',
   });
+  Object.assign(homeForm.announcementBanner, createHomeAnnouncementBannerForm(siteSettings));
   homeForm.sections.splice(
     0,
     homeForm.sections.length,
@@ -3738,7 +3871,10 @@ function resetHomeForm(page, sections, itemsBySection) {
     )
   );
   homeState.originalItemIds = homeForm.sections.flatMap((section) =>
-    section.items.map((item) => item.id).filter(Boolean)
+    [
+      section.featuredProductItemId,
+      ...section.items.map((item) => item.id),
+    ].filter(Boolean)
   );
   homeState.selectedSectionIndex = Math.max(0, Math.min(homeState.selectedSectionIndex, homeForm.sections.length - 1));
 }
@@ -3872,10 +4008,13 @@ async function loadHomeContent() {
       loadHomeCommerceOptions({ categoryKeys, productKeys }),
       loadHomeCollections(),
     ]);
+    const siteSettings = await directusRequest(
+      '/items/site_settings?fields=*,announcement_banner.*'
+    );
     homeState.page = page;
     homeState.sections = sections;
     homeState.loaded = true;
-    resetHomeForm(page, sections, itemsBySection);
+    resetHomeForm(page, sections, itemsBySection, siteSettings);
     navigationCounts.home = homeForm.sections.length;
   } catch (error) {
     setError(error);
@@ -3977,6 +4116,25 @@ function filteredHomeProductOptions(section) {
     });
 }
 
+function filteredHomeFeaturedProductOptions(section) {
+  const currentKey = normalizeHomeKey(section?.featuredProductKey);
+  const query = String(section?.featuredProductQuery || '').trim().toLowerCase();
+  return (homeState.productOptions || [])
+    .filter((product) => normalizeHomeKey(product.slug) !== currentKey)
+    .filter((product) => {
+      if (!query) {
+        return true;
+      }
+      const categoryText = (product.categories || [])
+        .map((category) => category.fullPath || category.slug || category.name)
+        .filter(Boolean)
+        .join(' ');
+      return [product.name, product.slug, product.brand?.name, product.brand?.slug, categoryText]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+}
+
 async function searchHomeCategories() {
   const categoryKeys = Array.from(homeSelectedCategoryKeys.value);
   await loadHomeCommerceOptions({
@@ -3995,14 +4153,47 @@ async function searchHomeProducts(section) {
   });
 }
 
+async function searchHomeHeroProducts(section) {
+  const productKeys = Array.from(collectCurrentHomeProductKeys(section));
+  await loadHomeCommerceOptions({
+    categoryKeys: Array.from(homeSelectedCategoryKeys.value),
+    productKeys,
+    productQuery: section?.featuredProductQuery || '',
+  });
+}
+
 function collectCurrentHomeProductKeys(extraSection = null) {
   const sections = extraSection ? [...homeForm.sections, extraSection] : homeForm.sections;
-  return new Set(
+  const keys = new Set(
     sections
       .flatMap((section) => section?.items || [])
       .filter((item) => normalizeHomeReferenceKind(item.referenceKind) === 'product_slug' && item.referenceKey)
       .map((item) => normalizeHomeKey(item.referenceKey))
   );
+  sections
+    .map((section) => normalizeHomeKey(section?.featuredProductKey))
+    .filter(Boolean)
+    .forEach((key) => keys.add(key));
+  return keys;
+}
+
+function setHomeHeroFeaturedProduct(section) {
+  if (!section || !section.featuredProductToAdd) {
+    return;
+  }
+  section.featuredProductKey = section.featuredProductToAdd;
+  section.featuredProductStatus = section.status || homeForm.page.status || 'draft';
+  section.featuredProductToAdd = '';
+  section.featuredProductQuery = '';
+}
+
+function clearHomeHeroFeaturedProduct(section) {
+  if (!section) {
+    return;
+  }
+  section.featuredProductKey = '';
+  section.featuredProductToAdd = '';
+  section.featuredProductQuery = '';
 }
 
 function selectHomeSection(index) {
@@ -4088,6 +4279,12 @@ function createHomeSectionPreset(sectionType) {
     layoutVariant: 'contained',
     productQuery: '',
     productToAdd: '',
+    featuredProductKey: '',
+    featuredProductToAdd: '',
+    featuredProductQuery: '',
+    featuredProductItemId: '',
+    featuredProductMigrationKey: '',
+    featuredProductStatus: homeForm.page.status || 'draft',
     items: [],
   };
   if (sectionType === 'hero') {
@@ -4459,6 +4656,73 @@ function buildHomeItemPayload(section, item, pageSectionId) {
   };
 }
 
+function buildHomeHeroFeaturedItem(section) {
+  if (section.sectionType !== 'hero' || !section.featuredProductKey) {
+    return null;
+  }
+
+  return {
+    id: section.featuredProductItemId || '',
+    migrationKey: section.featuredProductMigrationKey || `home:hero:featured-product:${section.id || section.clientId}`,
+    status: section.status || section.featuredProductStatus || homeForm.page.status || 'draft',
+    title: '',
+    description: '',
+    label: 'Выбор недели',
+    url: '',
+    referenceKind: 'product_slug',
+    referenceKey: section.featuredProductKey,
+    sort: 0,
+  };
+}
+
+function homeItemsForSave(section) {
+  const featuredItem = buildHomeHeroFeaturedItem(section);
+  return featuredItem ? [featuredItem, ...(section.items || [])] : (section.items || []);
+}
+
+function buildHomeAnnouncementBannerPayload() {
+  return {
+    status: homeForm.announcementBanner.status || 'draft',
+    banner_type: 'announcement',
+    internal_name: normalizeNullableText(homeForm.announcementBanner.internalName) || 'Баннер в шапке',
+    short_text: normalizeNullableText(homeForm.announcementBanner.shortText),
+  };
+}
+
+async function saveHomeAnnouncementBanner() {
+  const bannerPayload = buildHomeAnnouncementBannerPayload();
+  const shouldPersistBanner = Boolean(
+    homeForm.announcementBanner.id ||
+      bannerPayload.short_text
+  );
+
+  if (!shouldPersistBanner) {
+    return;
+  }
+
+  const bannerRecord = homeForm.announcementBanner.id
+    ? await directusRequest(`/items/banner/${homeForm.announcementBanner.id}`, {
+        method: 'PATCH',
+        data: bannerPayload,
+      })
+    : await directusRequest('/items/banner', {
+        method: 'POST',
+        data: {
+          ...bannerPayload,
+          migration_key: `site:announcement:${Date.now()}`,
+          sort: 1,
+        },
+      });
+
+  homeForm.announcementBanner.id = bannerRecord?.id || homeForm.announcementBanner.id;
+  if (homeForm.announcementBanner.id) {
+    await directusRequest('/items/site_settings', {
+      method: 'PATCH',
+      data: { announcement_banner: homeForm.announcementBanner.id },
+    });
+  }
+}
+
 async function saveHomeContent() {
   if (!homeForm.page.id) {
     pageError.value = 'Страница home не загружена.';
@@ -4478,6 +4742,7 @@ async function saveHomeContent() {
         seo_description: normalizeNullableText(homeForm.page.seoDescription),
       },
     });
+    await saveHomeAnnouncementBanner();
 
     const activeItemIds = new Set();
     for (const section of homeForm.sections) {
@@ -4490,12 +4755,16 @@ async function saveHomeContent() {
           });
       section.id = sectionRecord?.id || section.id;
 
-      for (const item of section.items) {
+      for (const item of homeItemsForSave(section)) {
         const itemPayload = buildHomeItemPayload(section, item, section.id);
         const itemRecord = item.id
           ? await directusRequest(`/items/page_section_items/${item.id}`, { method: 'PATCH', data: itemPayload })
           : await directusRequest('/items/page_section_items', { method: 'POST', data: itemPayload });
         item.id = itemRecord?.id || item.id;
+        if (section.sectionType === 'hero' && item.referenceKind === 'product_slug' && item.referenceKey === section.featuredProductKey) {
+          section.featuredProductItemId = item.id;
+          section.featuredProductMigrationKey = item.migrationKey;
+        }
         if (item.id) {
           activeItemIds.add(String(item.id));
         }
@@ -4518,6 +4787,10 @@ async function saveHomeContent() {
     await bridgeRequest('/admin/content/cache/invalidate', {
       method: 'POST',
       data: { scope: 'page', slug: HOME_PAGE_SLUG },
+    });
+    await bridgeRequest('/admin/content/cache/invalidate', {
+      method: 'POST',
+      data: { scope: 'site_settings' },
     });
     await loadHomeContent();
     setSuccess('Главная обновлена. Если изменения в статусе draft или in_review, они появятся после публикации.');

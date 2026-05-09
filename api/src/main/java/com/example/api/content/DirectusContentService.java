@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -108,8 +109,51 @@ public class DirectusContentService implements ContentService {
                 item.defaultSeoTitleSuffix(),
                 item.defaultSeoDescription(),
                 toMediaAsset(item.defaultOgImage(), null, fileAssetsById),
+                toAnnouncementBanner(item.announcementBanner(), accessMode),
                 item.publishedAt()
         );
+    }
+
+    private ContentModels.AnnouncementBanner toAnnouncementBanner(
+            DirectusContentClient.DirectusBanner banner,
+            ContentAccessMode accessMode
+    ) {
+        if (!isBannerVisible(banner, accessMode)) {
+            return null;
+        }
+
+        return new ContentModels.AnnouncementBanner(
+                banner.id(),
+                banner.shortText(),
+                banner.styleVariant(),
+                banner.primaryCtaLabel(),
+                banner.primaryCtaUrl(),
+                banner.secondaryCtaLabel(),
+                banner.secondaryCtaUrl(),
+                banner.activeFrom(),
+                banner.activeTo(),
+                banner.publishedAt()
+        );
+    }
+
+    private boolean isBannerVisible(DirectusContentClient.DirectusBanner banner, ContentAccessMode accessMode) {
+        if (banner == null || !StringUtils.hasText(banner.shortText())) {
+            return false;
+        }
+
+        if (accessMode != null && accessMode.isPreview()) {
+            return banner.status() == null || !"archived".equalsIgnoreCase(banner.status());
+        }
+
+        if (!"published".equalsIgnoreCase(banner.status())) {
+            return false;
+        }
+
+        OffsetDateTime now = OffsetDateTime.now();
+        if (banner.activeFrom() != null && banner.activeFrom().isAfter(now)) {
+            return false;
+        }
+        return banner.activeTo() == null || !banner.activeTo().isBefore(now);
     }
 
     private List<ContentModels.NavigationGroup> loadNavigation(String placement, ContentAccessMode accessMode) {
