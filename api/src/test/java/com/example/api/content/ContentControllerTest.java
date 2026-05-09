@@ -91,6 +91,18 @@ class ContentControllerTest {
                 "Cozyhome",
                 "Fallback SEO description",
                 new ContentModels.MediaAsset("og-1", "http://cms.test/assets/og-1", 1200, 630, "Share image", "image/jpeg"),
+                new ContentModels.AnnouncementBanner(
+                        "banner-1",
+                        "Новые условия доставки",
+                        "default",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        OffsetDateTime.parse("2026-04-12T11:30:00Z")
+                ),
                 OffsetDateTime.parse("2026-04-12T11:30:00Z")
         ));
 
@@ -119,6 +131,7 @@ class ContentControllerTest {
                 2015,
                 "Cozyhome",
                 "Fallback SEO description",
+                null,
                 null,
                 OffsetDateTime.parse("2026-04-12T11:30:00Z")
         ));

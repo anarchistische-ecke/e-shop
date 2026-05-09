@@ -183,6 +183,19 @@ class DirectusContentServiceTest {
                         "Cozyhome",
                         "Fallback SEO",
                         "og-image",
+                        new DirectusContentClient.DirectusBanner(
+                                "banner-1",
+                                "published",
+                                "Новые условия доставки опубликованы",
+                                "default",
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                publishedAt
+                        ),
                         "published",
                         publishedAt
                 )
@@ -205,6 +218,8 @@ class DirectusContentServiceTest {
         assertThat(settings.defaultOgImage().url()).isEqualTo("http://cms.test/assets/og-image");
         assertThat(settings.defaultOgImage().width()).isNull();
         assertThat(settings.defaultOgImage().alt()).isEmpty();
+        assertThat(settings.announcementBanner()).isNotNull();
+        assertThat(settings.announcementBanner().shortText()).isEqualTo("Новые условия доставки опубликованы");
         assertThat(settings.publishedAt()).isEqualTo(publishedAt);
     }
 }
