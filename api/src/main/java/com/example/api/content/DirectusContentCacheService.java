@@ -137,8 +137,7 @@ public class DirectusContentCacheService {
                 .distinct()
                 .toList();
 
-        Long deleted = redisTemplate.delete(selectors);
-        long deletedKeys = deleted != null ? deleted : 0;
+        long deletedKeys = safeDelete(selectors);
         observabilityService.recordCacheInvalidation(scope, deletedKeys);
         return new CacheInvalidationResult(scope, keyPrefix(), selectors, deletedKeys);
     }
@@ -149,8 +148,7 @@ public class DirectusContentCacheService {
             keysToDelete.addAll(scanKeys(rawPattern));
         }
 
-        Long deleted = keysToDelete.isEmpty() ? 0L : redisTemplate.delete(keysToDelete.stream().toList());
-        long deletedKeys = deleted != null ? deleted : 0;
+        long deletedKeys = safeDelete(keysToDelete.stream().toList());
         observabilityService.recordCacheInvalidation(scope, deletedKeys);
         return new CacheInvalidationResult(scope, keyPrefix(), rawPatterns, deletedKeys);
     }
@@ -162,14 +160,18 @@ public class DirectusContentCacheService {
                 .build();
 
         Set<String> keys = new LinkedHashSet<>();
-        redisTemplate.execute((RedisConnection connection) -> {
-            try (var cursor = connection.scan(options)) {
-                while (cursor.hasNext()) {
-                    keys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+        try {
+            redisTemplate.execute((RedisConnection connection) -> {
+                try (var cursor = connection.scan(options)) {
+                    while (cursor.hasNext()) {
+                        keys.add(new String(cursor.next(), StandardCharsets.UTF_8));
+                    }
                 }
-            }
-            return null;
-        });
+                return null;
+            });
+        } catch (DataAccessException ex) {
+            log.warn("Failed to scan CMS cache keys for pattern {}", rawPattern, ex);
+        }
         return keys;
     }
 

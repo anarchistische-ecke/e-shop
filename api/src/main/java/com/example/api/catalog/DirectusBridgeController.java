@@ -43,6 +43,7 @@ public class DirectusBridgeController {
     private final CatalogueResponseFactory responseFactory;
     private final CataloguePresentationService presentationService;
     private final DirectusBridgeSecurity bridgeSecurity;
+    private final DirectusStorefrontOpsRolePolicy rolePolicy;
     private final AdminActivityService adminActivityService;
     private final ObjectMapper objectMapper;
 
@@ -54,6 +55,7 @@ public class DirectusBridgeController {
             CatalogueResponseFactory responseFactory,
             CataloguePresentationService presentationService,
             DirectusBridgeSecurity bridgeSecurity,
+            DirectusStorefrontOpsRolePolicy rolePolicy,
             AdminActivityService adminActivityService,
             ObjectMapper objectMapper
     ) {
@@ -64,6 +66,7 @@ public class DirectusBridgeController {
         this.responseFactory = responseFactory;
         this.presentationService = presentationService;
         this.bridgeSecurity = bridgeSecurity;
+        this.rolePolicy = rolePolicy;
         this.adminActivityService = adminActivityService;
         this.objectMapper = objectMapper;
     }
@@ -75,19 +78,19 @@ public class DirectusBridgeController {
             @RequestParam(defaultValue = "true") boolean includeInactive,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         List<Product> products = ((StringUtils.hasText(category) || StringUtils.hasText(brand))
                 ? catalogService.getProducts(category, brand)
                 : catalogService.getAllProducts()).stream()
                 .filter(product -> includeInactive || product.isIsActive())
                 .toList();
         var presentations = presentationService.buildPublishedProductPresentationResults(products);
-        audit(principal, "catalogue.products.list", Map.of(
-                "category", category,
-                "brand", brand,
-                "includeInactive", includeInactive,
-                "count", products.size()
-        ));
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("category", category);
+        details.put("brand", brand);
+        details.put("includeInactive", includeInactive);
+        details.put("count", products.size());
+        audit(principal, "catalogue.products.list", details);
         return ResponseEntity.ok(products.stream()
                 .map(product -> responseFactory.toProductResponse(
                         product,
@@ -101,7 +104,7 @@ public class DirectusBridgeController {
             @PathVariable String idOrSlug,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         Product product = resolveProduct(idOrSlug);
         audit(principal, "catalogue.product.get", Map.of("product", product.getSlug()));
         return ResponseEntity.ok(
@@ -114,7 +117,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CatalogController.ProductRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         Product product = catalogService.createProduct(requestBody.getName(), requestBody.getDescription(), requestBody.getSlug());
         if (requestBody.getSpecifications() != null) {
             product.setSpecifications(responseFactory.serializeSpecifications(requestBody.getSpecifications()));
@@ -140,7 +143,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CatalogController.ProductRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         Product updates = new Product(requestBody.getName(), requestBody.getDescription(), requestBody.getSlug());
         if (requestBody.getSpecifications() != null) {
             updates.setSpecifications(responseFactory.serializeSpecifications(requestBody.getSpecifications()));
@@ -161,7 +164,7 @@ public class DirectusBridgeController {
 
     @DeleteMapping("/products/{id}")
     public ResponseEntity<Void> deleteProduct(@PathVariable UUID id, HttpServletRequest request) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         catalogService.getProductImages(id).forEach(image -> productImageStorageService.delete(image.getObjectKey()));
         catalogService.deleteProduct(id);
         audit(principal, "catalogue.product.delete", Map.of("productId", id));
@@ -174,7 +177,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CatalogController.VariantRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeInventory(request);
         var price = com.example.common.domain.Money.of(requestBody.getAmount(), requestBody.getCurrency());
         var variant = catalogService.addVariant(
                 productId,
@@ -198,7 +201,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CatalogController.VariantUpdateRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeInventory(request);
         var price = com.example.common.domain.Money.of(requestBody.getAmount(), requestBody.getCurrency());
         var updated = catalogService.updateVariant(
                 productId,
@@ -221,7 +224,7 @@ public class DirectusBridgeController {
             @PathVariable UUID variantId,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeInventory(request);
         catalogService.deleteVariant(productId, variantId);
         audit(principal, "catalogue.variant.delete", Map.of("productId", productId, "variantId", variantId));
         return ResponseEntity.noContent().build();
@@ -235,7 +238,7 @@ public class DirectusBridgeController {
             @RequestParam(value = "variantId", required = false) UUID variantId,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         if (files == null || files.isEmpty()) {
             throw new IllegalArgumentException("No image files were uploaded");
         }
@@ -260,7 +263,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CatalogController.ImageUpdateRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         var updated = catalogService.updateProductImage(productId, imageId, requestBody.getVariantId(), requestBody.getPosition());
         audit(principal, "catalogue.product.image.update", Map.of("productId", productId, "imageId", imageId));
         return ResponseEntity.ok(responseFactory.toImageResponse(updated));
@@ -272,7 +275,7 @@ public class DirectusBridgeController {
             @PathVariable UUID imageId,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         String objectKey = catalogService.removeProductImage(productId, imageId);
         productImageStorageService.delete(objectKey);
         audit(principal, "catalogue.product.image.delete", Map.of("productId", productId, "imageId", imageId));
@@ -281,7 +284,7 @@ public class DirectusBridgeController {
 
     @GetMapping("/categories")
     public ResponseEntity<List<CategoryController.CategoryResponse>> listCategories(HttpServletRequest request) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         List<Category> categories = catalogService.listAllInCategory();
         var presentations = presentationService.buildPublishedCategoryPresentationResults(categories);
         audit(principal, "catalogue.categories.list", Map.of("count", categories.size()));
@@ -298,7 +301,7 @@ public class DirectusBridgeController {
             @PathVariable String idOrSlug,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         Category category = resolveCategory(idOrSlug);
         audit(principal, "catalogue.category.get", Map.of("category", category.getSlug()));
         return ResponseEntity.ok(
@@ -311,7 +314,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CategoryController.CategoryRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         Category parent = null;
         if (requestBody.getParentId() != null) {
             parent = catalogService.getByCategoryId(requestBody.getParentId())
@@ -340,7 +343,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody CategoryController.CategoryRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         Category parent = null;
         if (requestBody.getParentId() != null) {
             parent = catalogService.getByCategoryId(requestBody.getParentId())
@@ -369,7 +372,7 @@ public class DirectusBridgeController {
             @RequestPart("file") MultipartFile file,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Category image file is required");
         }
@@ -385,7 +388,7 @@ public class DirectusBridgeController {
 
     @DeleteMapping("/categories/{id}")
     public ResponseEntity<Void> deleteCategory(@PathVariable UUID id, HttpServletRequest request) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         catalogService.deleteCategory(id);
         audit(principal, "catalogue.category.delete", Map.of("categoryId", id));
         return ResponseEntity.noContent().build();
@@ -393,7 +396,7 @@ public class DirectusBridgeController {
 
     @GetMapping("/brands")
     public ResponseEntity<List<com.example.catalog.domain.Brand>> listBrands(HttpServletRequest request) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         List<com.example.catalog.domain.Brand> brands = catalogService.listAllInBrand();
         audit(principal, "catalogue.brands.list", Map.of("count", brands.size()));
         return ResponseEntity.ok(brands);
@@ -404,7 +407,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody BrandController.BrandRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         var created = catalogService.create(new com.example.catalog.domain.Brand(
                 requestBody.getName(),
                 requestBody.getDescription(),
@@ -420,7 +423,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody BrandController.BrandRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         var updated = catalogService.update(id, new com.example.catalog.domain.Brand(
                 requestBody.getName(),
                 requestBody.getDescription(),
@@ -432,7 +435,7 @@ public class DirectusBridgeController {
 
     @DeleteMapping("/brands/{id}")
     public ResponseEntity<Void> deleteBrand(@PathVariable UUID id, HttpServletRequest request) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeCatalogue(request);
         catalogService.deleteBrand(id);
         audit(principal, "catalogue.brand.delete", Map.of("brandId", id));
         return ResponseEntity.noContent().build();
@@ -444,7 +447,7 @@ public class DirectusBridgeController {
             @Valid @RequestBody InventoryController.StockAdjustmentRequest requestBody,
             HttpServletRequest request
     ) {
-        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeInventory(request);
         var result = inventoryService.adjustStock(requestBody.getVariantId(), requestBody.getDelta(), idempotencyKey, requestBody.getReason());
         var response = new InventoryController.StockAdjustmentResponse(
                 requestBody.getVariantId(),
@@ -465,6 +468,18 @@ public class DirectusBridgeController {
     private DirectusBridgeSecurity.DirectusBridgePrincipal authorize(HttpServletRequest request) {
         bridgeSecurity.authorize(request);
         return bridgeSecurity.principal(request);
+    }
+
+    private DirectusBridgeSecurity.DirectusBridgePrincipal authorizeCatalogue(HttpServletRequest request) {
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        rolePolicy.requireCatalogue(principal);
+        return principal;
+    }
+
+    private DirectusBridgeSecurity.DirectusBridgePrincipal authorizeInventory(HttpServletRequest request) {
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorize(request);
+        rolePolicy.requireInventory(principal);
+        return principal;
     }
 
     private Product resolveProduct(String idOrSlug) {

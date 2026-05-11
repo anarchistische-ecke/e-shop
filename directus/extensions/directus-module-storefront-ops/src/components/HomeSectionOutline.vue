@@ -4,9 +4,14 @@
       <h2>Главная</h2>
       <p>{{ sections.length }} секций</p>
     </div>
-    <button class="button button-primary" type="button" :disabled="isSubmitting || loading" @click="$emit('save')">
-      Сохранить
-    </button>
+    <div class="pane-header-actions">
+      <button class="button button-secondary" type="button" :disabled="!canPreview" @click="$emit('preview')">
+        Предпросмотр
+      </button>
+      <button class="button button-primary" type="button" :disabled="isSubmitting || loading" @click="$emit('save')">
+        Сохранить
+      </button>
+    </div>
   </div>
 
   <div class="home-add-section">
@@ -91,6 +96,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  canPreview: {
+    type: Boolean,
+    default: false,
+  },
   statusLabel: {
     type: Function,
     required: true,
@@ -105,10 +114,19 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:preset', 'save', 'add', 'select', 'move']);
+const emit = defineEmits(['update:preset', 'save', 'preview', 'add', 'select', 'move']);
 
 const selectedPreset = computed({
   get: () => props.preset,
   set: (value) => emit('update:preset', value),
 });
 </script>
+
+<style scoped>
+.pane-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+</style>

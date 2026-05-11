@@ -59,9 +59,9 @@ build_extension() {
   fi
 
   if [[ -f "$package_dir/package-lock.json" ]]; then
-    npm ci --prefix "$package_dir"
+    npm ci --audit=false --fund=false --loglevel=error --prefix "$package_dir"
   else
-    npm install --prefix "$package_dir"
+    npm install --audit=false --fund=false --loglevel=error --prefix "$package_dir"
   fi
 
   npm run build --prefix "$package_dir"

@@ -69,6 +69,7 @@ Examples:
 - On cache miss, the backend fetches from Directus, returns the response, and writes both the active cache entry and the stale fallback copy to Redis.
 - If Directus fails after the active cache entry expires, the backend serves the stale fallback copy for published content when available.
 - If Redis is unavailable during a read or write, the backend logs a warning and falls back to Directus instead of failing the request.
+- If Redis is unavailable during invalidation, the backend logs a warning and reports `deletedKeys=0` so editorial saves do not fail only because cache cleanup could not run.
 - Public content still respects the published-only Directus filters already implemented in the backend client.
 
 Preview endpoints still bypass these caches and return `Cache-Control: private, no-store, max-age=0`.
@@ -134,7 +135,7 @@ Notes:
 - `scope=page` requires `slug`
 - `scope=navigation` with `placement` clears both `navigation:all` and the specific placement key
 - targeted invalidation also clears the matching stale fallback keys
-- invalidation errors should surface to the caller, because this is an operational action rather than a public read path
+- invalidation errors return `deletedKeys=0`; retry the invalidation after Redis recovers if immediate freshness is required
 
 ## Operational Guidance
 

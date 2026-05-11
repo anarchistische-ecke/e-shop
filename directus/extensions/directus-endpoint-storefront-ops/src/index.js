@@ -1,56 +1,16 @@
+import {
+  buildRoleSets,
+  canWrite,
+  hasAnyAllowedRole,
+  isInventoryPath,
+  resolveAccountabilityRoleKind,
+  resolveAdminRoleSets,
+} from '../../storefront-ops-access-policy.js';
+
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function normalizeBaseUrl(value) {
   return typeof value === 'string' ? value.replace(/\/+$/, '') : '';
-}
-
-function parseCsv(value) {
-  return String(value || '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function normalizeRoleToken(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function canWrite(method) {
-  return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(method || '').toUpperCase());
-}
-
-function isInventoryPath(path) {
-  const normalizedPath = String(path || '');
-  return normalizedPath.includes('/inventory/') || /\/products\/[^/]+\/variants(?:\/|$)/.test(normalizedPath);
-}
-
-function buildRoleSets(env) {
-  return {
-    admin: new Set(parseCsv(env.STOREFRONT_OPS_ADMIN_ROLE_IDS || 'admin,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001')),
-    catalogue: new Set(parseCsv(env.STOREFRONT_OPS_CATALOGUE_ROLE_IDS || '')),
-    inventory: new Set(parseCsv(env.STOREFRONT_OPS_INVENTORY_ROLE_IDS || '')),
-    manager: new Set(parseCsv(env.STOREFRONT_OPS_MANAGER_ROLE_IDS || '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006')),
-    picker: new Set(parseCsv(env.STOREFRONT_OPS_PICKER_ROLE_IDS || '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007')),
-    content: new Set(parseCsv(env.STOREFRONT_OPS_CONTENT_ROLE_IDS || '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004,4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005')),
-  };
-}
-
-function hasAllowedRole(accountability, allowedRoles) {
-  if (accountability?.admin) {
-    return Boolean(accountability?.user);
-  }
-  if (!allowedRoles || allowedRoles.size === 0) {
-    return Boolean(accountability?.user);
-  }
-  return Boolean(accountability?.role && allowedRoles.has(String(accountability.role)));
-}
-
-function hasAnyAllowedRole(accountability, allowedRoleSets) {
-  const sets = Array.isArray(allowedRoleSets) ? allowedRoleSets : [];
-  if (sets.every((entry) => !entry || entry.size === 0)) {
-    return Boolean(accountability?.user);
-  }
-  return sets.some((entry) => hasAllowedRole(accountability, entry));
 }
 
 function accountabilityUserId(accountability) {
@@ -64,76 +24,8 @@ function accountabilityUserId(accountability) {
   return String(user);
 }
 
-function roleSetHas(roleSet, ...tokens) {
-  if (!roleSet || roleSet.size === 0) {
-    return false;
-  }
-
-  const normalizedRoleSet = new Set([...roleSet].map((entry) => normalizeRoleToken(entry)));
-  return tokens
-    .map((entry) => normalizeRoleToken(entry))
-    .filter(Boolean)
-    .some((entry) => normalizedRoleSet.has(entry));
-}
-
-function resolveAccountabilityRoleKind(accountability, roleSets, roleName = '') {
-  const roleId = accountability?.role ? String(accountability.role) : '';
-  if (accountability?.admin || roleSetHas(roleSets.admin, roleId, roleName)) {
-    return 'admin';
-  }
-  if (roleSetHas(roleSets.manager, roleId, roleName)) {
-    return 'manager';
-  }
-  if (roleSetHas(roleSets.picker, roleId, roleName)) {
-    return 'picker';
-  }
-  if (roleSetHas(roleSets.content, roleId, roleName)) {
-    return 'content';
-  }
-  return 'unknown';
-}
-
-function isAdminOnlyOrderAction(path, method) {
-  const normalizedPath = String(path || '');
-  const normalizedMethod = String(method || '').toUpperCase();
-  if (!normalizedPath.startsWith('/admin/orders/')) {
-    return false;
-  }
-  if (normalizedMethod === 'DELETE') {
-    return true;
-  }
-  return /\/admin\/orders\/[^/]+\/(?:restore|unclaim|refunds)(?:\/|$)/.test(normalizedPath);
-}
-
-function resolveAdminRoleSets(path, roleSets, method = 'GET') {
-  if (path === '/admin/promotions/active' || path.startsWith('/admin/promotions/active/')) {
-    return [roleSets.admin, roleSets.manager, roleSets.picker, roleSets.content];
-  }
-  if (isAdminOnlyOrderAction(path, method)) {
-    return [roleSets.admin];
-  }
-  if (path.startsWith('/admin/orders')) {
-    return [roleSets.admin, roleSets.manager, roleSets.picker];
-  }
-  if (path.startsWith('/admin/rma-requests')) {
-    return [roleSets.admin, roleSets.manager];
-  }
-  if (path.startsWith('/admin/analytics')) {
-    return [roleSets.admin, roleSets.manager];
-  }
-  if (path.startsWith('/admin/tax-settings')) {
-    return [roleSets.admin];
-  }
-  if (
-    path.startsWith('/admin/content/cache') ||
-    path.startsWith('/admin/imports') ||
-    path.startsWith('/admin/promotions') ||
-    path.startsWith('/admin/promo-codes') ||
-    path.startsWith('/admin/alerts')
-  ) {
-    return [roleSets.admin, roleSets.content];
-  }
-  return [roleSets.admin];
+function resolvePreviewBaseUrl(env) {
+  return normalizeBaseUrl(env.STOREFRONT_OPS_PREVIEW_BASE_URL || env.STOREFRONT_PUBLIC_URL || '');
 }
 
 async function resolveDirectusRoleDetails(accountability, context) {
@@ -192,6 +84,7 @@ async function sendAccessProfile(req, res, context, roleSets) {
   const directusUser = await resolveDirectusUserDetails(req.accountability, context);
   const directusRole = await resolveDirectusRoleDetails(req.accountability, context);
   const roleKind = resolveAccountabilityRoleKind(req.accountability, roleSets, directusRole.name);
+  const previewBaseUrl = resolvePreviewBaseUrl(context.env);
 
   res.json({
     data: {
@@ -204,6 +97,9 @@ async function sendAccessProfile(req, res, context, roleSets) {
         name: directusRole.name,
         admin_access: Boolean(req.accountability?.admin),
         kind: roleKind,
+      },
+      preview: {
+        baseUrl: previewBaseUrl,
       },
     },
   });

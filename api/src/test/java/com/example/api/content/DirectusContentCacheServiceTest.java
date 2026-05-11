@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -154,5 +156,21 @@ class DirectusContentCacheServiceTest {
                 "cms:content:collection:home-bestsellers:stale"
         );
         verify(observabilityService).recordCacheInvalidation("collection", 2);
+    }
+
+    @Test
+    void invalidatePage_returnsZeroDeletedKeysWhenRedisDeleteFails() {
+        store.put("cms:content:page:delivery", "{\"title\":\"Delivery\"}");
+        doThrow(new DataAccessResourceFailureException("redis down"))
+                .when(redisTemplate).delete(anyList());
+
+        DirectusContentCacheService.CacheInvalidationResult result = service.invalidatePage("delivery");
+
+        assertThat(result.deletedKeys()).isZero();
+        assertThat(result.selectors()).containsExactlyInAnyOrder(
+                "cms:content:page:delivery",
+                "cms:content:page:delivery:stale"
+        );
+        verify(observabilityService).recordCacheInvalidation("page", 0);
     }
 }
