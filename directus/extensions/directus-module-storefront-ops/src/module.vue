@@ -104,6 +104,7 @@ const tabComponents = {
 
 const {
   copyCurrentLink,
+  refreshCurrentTab,
   isRefreshing,
   navigationTarget,
   visibleTabs,

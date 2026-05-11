@@ -11,7 +11,7 @@
           <h2>Заказы</h2>
           <p>{{ orderState.items.length }} записей</p>
         </div>
-        <button class="button button-secondary" type="button" @click="loadOrders">
+        <button class="button button-secondary" type="button" :disabled="isTabLoading('orders')" @click="loadOrders({ notify: true })">
           Найти
         </button>
       </div>
@@ -54,7 +54,7 @@
             <h3>Активные акции</h3>
             <p>{{ activePromotionState.items.length }} доступно для менеджера</p>
           </div>
-          <button class="button button-secondary" type="button" @click="loadActivePromotions">
+          <button class="button button-secondary" type="button" :disabled="loading.activePromotions" @click="loadActivePromotions({ notify: true })">
             Обновить
           </button>
         </div>
@@ -324,7 +324,7 @@
               <p>{{ orderState.detail.order.receiptEmail || 'Email не указан' }}</p>
             </div>
           </div>
-          <dl class="definition-list">
+          <dl class="definition-list definition-list-contact">
             <div>
               <dt>Имя</dt>
               <dd>{{ orderState.detail.order.contactName || 'Не указано' }}</dd>

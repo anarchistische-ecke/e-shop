@@ -20,13 +20,13 @@
         @save="saveHomeContent"
         @preview="openStorefrontPreview('page')"
         @add="addHomeSectionPreset"
-        @select="selectHomeSection"
+        @select="selectAndScrollHomeSection"
         @move="moveHomeSection"
       />
     </template>
 
     <template #detail>
-      <section class="detail-card">
+      <section ref="homeDetailCard" class="detail-card">
         <header class="detail-header">
           <div>
             <p class="detail-kicker">Главная</p>
@@ -110,29 +110,31 @@
           <div v-if="!selectedHomeSection" class="empty-inline">Выберите секцию или добавьте новый блок.</div>
 
           <section
-            v-for="section in selectedHomeSectionList"
+            v-for="(section, sectionIndex) in selectedHomeSectionList"
             :key="section.clientId || section.id || section.migrationKey || section.sort"
             class="section-block"
+            :class="{ 'section-block-active': homeForm.sections[sectionIndex] === selectedHomeSection }"
+            :data-home-section-index="sectionIndex"
           >
             <div class="section-head">
               <div>
                 <h3>{{ homeSectionLabel(section) }}</h3>
-                <p>{{ homeSectionTypeLabel(section.sectionType) }} · {{ homeStatusLabel(section.status) }} · {{ selectedHomeSectionPosition }}</p>
+                <p>{{ homeSectionTypeLabel(section.sectionType) }} · {{ homeStatusLabel(section.status) }} · {{ sectionIndex + 1 }} из {{ homeForm.sections.length }}</p>
               </div>
               <div class="detail-header-actions">
-                <button class="button button-secondary button-small" type="button" :disabled="homeState.selectedSectionIndex === 0" @click="moveHomeSection(homeState.selectedSectionIndex, -1)">
+                <button class="button button-secondary button-small" type="button" :disabled="sectionIndex === 0" @click="moveHomeSection(sectionIndex, -1)">
                   ↑
                 </button>
-                <button class="button button-secondary button-small" type="button" :disabled="homeState.selectedSectionIndex === homeForm.sections.length - 1" @click="moveHomeSection(homeState.selectedSectionIndex, 1)">
+                <button class="button button-secondary button-small" type="button" :disabled="sectionIndex === homeForm.sections.length - 1" @click="moveHomeSection(sectionIndex, 1)">
                   ↓
                 </button>
-                <button class="button button-secondary button-small" type="button" @click="duplicateHomeSection(section)">
+                <button class="button button-secondary button-small" type="button" @click="selectHomeSection(sectionIndex); duplicateHomeSection(section)">
                   Дублировать
                 </button>
                 <button class="button button-secondary button-small" type="button" @click="archiveHomeSection(section)">
                   {{ section.status === 'archived' ? 'Вернуть' : 'Архив' }}
                 </button>
-                <button v-if="!section.id" class="button button-danger button-small" type="button" @click="removeHomeSection(homeState.selectedSectionIndex)">
+                <button v-if="!section.id" class="button button-danger button-small" type="button" @click="removeHomeSection(sectionIndex)">
                   Убрать
                 </button>
               </div>
@@ -742,9 +744,18 @@
 </template>
 
 <script setup>
+import { nextTick, ref } from 'vue';
 import HomeSectionOutline from '../HomeSectionOutline.vue';
 import StorefrontOpsTabShell from '../StorefrontOpsTabShell.vue';
 import { STOREFRONT_OPS_TAB_PROP_KEYS } from '../../storefront-ops-tab-props.js';
 
-defineProps(STOREFRONT_OPS_TAB_PROP_KEYS);
+const props = defineProps(STOREFRONT_OPS_TAB_PROP_KEYS);
+const homeDetailCard = ref(null);
+
+async function selectAndScrollHomeSection(index) {
+  props.selectHomeSection(index);
+  await nextTick();
+  const target = homeDetailCard.value?.querySelector(`[data-home-section-index="${index}"]`);
+  target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
 </script>

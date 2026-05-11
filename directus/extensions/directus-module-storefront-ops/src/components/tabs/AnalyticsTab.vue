@@ -11,7 +11,7 @@
           <h2>Аналитика</h2>
           <p>{{ analyticsState.managerRows.length }} менеджеров</p>
         </div>
-        <button class="button button-secondary" type="button" @click="loadAnalytics">
+        <button class="button button-secondary" type="button" :disabled="isTabLoading('analytics')" @click="loadAnalytics({ notify: true })">
           Рассчитать
         </button>
       </div>
@@ -73,7 +73,7 @@
           </div>
         </div>
         <div class="sticky-actions sticky-actions-inline">
-          <button class="button button-primary" type="button" :disabled="isSubmitting" @click="loadAnalytics">
+          <button class="button button-primary" type="button" :disabled="isSubmitting || isTabLoading('analytics')" @click="loadAnalytics({ notify: true })">
             Обновить аналитику
           </button>
         </div>
