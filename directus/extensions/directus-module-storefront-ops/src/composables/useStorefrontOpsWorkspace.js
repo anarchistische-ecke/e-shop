@@ -58,6 +58,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   const STORAGE_KEY = 'storefront-ops.workspace-state';
   const HOME_PAGE_SLUG = 'home';
+  const LOCAL_CHANGE_NOTICE = 'Изменено. Нажмите «Сохранить», чтобы применить.';
   const HOME_STATUS_OPTIONS = [
     { value: 'draft', label: 'Черновик' },
     { value: 'in_review', label: 'На проверке' },
@@ -524,7 +525,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     const safeIndex = Math.max(0, Math.min(homeState.selectedSectionIndex, homeForm.sections.length - 1));
     return homeForm.sections[safeIndex] || null;
   });
-  const selectedHomeSectionList = computed(() => selectedHomeSection.value ? [selectedHomeSection.value] : []);
+  const selectedHomeSectionList = computed(() => homeForm.sections);
   const selectedHomeSectionPosition = computed(() => {
     if (!selectedHomeSection.value) {
       return '';
@@ -1007,6 +1008,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     pageNotice.text = message;
   }
 
+  function setLocalChange(message = LOCAL_CHANGE_NOTICE) {
+    setInfo(message);
+  }
+
   function setError(error) {
     pageNotice.type = '';
     pageNotice.text = '';
@@ -1430,30 +1435,48 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   async function searchHomeCategories() {
-    const categoryKeys = Array.from(homeSelectedCategoryKeys.value);
-    await loadHomeCommerceOptions({
-      categoryKeys,
-      productKeys: Array.from(collectCurrentHomeProductKeys()),
-      categoryQuery: homeState.categoryQuery,
-    });
+    setInfo('Обновляю список категорий.');
+    try {
+      const categoryKeys = Array.from(homeSelectedCategoryKeys.value);
+      await loadHomeCommerceOptions({
+        categoryKeys,
+        productKeys: Array.from(collectCurrentHomeProductKeys()),
+        categoryQuery: homeState.categoryQuery,
+      });
+      setInfo('Список категорий обновлён.');
+    } catch (error) {
+      setError(error);
+    }
   }
 
   async function searchHomeProducts(section) {
-    const productKeys = Array.from(collectCurrentHomeProductKeys(section));
-    await loadHomeCommerceOptions({
-      categoryKeys: Array.from(homeSelectedCategoryKeys.value),
-      productKeys,
-      productQuery: section?.productQuery || '',
-    });
+    setInfo('Обновляю список товаров.');
+    try {
+      const productKeys = Array.from(collectCurrentHomeProductKeys(section));
+      await loadHomeCommerceOptions({
+        categoryKeys: Array.from(homeSelectedCategoryKeys.value),
+        productKeys,
+        productQuery: section?.productQuery || '',
+      });
+      setInfo('Список товаров обновлён.');
+    } catch (error) {
+      setError(error);
+    }
   }
 
   async function searchHomeHeroProducts(section) {
-    const productKeys = Array.from(collectCurrentHomeProductKeys(section));
-    await loadHomeCommerceOptions({
-      categoryKeys: Array.from(homeSelectedCategoryKeys.value),
-      productKeys,
-      productQuery: section?.featuredProductQuery || '',
-    });
+    setInfo('Обновляю список товаров для hero.');
+    try {
+      const productKeys = Array.from(collectCurrentHomeProductKeys(section));
+      await loadHomeCommerceOptions({
+        categoryKeys: Array.from(homeSelectedCategoryKeys.value),
+        productKeys,
+        productQuery: section?.featuredProductQuery || '',
+      });
+      setInfo('Список товаров для hero обновлён.');
+    } catch (error) {
+      setError(error);
+    }
   }
 
   function collectCurrentHomeProductKeys(extraSection = null) {
@@ -1473,25 +1496,43 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   function setHomeHeroFeaturedProduct(section) {
     if (!section || !section.featuredProductToAdd) {
+      setInfo('Выберите товар для hero.');
       return;
     }
     section.featuredProductKey = section.featuredProductToAdd;
     section.featuredProductStatus = section.status || homeForm.page.status || 'draft';
     section.featuredProductToAdd = '';
     section.featuredProductQuery = '';
+    setLocalChange();
   }
 
   function clearHomeHeroFeaturedProduct(section) {
     if (!section) {
+      setInfo('Секция не выбрана.');
+      return;
+    }
+    if (!section.featuredProductKey) {
+      setInfo('Товар для hero уже не выбран.');
       return;
     }
     section.featuredProductKey = '';
     section.featuredProductToAdd = '';
     section.featuredProductQuery = '';
+    setLocalChange();
   }
 
   function selectHomeSection(index) {
-    homeState.selectedSectionIndex = Math.max(0, Math.min(index, homeForm.sections.length - 1));
+    if (!homeForm.sections.length) {
+      setInfo('Секции главной пока не загружены.');
+      return;
+    }
+    const nextIndex = Math.max(0, Math.min(index, homeForm.sections.length - 1));
+    if (nextIndex === homeState.selectedSectionIndex) {
+      setInfo('Секция уже открыта.');
+      return;
+    }
+    homeState.selectedSectionIndex = nextIndex;
+    setInfo(`Открыта секция ${nextIndex + 1} из ${homeForm.sections.length}.`);
   }
 
   function resequenceHomeSections() {
@@ -1503,33 +1544,40 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   function moveHomeSection(index, direction) {
     const nextIndex = index + direction;
     if (index < 0 || nextIndex < 0 || nextIndex >= homeForm.sections.length) {
+      setInfo('Секция уже находится на границе списка.');
       return;
     }
     const [section] = homeForm.sections.splice(index, 1);
     homeForm.sections.splice(nextIndex, 0, section);
     homeState.selectedSectionIndex = nextIndex;
     resequenceHomeSections();
+    setLocalChange();
   }
 
   function removeHomeSection(index) {
     const section = homeForm.sections[index];
     if (!section || section.id) {
+      setInfo(section?.id ? 'Сохранённую секцию можно архивировать, но нельзя удалить из формы.' : 'Секция не выбрана.');
       return;
     }
     homeForm.sections.splice(index, 1);
     homeState.selectedSectionIndex = Math.max(0, Math.min(index, homeForm.sections.length - 1));
     resequenceHomeSections();
+    setLocalChange();
   }
 
   function archiveHomeSection(section) {
     if (!section) {
+      setInfo('Секция не выбрана.');
       return;
     }
     section.status = section.status === 'archived' ? 'draft' : 'archived';
+    setLocalChange(section.status === 'archived' ? 'Секция будет архивирована после сохранения.' : 'Секция будет возвращена после сохранения.');
   }
 
   function duplicateHomeSection(section) {
     if (!section) {
+      setInfo('Секция не выбрана.');
       return;
     }
     const duplicate = JSON.parse(JSON.stringify(section));
@@ -1548,6 +1596,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     homeForm.sections.splice(homeState.selectedSectionIndex + 1, 0, duplicate);
     homeState.selectedSectionIndex += 1;
     resequenceHomeSections();
+    setLocalChange('Секция продублирована. Нажмите «Сохранить», чтобы применить.');
   }
 
   function createHomeSectionPreset(sectionType) {
@@ -1601,14 +1650,17 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     homeForm.sections.push(section);
     homeState.selectedSectionIndex = homeForm.sections.length - 1;
     resequenceHomeSections();
+    setLocalChange('Секция добавлена. Нажмите «Сохранить», чтобы применить.');
   }
 
   function addHomeCategory(section) {
     if (!section || !homeState.categoryToAdd) {
+      setInfo('Выберите категорию для добавления.');
       return;
     }
     const category = (homeState.categoryOptions || []).find((candidate) => candidate.slug === homeState.categoryToAdd);
     if (!category) {
+      setInfo('Выбранная категория недоступна. Обновите список категорий.');
       return;
     }
     section.items.push({
@@ -1627,14 +1679,17 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     homeState.categoryToAdd = '';
     homeState.categoryQuery = '';
     resequenceHomeItems(section);
+    setLocalChange();
   }
 
   function addHomeProduct(section) {
     if (!section || !section.productToAdd) {
+      setInfo('Выберите товар для добавления.');
       return;
     }
     const product = homeProductBySlug(section.productToAdd);
     if (!product) {
+      setInfo('Выбранный товар недоступен. Обновите список товаров.');
       return;
     }
     section.items.push({
@@ -1653,10 +1708,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     section.productToAdd = '';
     section.productQuery = '';
     resequenceHomeItems(section);
+    setLocalChange();
   }
 
   function addHomeItem(section) {
     if (!section) {
+      setInfo('Секция не выбрана.');
       return;
     }
     section.items.push({
@@ -1672,14 +1729,17 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       referenceKey: '',
       sort: section.items.length + 1,
     });
+    setLocalChange();
   }
 
   function addHomeCollection(section) {
     if (!section || !homeState.collectionToAdd) {
+      setInfo('Выберите подборку для добавления.');
       return;
     }
     const collection = homeCollectionByKey(homeState.collectionToAdd);
     if (!collection) {
+      setInfo('Выбранная подборка недоступна. Обновите список подборок.');
       return;
     }
     section.items.push({
@@ -1697,6 +1757,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     });
     homeState.collectionToAdd = '';
     resequenceHomeItems(section);
+    setLocalChange();
   }
 
   function startCreateHomeCollection() {
@@ -1712,11 +1773,13 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       rules: [],
       originalRuleIds: [],
     };
+    setInfo('Создан черновик подборки. Заполните поля и сохраните подборку.');
   }
 
   function editHomeCollection(key) {
     const collection = homeCollectionByKey(key);
     if (!collection) {
+      setInfo('Подборка не найдена. Обновите список подборок.');
       return;
     }
     const rules = (homeState.collectionItemsById[collection.id] || []).map((rule) => ({ ...rule }));
@@ -1725,32 +1788,51 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       rules,
       originalRuleIds: rules.map((rule) => rule.id).filter(Boolean),
     };
+    setInfo(`Открыта подборка «${collection.title || collection.key}».`);
   }
 
   function cancelHomeCollectionDraft() {
+    if (!homeState.collectionDraft) {
+      setInfo('Черновик подборки уже закрыт.');
+      return;
+    }
     homeState.collectionDraft = null;
     homeState.collectionProductToAdd = '';
     homeState.collectionCategoryToAdd = '';
+    setInfo('Редактирование подборки закрыто.');
   }
 
   async function searchHomeCollectionProducts() {
-    await loadHomeCommerceOptions({
-      categoryKeys: Array.from(homeSelectedCategoryKeys.value),
-      productKeys: Array.from(collectCurrentHomeProductKeys()),
-      productQuery: homeState.collectionProductQuery,
-    });
+    setInfo('Обновляю список товаров для подборки.');
+    try {
+      await loadHomeCommerceOptions({
+        categoryKeys: Array.from(homeSelectedCategoryKeys.value),
+        productKeys: Array.from(collectCurrentHomeProductKeys()),
+        productQuery: homeState.collectionProductQuery,
+      });
+      setInfo('Список товаров для подборки обновлён.');
+    } catch (error) {
+      setError(error);
+    }
   }
 
   async function searchHomeCollectionCategories() {
-    await loadHomeCommerceOptions({
-      categoryKeys: Array.from(homeSelectedCategoryKeys.value),
-      productKeys: Array.from(collectCurrentHomeProductKeys()),
-      categoryQuery: homeState.collectionCategoryQuery,
-    });
+    setInfo('Обновляю список категорий для подборки.');
+    try {
+      await loadHomeCommerceOptions({
+        categoryKeys: Array.from(homeSelectedCategoryKeys.value),
+        productKeys: Array.from(collectCurrentHomeProductKeys()),
+        categoryQuery: homeState.collectionCategoryQuery,
+      });
+      setInfo('Список категорий для подборки обновлён.');
+    } catch (error) {
+      setError(error);
+    }
   }
 
   function addHomeCollectionProductRule() {
     if (!homeState.collectionDraft || !homeState.collectionProductToAdd) {
+      setInfo(homeState.collectionDraft ? 'Выберите товар для правила подборки.' : 'Откройте или создайте подборку.');
       return;
     }
     homeState.collectionDraft.rules.push(createHomeCollectionRuleForm({
@@ -1762,10 +1844,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }));
     homeState.collectionProductToAdd = '';
     resequenceHomeCollectionRules();
+    setLocalChange('Правило подборки добавлено. Сохраните подборку, чтобы применить.');
   }
 
   function addHomeCollectionCategoryRule() {
     if (!homeState.collectionDraft || !homeState.collectionCategoryToAdd) {
+      setInfo(homeState.collectionDraft ? 'Выберите категорию для правила подборки.' : 'Откройте или создайте подборку.');
       return;
     }
     homeState.collectionDraft.rules.push(createHomeCollectionRuleForm({
@@ -1777,25 +1861,30 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }));
     homeState.collectionCategoryToAdd = '';
     resequenceHomeCollectionRules();
+    setLocalChange('Правило подборки добавлено. Сохраните подборку, чтобы применить.');
   }
 
   function removeHomeCollectionRule(index) {
     if (!homeState.collectionDraft || index < 0) {
+      setInfo(homeState.collectionDraft ? 'Правило подборки не выбрано.' : 'Откройте или создайте подборку.');
       return;
     }
     homeState.collectionDraft.rules.splice(index, 1);
     resequenceHomeCollectionRules();
+    setLocalChange('Правило подборки убрано. Сохраните подборку, чтобы применить.');
   }
 
   function moveHomeCollectionRule(index, direction) {
     const rules = homeState.collectionDraft?.rules || [];
     const nextIndex = index + direction;
     if (index < 0 || nextIndex < 0 || nextIndex >= rules.length) {
+      setInfo('Правило уже находится на границе списка.');
       return;
     }
     const [rule] = rules.splice(index, 1);
     rules.splice(nextIndex, 0, rule);
     resequenceHomeCollectionRules();
+    setLocalChange('Порядок правил изменён. Сохраните подборку, чтобы применить.');
   }
 
   function resequenceHomeCollectionRules() {
@@ -1890,23 +1979,28 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   function removeHomeItem(section, index) {
     if (!section || index < 0) {
+      setInfo('Элемент секции не выбран.');
       return;
     }
     section.items.splice(index, 1);
     resequenceHomeItems(section);
+    setLocalChange();
   }
 
   function moveHomeItem(section, index, direction) {
     if (!section) {
+      setInfo('Секция не выбрана.');
       return;
     }
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= section.items.length) {
+      setInfo('Элемент уже находится на границе списка.');
       return;
     }
     const [item] = section.items.splice(index, 1);
     section.items.splice(nextIndex, 0, item);
     resequenceHomeItems(section);
+    setLocalChange();
   }
 
   function resequenceHomeItems(section) {
@@ -2286,7 +2380,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         const exists = inventoryState.items.some((item) => item.variantId === inventoryState.selectedVariantId);
         if (!exists) {
           inventoryState.selectedVariantId = '';
-          resetInventoryEditor();
+          resetInventoryEditor({ silent: true });
         }
       }
     } catch (error) {
@@ -2308,7 +2402,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }
   }
 
-  async function loadOrders() {
+  async function loadOrders({ notify = false } = {}) {
     loading.orders = true;
     try {
       const response = await bridgeRequest('/admin/orders', {
@@ -2332,6 +2426,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         } else {
           orderState.selectedFilteredOut = Boolean(orderState.detail);
         }
+      }
+      if (notify) {
+        setInfo('Заказы обновлены.');
       }
     } catch (error) {
       setError(error);
@@ -2389,7 +2486,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       promotionState.loaded = true;
       navigationCounts.promotions = promotionState.items.length + promotionState.promoCodes.length;
       if (!promotionForm.id && !promoCodeForm.id) {
-        startCreatePromotion();
+        startCreatePromotion({ silent: true });
       }
     } catch (error) {
       setError(error);
@@ -2398,16 +2495,22 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }
   }
 
-  async function loadActivePromotions() {
+  async function loadActivePromotions({ notify = false } = {}) {
     if (!canViewActivePromotions.value) {
       activePromotionState.items = [];
       activePromotionState.loaded = true;
+      if (notify) {
+        setInfo('Активные акции скрыты для вашей роли Directus.');
+      }
       return;
     }
     loading.activePromotions = true;
     try {
       activePromotionState.items = await bridgeRequest('/admin/promotions/active') || [];
       activePromotionState.loaded = true;
+      if (notify) {
+        setInfo('Активные акции обновлены.');
+      }
     } catch (error) {
       setError(error);
     } finally {
@@ -2422,7 +2525,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       taxState.loaded = true;
       navigationCounts.tax = taxState.items.length;
       if (!taxForm.id && taxState.items.length) {
-        selectTax(taxState.items.find((item) => item.active) || taxState.items[0]);
+        selectTax(taxState.items.find((item) => item.active) || taxState.items[0], { silent: true });
       }
     } catch (error) {
       setError(error);
@@ -2431,7 +2534,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }
   }
 
-  async function loadAnalytics() {
+  async function loadAnalytics({ notify = false } = {}) {
     loading.analytics = true;
     try {
       const params = compactParams({
@@ -2447,6 +2550,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       analyticsState.paymentLinks = paymentLinkResponse || { sent: 0, paid: 0, conversionRate: 0, rows: [] };
       analyticsState.loaded = true;
       navigationCounts.analytics = analyticsState.managerRows.length;
+      if (notify) {
+        setInfo('Аналитика обновлена.');
+      }
     } catch (error) {
       setError(error);
     } finally {
@@ -2530,6 +2636,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function setActiveTab(nextTab) {
     if (nextTab === activeTab.value) {
+      setInfo('Этот раздел уже открыт.');
       return;
     }
     if (!canAccessTab(nextTab)) {
@@ -2537,6 +2644,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       return;
     }
     if (!confirmDiscardChanges()) {
+      setInfo('Переход в другой раздел отменён.');
       return;
     }
     clearMessages();
@@ -2556,7 +2664,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       specifications: cloneSpecifications(item.specifications),
     });
     productSnapshot.value = serializeProductForm();
-    resetVariantEditor();
+    resetVariantEditor({ silent: true });
     resetProductMediaEditor();
   }
 
@@ -2584,7 +2692,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     brandSnapshot.value = serializeBrandForm();
   }
 
-  function resetProductEditor() {
+  function resetProductEditor({ silent = false } = {}) {
     productState.detail = null;
     productState.selectedId = '';
     productState.isCreating = true;
@@ -2600,11 +2708,14 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       specifications: [],
     });
     productSnapshot.value = serializeProductForm();
-    resetVariantEditor();
+    resetVariantEditor({ silent: true });
     resetProductMediaEditor();
+    if (!silent) {
+      setInfo('Форма товара сброшена.');
+    }
   }
 
-  function resetVariantEditor() {
+  function resetVariantEditor({ silent = false } = {}) {
     Object.assign(variantForm, {
       id: '',
       sku: '',
@@ -2618,6 +2729,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       heightMm: null,
     });
     variantSnapshot.value = serializeVariantForm();
+    if (!silent) {
+      setInfo('Форма варианта сброшена.');
+    }
   }
 
   function resetProductMediaEditor() {
@@ -2625,7 +2739,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     productMediaFiles.value = [];
   }
 
-  function resetCategoryEditor() {
+  function resetCategoryEditor({ silent = false } = {}) {
     categoryState.detail = null;
     categoryState.selectedId = '';
     categoryState.isCreating = true;
@@ -2640,15 +2754,19 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     });
     categorySnapshot.value = serializeCategoryForm();
     categoryImageFile.value = null;
+    if (!silent) {
+      setInfo('Форма категории сброшена.');
+    }
   }
 
   function adjustCategoryPosition(delta) {
     const current = Number(categoryForm.position || 0);
     const next = current + Number(delta || 0);
     categoryForm.position = Math.max(0, Number.isFinite(next) ? next : 0);
+    setLocalChange();
   }
 
-  function resetBrandEditor() {
+  function resetBrandEditor({ silent = false } = {}) {
     brandState.detail = null;
     brandState.selectedId = '';
     brandState.isCreating = true;
@@ -2659,13 +2777,19 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       description: '',
     });
     brandSnapshot.value = serializeBrandForm();
+    if (!silent) {
+      setInfo('Форма бренда сброшена.');
+    }
   }
 
-  function resetInventoryEditor() {
+  function resetInventoryEditor({ silent = false } = {}) {
     inventoryForm.variantId = inventoryState.selectedVariantId || '';
     inventoryForm.delta = 0;
     inventoryForm.reason = '';
     inventoryForm.idempotencyKey = nextIdempotencyKey();
+    if (!silent) {
+      setInfo('Форма корректировки остатков сброшена.');
+    }
   }
 
   function hydrateOrderRmaForms(detail) {
@@ -2694,33 +2818,41 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   function startCreateProduct() {
     if (!confirmDiscardChanges()) {
+      setInfo('Создание товара отменено: есть несохранённые изменения.');
       return;
     }
     clearMessages();
-    resetProductEditor();
+    resetProductEditor({ silent: true });
+    setInfo('Открыта форма нового товара.');
   }
 
   function startCreateCategory() {
     if (!confirmDiscardChanges()) {
+      setInfo('Создание категории отменено: есть несохранённые изменения.');
       return;
     }
     clearMessages();
-    resetCategoryEditor();
+    resetCategoryEditor({ silent: true });
+    setInfo('Открыта форма новой категории.');
   }
 
   function startCreateBrand() {
     if (!confirmDiscardChanges()) {
+      setInfo('Создание бренда отменено: есть несохранённые изменения.');
       return;
     }
     clearMessages();
-    resetBrandEditor();
+    resetBrandEditor({ silent: true });
+    setInfo('Открыта форма нового бренда.');
   }
 
   async function selectProduct(id) {
     if (id === productState.selectedId && !productState.isCreating) {
+      setInfo('Этот товар уже открыт.');
       return;
     }
     if (!confirmDiscardChanges()) {
+      setInfo('Переход к товару отменён: есть несохранённые изменения.');
       return;
     }
     clearMessages();
@@ -2730,9 +2862,11 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function selectCategory(id) {
     if (id === categoryState.selectedId && !categoryState.isCreating) {
+      setInfo('Эта категория уже открыта.');
       return;
     }
     if (!confirmDiscardChanges()) {
+      setInfo('Переход к категории отменён: есть несохранённые изменения.');
       return;
     }
     clearMessages();
@@ -2741,9 +2875,11 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function selectBrand(id) {
     if (id === brandState.selectedId && !brandState.isCreating) {
+      setInfo('Этот бренд уже открыт.');
       return;
     }
     if (!confirmDiscardChanges()) {
+      setInfo('Переход к бренду отменён: есть несохранённые изменения.');
       return;
     }
     clearMessages();
@@ -2751,15 +2887,21 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   function selectInventoryRow(variantId) {
+    if (variantId === inventoryState.selectedVariantId) {
+      setInfo('Этот вариант уже выбран для корректировки.');
+      return;
+    }
     inventoryState.selectedVariantId = variantId;
     inventoryForm.variantId = variantId;
     inventoryForm.delta = 0;
     inventoryForm.reason = '';
     inventoryForm.idempotencyKey = nextIdempotencyKey();
+    setInfo('Вариант выбран для корректировки остатков.');
   }
 
   function closeActiveDetail() {
     if (!confirmDiscardChanges()) {
+      setInfo('Закрытие карточки отменено.');
       return;
     }
     clearMessages();
@@ -2779,8 +2921,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         specifications: [],
       });
       productSnapshot.value = serializeProductForm();
-      resetVariantEditor();
+      resetVariantEditor({ silent: true });
       resetProductMediaEditor();
+      setInfo('Карточка товара закрыта.');
       return;
     }
     if (activeTab.value === 'categories') {
@@ -2798,6 +2941,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       });
       categorySnapshot.value = serializeCategoryForm();
       categoryImageFile.value = null;
+      setInfo('Карточка категории закрыта.');
       return;
     }
     if (activeTab.value === 'brands') {
@@ -2811,6 +2955,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         description: '',
       });
       brandSnapshot.value = serializeBrandForm();
+      setInfo('Карточка бренда закрыта.');
       return;
     }
     if (activeTab.value === 'orders') {
@@ -2823,6 +2968,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       orderState.rmaDesiredResolution = '';
       orderState.rmaDecisionForms = {};
       orderState.refundForms = {};
+      setInfo('Карточка заказа закрыта.');
       return;
     }
     if (activeTab.value === 'promotions') {
@@ -2830,28 +2976,38 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       promotionState.selectedPromoCodeId = '';
       promotionState.isCreating = false;
       promotionState.promoCodeCreating = false;
+      setInfo('Карточка акции закрыта.');
       return;
     }
     if (activeTab.value === 'tax') {
       taxState.selectedId = '';
       taxState.isCreating = false;
+      setInfo('Карточка налогового режима закрыта.');
       return;
     }
     inventoryState.selectedVariantId = '';
-    resetInventoryEditor();
+    resetInventoryEditor({ silent: true });
+    setInfo('Детальная панель закрыта.');
   }
 
   function setProductPanel(panel) {
     if (productState.panel === panel) {
+      setInfo('Этот раздел товара уже открыт.');
       return;
     }
     if ((panel !== 'variants' && variantDirty.value) && !window.confirm('Есть несохранённые изменения варианта. Отбросить их?')) {
+      setInfo('Переход между разделами товара отменён.');
       return;
     }
     productState.panel = panel;
+    setInfo('Раздел товара открыт.');
   }
 
   function loadVariantEditor(variant) {
+    if (!variant?.id) {
+      setInfo('Вариант не выбран.');
+      return;
+    }
     Object.assign(variantForm, {
       id: variant.id || '',
       sku: variant.sku || '',
@@ -2865,6 +3021,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       heightMm: variant.heightMm ?? null,
     });
     variantSnapshot.value = serializeVariantForm();
+    setInfo('Вариант открыт для редактирования.');
   }
 
   function serializeProductForm() {
@@ -3006,8 +3163,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   async function deleteProduct() {
-    if (!productForm.id) return;
+    if (!productForm.id) {
+      setInfo('Товар не выбран.');
+      return;
+    }
     if (!window.confirm(`Удалить товар «${productForm.name || productForm.slug}»?`)) {
+      setInfo('Удаление товара отменено.');
       return;
     }
 
@@ -3020,7 +3181,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       productState.selectedId = '';
       productState.detail = null;
       productState.isCreating = false;
-      resetVariantEditor();
+      resetVariantEditor({ silent: true });
       resetProductMediaEditor();
       setSuccess('Товар удалён.');
     } catch (error) {
@@ -3063,7 +3224,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       await loadProducts({ reloadSelected: false });
       await loadNavigationSummary();
       await loadProductDetail(productForm.id, { silent: true });
-      resetVariantEditor();
+      resetVariantEditor({ silent: true });
       setSuccess(variantForm.id ? 'Вариант сохранён.' : 'Вариант добавлен.');
     } catch (error) {
       setError(error);
@@ -3073,8 +3234,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   async function deleteVariant(variant) {
-    if (!productForm.id || !variant?.id) return;
+    if (!productForm.id || !variant?.id) {
+      setInfo(productForm.id ? 'Вариант не выбран.' : 'Сначала сохраните товар.');
+      return;
+    }
     if (!window.confirm(`Удалить вариант «${variant.name || variant.sku}»?`)) {
+      setInfo('Удаление варианта отменено.');
       return;
     }
 
@@ -3085,7 +3250,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       await loadProducts({ reloadSelected: false });
       await loadNavigationSummary();
       await loadProductDetail(productForm.id, { silent: true });
-      resetVariantEditor();
+      resetVariantEditor({ silent: true });
       setSuccess('Вариант удалён.');
     } catch (error) {
       setError(error);
@@ -3127,8 +3292,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   async function deleteCategory() {
-    if (!categoryForm.id) return;
+    if (!categoryForm.id) {
+      setInfo('Категория не выбрана.');
+      return;
+    }
     if (!window.confirm(`Удалить категорию «${categoryForm.name || categoryForm.slug}»?`)) {
+      setInfo('Удаление категории отменено.');
       return;
     }
 
@@ -3180,8 +3349,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   async function deleteBrand() {
-    if (!brandForm.id) return;
+    if (!brandForm.id) {
+      setInfo('Бренд не выбран.');
+      return;
+    }
     if (!window.confirm(`Удалить бренд «${brandForm.name || brandForm.slug}»?`)) {
+      setInfo('Удаление бренда отменено.');
       return;
     }
 
@@ -3238,6 +3411,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function selectOrder(id) {
     if (id === orderState.selectedId && orderState.detail) {
+      setInfo('Этот заказ уже открыт.');
       return;
     }
     await loadOrderDetail(id);
@@ -3379,6 +3553,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function claimOrder() {
     if (!orderState.selectedId) {
+      pageError.value = 'Выберите заказ.';
       return;
     }
     if (!canClaimSelectedOrder.value) {
@@ -3402,6 +3577,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function clearOrderClaim() {
     if (!orderState.selectedId || !canClearSelectedOrder.value) {
+      pageError.value = orderState.selectedId ? 'Снять менеджера с этого заказа недоступно.' : 'Выберите заказ.';
       return;
     }
     isSubmitting.value = true;
@@ -3422,9 +3598,11 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   async function archiveOrder() {
     const order = selectedOrder.value;
     if (!orderState.selectedId || !canArchiveSelectedOrder.value || !order) {
+      pageError.value = orderState.selectedId ? 'Удаление этого заказа недоступно.' : 'Выберите заказ.';
       return;
     }
     if (!window.confirm(`Удалить заказ «${order.receiptEmail || order.id}»? Заказ будет сохранён в архиве.`)) {
+      setInfo('Удаление заказа отменено.');
       return;
     }
     const reason = window.prompt('Причина удаления', 'Удалён администратором в Directus') || 'Удалён администратором в Directus';
@@ -3448,6 +3626,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function restoreOrder() {
     if (!orderState.selectedId || !canRestoreSelectedOrder.value) {
+      pageError.value = orderState.selectedId ? 'Восстановление этого заказа недоступно.' : 'Выберите заказ.';
       return;
     }
     isSubmitting.value = true;
@@ -3473,13 +3652,22 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     orderState.to = '';
     orderState.archived = 'all';
     await loadOrders();
+    setInfo('Фильтры заказов сброшены.');
   }
 
   function selectImportJob(jobId) {
+    if (importState.selectedJobId === jobId) {
+      setInfo('Этот импорт уже выбран.');
+      return;
+    }
     importState.selectedJobId = jobId;
     const job = importState.jobs.find((entry) => entry.id === jobId);
     if (job && importState.dryRun?.job?.id !== jobId) {
       setInfo(`Выбран импорт ${job.fileName || job.id}. Повторное применение доступно из последнего dry-run.`);
+    } else if (job) {
+      setInfo(`Выбран импорт ${job.fileName || job.id}.`);
+    } else {
+      setInfo('Импорт не найден в текущем списке.');
     }
   }
 
@@ -3537,7 +3725,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }
   }
 
-  function startCreatePromotion() {
+  function startCreatePromotion({ silent = false } = {}) {
     promotionState.mode = 'promotion';
     promotionState.selectedId = '';
     promotionState.selectedPromoCodeId = '';
@@ -3558,9 +3746,16 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       description: '',
       targets: [],
     });
+    if (!silent) {
+      setInfo('Открыта форма новой акции.');
+    }
   }
 
   function selectPromotion(promotion) {
+    if (promotionState.mode === 'promotion' && promotionState.selectedId === promotion?.id && !promotionState.isCreating) {
+      setInfo('Эта акция уже открыта.');
+      return;
+    }
     promotionState.mode = 'promotion';
     promotionState.selectedId = promotion.id;
     promotionState.selectedPromoCodeId = '';
@@ -3581,9 +3776,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       description: promotion.description || '',
       targets: normalizePromotionTargets(promotion.targets),
     });
+    setInfo('Акция открыта для редактирования.');
   }
 
-  function startCreatePromoCode() {
+  function startCreatePromoCode({ silent = false } = {}) {
     promotionState.mode = 'promoCode';
     promotionState.selectedPromoCodeId = '';
     promotionState.selectedId = '';
@@ -3601,9 +3797,16 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       maxRedemptions: null,
       description: '',
     });
+    if (!silent) {
+      setInfo('Открыта форма нового промокода.');
+    }
   }
 
   function selectPromoCode(promoCode) {
+    if (promotionState.mode === 'promoCode' && promotionState.selectedPromoCodeId === promoCode?.id && !promotionState.promoCodeCreating) {
+      setInfo('Этот промокод уже открыт.');
+      return;
+    }
     promotionState.mode = 'promoCode';
     promotionState.selectedPromoCodeId = promoCode.id;
     promotionState.selectedId = '';
@@ -3621,6 +3824,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       maxRedemptions: promoCode.maxRedemptions ?? null,
       description: promoCode.description || '',
     });
+    setInfo('Промокод открыт для редактирования.');
   }
 
   function normalizePromotionTargets(targets = []) {
@@ -3634,10 +3838,16 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   function addPromotionTarget() {
     promotionForm.targets.push({ targetKind: 'VARIANT', targetKey: '' });
+    setLocalChange();
   }
 
   function removePromotionTarget(index) {
+    if (index < 0 || index >= promotionForm.targets.length) {
+      setInfo('Цель акции не выбрана.');
+      return;
+    }
     promotionForm.targets.splice(index, 1);
+    setLocalChange();
   }
 
   async function submitPromotion() {
@@ -3678,6 +3888,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function deletePromotion() {
     if (!promotionForm.id || !window.confirm(`Удалить акцию «${promotionForm.name}»?`)) {
+      setInfo(promotionForm.id ? 'Удаление акции отменено.' : 'Акция не выбрана.');
       return;
     }
     isSubmitting.value = true;
@@ -3685,7 +3896,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     try {
       await bridgeRequest(`/admin/promotions/${promotionForm.id}`, { method: 'DELETE' });
       await loadPromotions();
-      startCreatePromotion();
+      startCreatePromotion({ silent: true });
       setSuccess('Акция удалена.');
     } catch (error) {
       setError(error);
@@ -3728,6 +3939,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function deletePromoCode() {
     if (!promoCodeForm.id || !window.confirm(`Удалить промокод «${promoCodeForm.code}»?`)) {
+      setInfo(promoCodeForm.id ? 'Удаление промокода отменено.' : 'Промокод не выбран.');
       return;
     }
     isSubmitting.value = true;
@@ -3735,7 +3947,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     try {
       await bridgeRequest(`/admin/promo-codes/${promoCodeForm.id}`, { method: 'DELETE' });
       await loadPromotions();
-      startCreatePromoCode();
+      startCreatePromoCode({ silent: true });
       setSuccess('Промокод удалён.');
     } catch (error) {
       setError(error);
@@ -3744,7 +3956,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }
   }
 
-  function startCreateTax() {
+  function startCreateTax({ silent = false } = {}) {
     taxState.selectedId = '';
     taxState.isCreating = true;
     Object.assign(taxForm, {
@@ -3756,9 +3968,18 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       vatRatePercent: 0,
       active: false,
     });
+    if (!silent) {
+      setInfo('Открыта форма нового налогового режима.');
+    }
   }
 
-  function selectTax(tax) {
+  function selectTax(tax, { silent = false } = {}) {
+    if (taxState.selectedId === tax?.id && !taxState.isCreating) {
+      if (!silent) {
+        setInfo('Этот налоговый режим уже открыт.');
+      }
+      return;
+    }
     taxState.selectedId = tax.id;
     taxState.isCreating = false;
     Object.assign(taxForm, {
@@ -3770,6 +3991,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       vatRatePercent: Number(tax.vatRatePercent || 0),
       active: Boolean(tax.active),
     });
+    if (!silent) {
+      setInfo('Налоговый режим открыт для редактирования.');
+    }
   }
 
   async function submitTax() {
@@ -3792,7 +4016,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       const method = taxForm.id ? 'PUT' : 'POST';
       const saved = await bridgeRequest(path, { method, data: payload });
       await loadTaxSettings();
-      selectTax(saved);
+      selectTax(saved, { silent: true });
       setSuccess(taxForm.id ? 'Налоговый режим сохранён.' : 'Налоговый режим создан.');
     } catch (error) {
       setError(error);
@@ -3803,6 +4027,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   async function deleteTax() {
     if (!taxForm.id || !window.confirm(`Удалить налоговый режим «${taxForm.name}»?`)) {
+      setInfo(taxForm.id ? 'Удаление налогового режима отменено.' : 'Налоговый режим не выбран.');
       return;
     }
     isSubmitting.value = true;
@@ -3810,7 +4035,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     try {
       await bridgeRequest(`/admin/tax-settings/${taxForm.id}`, { method: 'DELETE' });
       await loadTaxSettings();
-      startCreateTax();
+      startCreateTax({ silent: true });
       setSuccess('Налоговый режим удалён.');
     } catch (error) {
       setError(error);
@@ -3882,8 +4107,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   async function deleteProductImage(imageId) {
-    if (!productForm.id) return;
+    if (!productForm.id) {
+      pageError.value = 'Сначала сохраните товар.';
+      return;
+    }
     if (!window.confirm('Удалить это изображение?')) {
+      setInfo('Удаление изображения отменено.');
       return;
     }
 
@@ -3963,6 +4192,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       if (itemId) {
         window.open(`/admin/content/${collection}/${itemId}`, '_blank', 'noopener');
         setInfo('Оверлей открыт в новой вкладке.');
+      } else {
+        pageError.value = 'Оверлей не удалось открыть: Directus не вернул идентификатор записи.';
       }
     } catch (error) {
       setError(error);
@@ -4055,29 +4286,43 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       description: '',
       items: [],
     });
+    setLocalChange();
   }
 
   function removeSpecificationSection(index) {
+    if (index < 0 || index >= productForm.specifications.length) {
+      setInfo('Секция характеристик не выбрана.');
+      return;
+    }
     productForm.specifications.splice(index, 1);
+    setLocalChange();
   }
 
   function addSpecificationItem(sectionIndex) {
     const section = productForm.specifications[sectionIndex];
     if (!section) {
+      setInfo('Секция характеристик не выбрана.');
       return;
     }
     section.items.push({
       label: '',
       value: '',
     });
+    setLocalChange();
   }
 
   function removeSpecificationItem(sectionIndex, itemIndex) {
     const section = productForm.specifications[sectionIndex];
     if (!section) {
+      setInfo('Секция характеристик не выбрана.');
+      return;
+    }
+    if (itemIndex < 0 || itemIndex >= section.items.length) {
+      setInfo('Параметр характеристики не выбран.');
       return;
     }
     section.items.splice(itemIndex, 1);
+    setLocalChange();
   }
 
 
@@ -4172,7 +4417,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     await mountModuleNavigation();
     bootstrapped.value = true;
     await Promise.allSettled([loadNavigationSummary(), ensureActiveTabLoaded()]);
-    resetInventoryEditor();
+    resetInventoryEditor({ silent: true });
   });
 
   onBeforeUnmount(() => {
@@ -4183,6 +4428,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   return {
     copyCurrentLink,
+    refreshCurrentTab,
     isRefreshing,
     navigationTarget,
     visibleTabs,

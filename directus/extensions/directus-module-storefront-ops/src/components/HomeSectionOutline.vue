@@ -45,6 +45,7 @@
       :class="{ active: selectedIndex === index }"
       @click="$emit('select', index)"
       @keydown.enter.prevent="$emit('select', index)"
+      @keydown.space.prevent="$emit('select', index)"
     >
       <div class="list-card-head">
         <strong>{{ sectionLabel(section) }}</strong>
