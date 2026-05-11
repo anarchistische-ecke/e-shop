@@ -25,6 +25,10 @@
 <script setup>
 import { computed, onMounted, reactive } from 'vue';
 import { useApi } from '@directus/extensions-sdk';
+import {
+  canAccessStorefrontOpsTab,
+  resolveStorefrontOpsRoleKind,
+} from '../../storefront-ops-access-policy.js';
 
 const api = useApi();
 
@@ -41,40 +45,6 @@ const tabs = [
   { id: 'alerts', label: 'Алерты', description: 'Низкие остатки и глобальный порог' },
 ];
 
-const ROLE_IDS = {
-  admin: [
-    'admin',
-    'administrator',
-    'администратор',
-    'администратор cms',
-    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001',
-  ],
-  manager: ['manager', 'менеджер', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10006'],
-  picker: ['picker', 'сборщик', '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10007'],
-  content: [
-    'content_manager',
-    'content-manager',
-    'контент-менеджер',
-    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10008',
-    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002',
-    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10004',
-    '4c4cc8d0-9b7f-4d56-84d2-1d64f5f10005',
-  ],
-};
-
-const TAB_ACCESS = {
-  products: ['admin', 'content'],
-  categories: ['admin', 'content'],
-  brands: ['admin', 'content'],
-  inventory: ['admin', 'content'],
-  orders: ['admin', 'manager', 'picker'],
-  imports: ['admin', 'content'],
-  promotions: ['admin', 'content'],
-  tax: ['admin'],
-  analytics: ['admin', 'manager'],
-  alerts: ['admin', 'content'],
-};
-
 const accessState = reactive({
   loaded: false,
   roleId: '',
@@ -85,29 +55,13 @@ const accessState = reactive({
 const roleKind = computed(() => resolveRoleKind(accessState));
 const visibleTabs = computed(() => (
   accessState.loaded
-    ? tabs.filter((tab) => (TAB_ACCESS[tab.id] || ['admin']).includes(roleKind.value))
+    ? tabs.filter((tab) => canAccessStorefrontOpsTab(tab.id, roleKind.value, tabs))
     : []
 ));
 const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
 
-function normalizeRoleToken(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function roleMatches(tokens, roleKey) {
-  return (ROLE_IDS[roleKey] || []).some((entry) => tokens.has(normalizeRoleToken(entry)));
-}
-
 function resolveRoleKind(state) {
-  const tokens = new Set([
-    normalizeRoleToken(state.roleId),
-    normalizeRoleToken(state.roleName),
-  ].filter(Boolean));
-  if (state.roleAdminAccess || roleMatches(tokens, 'admin')) return 'admin';
-  if (roleMatches(tokens, 'manager')) return 'manager';
-  if (roleMatches(tokens, 'picker')) return 'picker';
-  if (roleMatches(tokens, 'content')) return 'content';
-  return 'unknown';
+  return resolveStorefrontOpsRoleKind(state);
 }
 
 async function loadAccessProfile() {

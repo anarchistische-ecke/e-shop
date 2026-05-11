@@ -19,6 +19,7 @@ The operational restart/restore/rollback procedures are documented in [directus-
 The rollback scope and frontend flag contract are documented in [directus-rollback-strategy.md](./directus-rollback-strategy.md).
 The production go-live sequence is documented in [directus-production-cutover.md](./directus-production-cutover.md).
 The metrics, alerts, dashboards, and log-search contract are documented in [directus-observability.md](./directus-observability.md).
+The custom Directus back-office module contract is documented in [directus-storefront-ops-module.md](./directus-storefront-ops-module.md).
 
 ## Planned Environment Variables
 
@@ -107,8 +108,13 @@ These are used only by the local Directus stack:
 | `DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE` | `true` | Required for the local MinIO endpoint. |
 | `DIRECTUS_STORAGE_PUBLIC_BASE_URL` | `http://localhost:9000/directus` | Optional raw object URL base for local bucket access. |
 | `DIRECTUS_STOREFRONT_OPS_BACKEND_URL` | `http://host.docker.internal:8080` | Backend base URL used by the local Directus operator endpoint extension. |
+| `DIRECTUS_STOREFRONT_OPS_PREVIEW_BASE_URL` | `http://localhost:3000` | Browser-facing storefront origin used by Storefront Ops preview buttons. |
+| `DIRECTUS_STOREFRONT_OPS_ADMIN_ROLE_IDS` | `<cms-admin-role-id>` | Directus role ids or tokens treated as Storefront Ops administrators. |
 | `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS` | `<cms-admin-role-id>,<catalogue-operator-role-id>` | Directus role ids allowed to use catalogue-management bridge routes in the operator module. |
 | `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS` | `<cms-admin-role-id>,<inventory-operator-role-id>` | Directus role ids allowed to use variant/inventory bridge routes in the operator module. |
+| `DIRECTUS_STOREFRONT_OPS_MANAGER_ROLE_IDS` | `<manager-role-id>` | Directus role ids allowed to use manager order/analytics surfaces. |
+| `DIRECTUS_STOREFRONT_OPS_PICKER_ROLE_IDS` | `<picker-role-id>` | Directus role ids allowed to use picker order surfaces. |
+| `DIRECTUS_STOREFRONT_OPS_CONTENT_ROLE_IDS` | `<content-manager-role-id>,...` | Directus role ids allowed to use editorial/catalogue content operations. |
 
 The helper script `scripts/dev-infra-up.sh` auto-creates `keycloak/.env` and `directus/.env` from their matching `.env.example` files when they are missing.
 The helper script `scripts/dev-api-up.sh` also sources `directus/.env`, defaults `DIRECTUS_BRIDGE_TOKEN` to `local-directus-bridge-token` when it is absent locally, and maps the local Directus MinIO settings into `YANDEX_STORAGE_*` so backend-owned catalogue media uploads work in `dev` without a second storage env file on the host.
@@ -261,6 +267,7 @@ The production compose file also reads:
 | `DIRECTUS_DATA_CACHE_STATUS_HEADER` | `X-Directus-Cache` | Optional debugging header to confirm Directus cache hits/misses in staging or production. |
 | `DIRECTUS_REDIS_URL` | `redis://redis:6379` | Directus Redis cache connection string for the production compose stack. |
 | `DIRECTUS_STOREFRONT_OPS_BACKEND_URL` | `http://api:8080` | Internal backend base URL used by the Directus operator endpoint extension in staging/production. |
+| `DIRECTUS_STOREFRONT_OPS_PREVIEW_BASE_URL` | `${STOREFRONT_PUBLIC_URL}` | Browser-facing storefront origin used by Storefront Ops preview buttons. |
 | `DIRECTUS_STOREFRONT_OPS_CATALOGUE_ROLE_IDS` | `<cms-admin-role-id>,<catalogue-operator-role-id>` | Directus role ids allowed to use catalogue bridge routes. |
 | `DIRECTUS_STOREFRONT_OPS_INVENTORY_ROLE_IDS` | `<cms-admin-role-id>,<inventory-operator-role-id>` | Directus role ids allowed to use variant/inventory bridge routes. |
 | `PUBLIC_API_HEALTHCHECK_URL` | deployment-specific | Public post-cutover API probe used by blue-green deploys and scheduled ops checks. Example: `https://api.example.com/health/redis`. |

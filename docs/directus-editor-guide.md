@@ -166,14 +166,16 @@ Sensitive content rule:
 
 ## 9. Preview And Validation
 
-Current preview is an assisted workflow, not a one-click Studio feature for editors.
+Storefront Ops has one-click storefront preview buttons for the home page, product pages, and category pages.
 
 When you need a pre-publish check:
 
 1. Save the item.
 2. Move it to `in_review`.
-3. Ask the publisher or CMS administrator to validate the preview or staging result.
+3. Open the storefront preview from Storefront Ops.
 4. Publish only after that check is complete.
+
+Preview links open the canonical storefront route with `cmsPreview=1`. Draft-specific rendering requires the storefront to honor that flag and use the authenticated preview content APIs.
 
 ## 10. Safe Editing Rules
 

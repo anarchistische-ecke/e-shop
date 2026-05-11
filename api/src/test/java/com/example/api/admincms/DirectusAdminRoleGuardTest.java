@@ -1,6 +1,7 @@
 package com.example.api.admincms;
 
 import com.example.api.catalog.DirectusBridgeSecurity;
+import com.example.api.catalog.DirectusStorefrontOpsRolePolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.access.AccessDeniedException;
@@ -15,11 +16,12 @@ class DirectusAdminRoleGuardTest {
 
     @BeforeEach
     void setUp() {
-        guard = new DirectusAdminRoleGuard();
-        ReflectionTestUtils.setField(guard, "adminRoles", "admin,admin-role");
-        ReflectionTestUtils.setField(guard, "managerRoles", "manager-role");
-        ReflectionTestUtils.setField(guard, "pickerRoles", "picker-role");
-        ReflectionTestUtils.setField(guard, "contentManagerRoles", "content-role,legacy-catalogue-role");
+        DirectusStorefrontOpsRolePolicy rolePolicy = new DirectusStorefrontOpsRolePolicy();
+        ReflectionTestUtils.setField(rolePolicy, "adminRoles", "admin,admin-role");
+        ReflectionTestUtils.setField(rolePolicy, "managerRoles", "manager-role");
+        ReflectionTestUtils.setField(rolePolicy, "pickerRoles", "picker-role");
+        ReflectionTestUtils.setField(rolePolicy, "contentManagerRoles", "content-role,legacy-catalogue-role");
+        guard = new DirectusAdminRoleGuard(rolePolicy);
     }
 
     @Test
