@@ -46,16 +46,26 @@
       </div>
 
       <div v-if="pageError" class="status-banner status-banner-error">
-        <strong>Ошибка</strong>
-        <span>{{ pageError }}</span>
+        <div class="status-banner-copy">
+          <strong>Ошибка</strong>
+          <span>{{ pageError }}</span>
+        </div>
+        <button class="status-banner-close" type="button" aria-label="Закрыть уведомление" @click="clearMessages">
+          ×
+        </button>
       </div>
       <div
         v-else-if="pageNotice.text"
         class="status-banner"
         :class="pageNotice.type === 'success' ? 'status-banner-success' : 'status-banner-info'"
       >
-        <strong>{{ pageNotice.type === 'success' ? 'Готово' : 'Информация' }}</strong>
-        <span>{{ pageNotice.text }}</span>
+        <div class="status-banner-copy">
+          <strong>{{ pageNotice.type === 'success' ? 'Готово' : 'Информация' }}</strong>
+          <span>{{ pageNotice.text }}</span>
+        </div>
+        <button class="status-banner-close" type="button" aria-label="Закрыть уведомление" @click="clearMessages">
+          ×
+        </button>
       </div>
 
       <div v-if="accessState.loaded && !visibleTabs.length" class="empty-state">
@@ -116,6 +126,7 @@ const {
   managerAnalyticsNotice,
   pageError,
   pageNotice,
+  clearMessages,
   activeTabComponent,
   storefrontOpsViewProps,
 } = useStorefrontOpsWorkspace(tabComponents);
