@@ -1543,7 +1543,6 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       return;
     }
     homeState.selectedSectionIndex = nextIndex;
-    setInfo(`Открыта секция ${nextIndex + 1} из ${homeForm.sections.length}.`);
   }
 
   function resequenceHomeSections() {
@@ -4451,6 +4450,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     managerAnalyticsNotice,
     pageError,
     pageNotice,
+    clearMessages,
     activeTabComponent,
     storefrontOpsViewProps,
   };

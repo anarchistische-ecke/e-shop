@@ -755,7 +755,17 @@ const homeDetailCard = ref(null);
 async function selectAndScrollHomeSection(index) {
   props.selectHomeSection(index);
   await nextTick();
+  const container = homeDetailCard.value;
+  if (!container) {
+    return;
+  }
   const target = homeDetailCard.value?.querySelector(`[data-home-section-index="${index}"]`);
-  target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  if (!target) {
+    return;
+  }
+  const containerRect = container.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const offset = targetRect.top - containerRect.top + container.scrollTop - 12;
+  container.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
 }
 </script>
