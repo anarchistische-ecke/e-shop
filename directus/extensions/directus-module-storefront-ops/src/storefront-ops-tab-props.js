@@ -127,6 +127,7 @@ export const STOREFRONT_OPS_TAB_PROP_KEYS = [
   "searchHomeCategories",
   "addHomeCategory",
   "filteredHomeProductOptions",
+  "ensureHomeProductOptions",
   "searchHomeProducts",
   "addHomeProduct",
   "homeCollectionLabel",
