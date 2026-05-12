@@ -817,6 +817,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     searchHomeCategories,
     addHomeCategory,
     filteredHomeProductOptions,
+    ensureHomeProductOptions,
     searchHomeProducts,
     addHomeProduct,
     homeCollectionLabel,
@@ -1415,6 +1416,13 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       });
   }
 
+  async function ensureHomeProductOptions(section) {
+    if (!section || filteredHomeProductOptions(section).length) {
+      return;
+    }
+    await searchHomeProducts(section);
+  }
+
   function filteredHomeFeaturedProductOptions(section) {
     const currentKey = normalizeHomeKey(section?.featuredProductKey);
     const query = String(section?.featuredProductQuery || '').trim().toLowerCase();
@@ -1458,7 +1466,11 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         productKeys,
         productQuery: section?.productQuery || '',
       });
-      setInfo('Список товаров обновлён.');
+      setInfo(
+        filteredHomeProductOptions(section).length
+          ? 'Список товаров обновлён.'
+          : 'Товары для добавления не найдены. Измените поиск или проверьте каталог.'
+      );
     } catch (error) {
       setError(error);
     }
@@ -1528,7 +1540,6 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     }
     const nextIndex = Math.max(0, Math.min(index, homeForm.sections.length - 1));
     if (nextIndex === homeState.selectedSectionIndex) {
-      setInfo('Секция уже открыта.');
       return;
     }
     homeState.selectedSectionIndex = nextIndex;

@@ -424,7 +424,7 @@
                 </label>
                 <label class="ops-field">
                   <span>Добавить товар</span>
-                  <select v-model="section.productToAdd">
+                  <select v-model="section.productToAdd" @focus="ensureHomeProductOptions(section)">
                     <option value="">Выберите товар</option>
                     <option v-for="product in filteredHomeProductOptions(section)" :key="product.id" :value="product.slug">
                       {{ product.name }} · {{ product.slug }}
@@ -439,7 +439,7 @@
                 </div>
                 <div class="ops-field">
                   <span>&nbsp;</span>
-                  <button class="button button-secondary" type="button" :disabled="!section.productToAdd" @click="addHomeProduct(section)">
+                  <button class="button button-secondary" type="button" @click="addHomeProduct(section)">
                     Добавить
                   </button>
                 </div>
