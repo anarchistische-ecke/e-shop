@@ -86,7 +86,7 @@ Before the first deploy, the VM must satisfy all of the following:
 
 Important networking note:
 
-- `docker-compose.prod.yml` publishes `5432`, `6379`, `8080`, and `8055` on the host, and binds the storefront origin only on `127.0.0.1:${STOREFRONT_HOST_PORT:-3000}`
+- `docker-compose.prod.yml` keeps PostgreSQL and Redis on Docker networks only, and binds the legacy API, Directus, and storefront origins to `127.0.0.1`
 - `docker-compose.runtime-slot.yml` binds blue/green candidate ports to `127.0.0.1`
 - do not expose `5432`, `6379`, `8080`, `8055`, `3000`, `18080`, `18055`, `13000`, `28080`, `28055`, or `23000` publicly
 - enforce that restriction at the cloud firewall or equivalent perimeter layer; do not assume Docker-published ports are hidden automatically

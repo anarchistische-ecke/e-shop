@@ -37,6 +37,23 @@ app:
     directus-bridge-token: ${DIRECTUS_BRIDGE_TOKEN:}
   observability:
     prometheus-token: ${APP_OBSERVABILITY_PROMETHEUS_TOKEN:}
+  rate-limit:
+    enabled: ${APP_RATE_LIMIT_ENABLED:true}
+    checkout:
+      limit: ${APP_RATE_LIMIT_CHECKOUT_LIMIT:10}
+      window-seconds: ${APP_RATE_LIMIT_CHECKOUT_WINDOW_SECONDS:60}
+    cart:
+      limit: ${APP_RATE_LIMIT_CART_LIMIT:90}
+      window-seconds: ${APP_RATE_LIMIT_CART_WINDOW_SECONDS:60}
+    order-token:
+      limit: ${APP_RATE_LIMIT_ORDER_TOKEN_LIMIT:30}
+      window-seconds: ${APP_RATE_LIMIT_ORDER_TOKEN_WINDOW_SECONDS:60}
+    webhook:
+      limit: ${APP_RATE_LIMIT_WEBHOOK_LIMIT:120}
+      window-seconds: ${APP_RATE_LIMIT_WEBHOOK_WINDOW_SECONDS:60}
+    privileged:
+      limit: ${APP_RATE_LIMIT_PRIVILEGED_LIMIT:120}
+      window-seconds: ${APP_RATE_LIMIT_PRIVILEGED_WINDOW_SECONDS:60}
 
 media:
   derivatives:

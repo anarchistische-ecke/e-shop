@@ -1,6 +1,8 @@
 package com.example.catalog.repository;
 
 import com.example.catalog.domain.Product;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,4 +18,11 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     List<Product> findByBrand_Slug(String brandSlug);
     List<Product> findDistinctByCategories_FullPathStartingWith(String fullPathPrefix);
     List<Product> findDistinctByCategories_FullPathStartingWithAndBrand_Slug(String fullPathPrefix, String brandSlug);
+    Page<Product> findByIsActiveTrue(Pageable pageable);
+    Page<Product> findByBrand_Slug(String brandSlug, Pageable pageable);
+    Page<Product> findByBrand_SlugAndIsActiveTrue(String brandSlug, Pageable pageable);
+    Page<Product> findDistinctByCategories_FullPathStartingWith(String fullPathPrefix, Pageable pageable);
+    Page<Product> findDistinctByCategories_FullPathStartingWithAndIsActiveTrue(String fullPathPrefix, Pageable pageable);
+    Page<Product> findDistinctByCategories_FullPathStartingWithAndBrand_Slug(String fullPathPrefix, String brandSlug, Pageable pageable);
+    Page<Product> findDistinctByCategories_FullPathStartingWithAndBrand_SlugAndIsActiveTrue(String fullPathPrefix, String brandSlug, Pageable pageable);
 }

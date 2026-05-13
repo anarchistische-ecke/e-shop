@@ -8,6 +8,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,8 +20,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.OffsetDateTime;
+import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -25,6 +30,9 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/products")
 public class CatalogController {
+
+    private static final int DEFAULT_PAGE_SIZE = 48;
+    private static final int MAX_PAGE_SIZE = 96;
 
     private final CatalogService catalogService;
     private final ProductImageStorageService imageStorageService;
@@ -164,27 +172,39 @@ public class CatalogController {
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getProducts(@RequestParam(required = false) String category,
                                                              @RequestParam(required = false) String brand,
-                                                             @RequestParam(defaultValue = "false") boolean includeInactive) {
-        List<Product> source;
-        if ((category != null && !category.isBlank()) || (brand != null && !brand.isBlank())) {
-            source = catalogService.getProducts(category, brand);
-        } else {
-            source = catalogService.getAllProducts();
-        }
-        if (!includeInactive) {
-            source = source.stream().filter(Product::isIsActive).collect(Collectors.toList());
-        }
-        var presentations = presentationService.buildPublishedProductPresentationResults(source);
-        var response = source.stream()
+                                                             @RequestParam(defaultValue = "false") boolean includeInactive,
+                                                             @RequestParam(defaultValue = "0") int page,
+                                                             @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.max(1, Math.min(size, MAX_PAGE_SIZE));
+        PageRequest pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.ASC, "name"));
+        Page<Product> source = catalogService.getProducts(category, brand, includeInactive, pageable);
+        List<Product> products = source.getContent();
+        var presentations = presentationService.buildPublishedProductPresentationResults(products);
+        var response = products.stream()
                 .map(product -> responseFactory.toProductResponse(
                         product,
-                        presentations.getOrDefault(
-                                product.getSlug() != null ? product.getSlug().trim().toLowerCase() : null,
-                                presentationService.buildPublishedProductPresentation(product)
-                        ).presentation()
+                        presentationFor(product, presentations).presentation()
                 ))
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic()
+                        .staleWhileRevalidate(Duration.ofMinutes(2))
+                        .getHeaderValue())
+                .header("X-Page", String.valueOf(source.getNumber()))
+                .header("X-Page-Size", String.valueOf(source.getSize()))
+                .header("X-Total-Count", String.valueOf(source.getTotalElements()))
+                .header("X-Total-Pages", String.valueOf(source.getTotalPages()))
+                .body(response);
+    }
+
+    private CataloguePresentationModels.OverlayMergeResult presentationFor(
+            Product product,
+            java.util.Map<String, CataloguePresentationModels.OverlayMergeResult> presentations
+    ) {
+        String key = product.getSlug() != null ? product.getSlug().trim().toLowerCase() : null;
+        CataloguePresentationModels.OverlayMergeResult presentation = presentations.get(key);
+        return presentation != null ? presentation : presentationService.buildPublishedProductPresentation(product);
     }
 
     @PutMapping("/{id}")

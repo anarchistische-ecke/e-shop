@@ -3,15 +3,29 @@
 # CDN rules must preserve origin Cache-Control for SSR HTML and force
 # immutable caching only for fingerprinted /assets/* and image derivatives.
 
+limit_req_zone $binary_remote_addr zone=storefront_auth:10m rate=10r/m;
+
 server {
     listen 80;
     server_name www.yug-postel.ru;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), fullscreen=(self), payment=(self)" always;
     return 301 https://yug-postel.ru$request_uri;
 }
 
 server {
     listen 80;
     server_name yug-postel.ru;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+    add_header Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'unsafe-inline' https://yookassa.ru https://*.yookassa.ru; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://img.yug-postel.ru https://storage.yandexcloud.net https://*.storage.yandexcloud.net; font-src 'self' data:; connect-src 'self' https://api.yug-postel.ru https://cms.yug-postel.ru https://img.yug-postel.ru https://yug-postel.ru https://yookassa.ru https://*.yookassa.ru; frame-src 'self' https://yookassa.ru https://*.yookassa.ru; form-action 'self' https://yookassa.ru https://*.yookassa.ru; upgrade-insecure-requests" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), usb=(), fullscreen=(self), payment=(self)" always;
 
     location = /home {
         return 301 https://yug-postel.ru/$is_args$args;
@@ -22,6 +36,7 @@ server {
     }
 
     location ^~ /auth/ {
+        limit_req zone=storefront_auth burst=20 nodelay;
         proxy_pass http://127.0.0.1:8081/;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
