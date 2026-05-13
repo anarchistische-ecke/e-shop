@@ -13,6 +13,8 @@ import com.example.catalog.repository.ProductVariantRepository;
 import com.example.common.domain.Money;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -193,6 +195,39 @@ public class CatalogService {
             products = productRepository.findByBrand_Slug(brandSlug);
         } else {
             products = productRepository.findAll();
+        }
+        products.forEach(this::hydrateProduct);
+        return products;
+    }
+
+    public Page<Product> getProducts(String categorySlug, String brandSlug, boolean includeInactive, Pageable pageable) {
+        boolean hasCategory = categorySlug != null && !categorySlug.isBlank();
+        boolean hasBrand = brandSlug != null && !brandSlug.isBlank();
+        String categoryPath = null;
+        if (hasCategory) {
+            categoryPath = resolveCategory(categorySlug).map(Category::getFullPath).orElse(null);
+            if (categoryPath == null) {
+                return Page.empty(pageable);
+            }
+        }
+
+        Page<Product> products;
+        if (hasCategory && hasBrand) {
+            products = includeInactive
+                    ? productRepository.findDistinctByCategories_FullPathStartingWithAndBrand_Slug(categoryPath, brandSlug, pageable)
+                    : productRepository.findDistinctByCategories_FullPathStartingWithAndBrand_SlugAndIsActiveTrue(categoryPath, brandSlug, pageable);
+        } else if (hasCategory) {
+            products = includeInactive
+                    ? productRepository.findDistinctByCategories_FullPathStartingWith(categoryPath, pageable)
+                    : productRepository.findDistinctByCategories_FullPathStartingWithAndIsActiveTrue(categoryPath, pageable);
+        } else if (hasBrand) {
+            products = includeInactive
+                    ? productRepository.findByBrand_Slug(brandSlug, pageable)
+                    : productRepository.findByBrand_SlugAndIsActiveTrue(brandSlug, pageable);
+        } else {
+            products = includeInactive
+                    ? productRepository.findAll(pageable)
+                    : productRepository.findByIsActiveTrue(pageable);
         }
         products.forEach(this::hydrateProduct);
         return products;

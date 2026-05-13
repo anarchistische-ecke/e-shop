@@ -4,7 +4,7 @@ services:
     env_file:
       - .env
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,8 +70,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-eshop}
       POSTGRES_USER: ${POSTGRES_USER:-postgres_admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -89,8 +87,6 @@ services:
   redis:
     image: redis:7-alpine
     command: ["redis-server", "--save", "", "--appendonly", "yes"]
-    ports:
-      - "6379:6379"
     volumes:
       - redisdata:/data
     restart: unless-stopped
@@ -115,7 +111,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8055:8055"
+      - "127.0.0.1:8055:8055"
     restart: unless-stopped
     environment:
       KEY: ${DIRECTUS_KEY:?Set DIRECTUS_KEY in the deployment .env}
