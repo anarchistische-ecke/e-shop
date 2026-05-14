@@ -15,11 +15,35 @@ on:
           - production
 
 jobs:
-  health-check:
-    runs-on: ubuntu-latest
-    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+  health-check-production:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.environment == 'production' }}
+    runs-on: [self-hosted, prod-vm, prod-deploy]
+    environment: production
     concurrency:
-      group: ops-health-check-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+      group: ops-health-check-production
+      cancel-in-progress: false
+    env:
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Skip health check when VM deploy path is not configured
+        if: ${{ env.YC_VM_DEPLOY_PATH == '' }}
+        run: |
+          echo "Skipping production health check because YC_VM_DEPLOY_PATH is missing."
+
+      - name: Run production stack health checks
+        if: ${{ env.YC_VM_DEPLOY_PATH != '' }}
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          cd "${YC_VM_DEPLOY_PATH}"
+          bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state
+
+  health-check-staging:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'staging' }}
+    runs-on: ubuntu-latest
+    environment: staging
+    concurrency:
+      group: ops-health-check-staging
       cancel-in-progress: false
     env:
       YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
