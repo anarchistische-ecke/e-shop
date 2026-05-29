@@ -31,7 +31,7 @@ export function formatMoney(price) {
     return 'Цена не задана';
   }
   const currency = price.currency || 'RUB';
-  return `${price.amount} ${currency}`;
+  return formatMinorMoney(price.amount, currency);
 }
 
 export function moneyMinorAmount(price) {
@@ -148,4 +148,3 @@ export function normalizeNullableText(value) {
 export function nextIdempotencyKey() {
   return crypto.randomUUID();
 }
-

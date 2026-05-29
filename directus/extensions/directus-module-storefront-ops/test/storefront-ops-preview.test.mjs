@@ -13,6 +13,7 @@ import { createStorefrontOpsApi } from '../src/composables/storefrontOpsApi.js';
 import {
   compactParams,
   filterCollection,
+  formatMoney,
   formatMinorMoney,
   majorToMinor,
   normalizeSpecificationsForPayload,
@@ -95,6 +96,7 @@ test('module formatter utilities keep bridge params and payloads stable', () => 
     [{ name: 'Linen duvet' }]
   );
   assert.equal(formatMinorMoney(123456, 'RUB'), '1 234,56 RUB');
+  assert.equal(formatMoney({ amount: 1530000, currency: 'RUB' }), '15 300 RUB');
   assert.equal(majorToMinor('19.95'), 1995);
   assert.deepEqual(
     normalizeSpecificationsForPayload([
