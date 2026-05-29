@@ -59,6 +59,33 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   const STORAGE_KEY = 'storefront-ops.workspace-state';
   const HOME_PAGE_SLUG = 'home';
   const LOCAL_CHANGE_NOTICE = 'Изменено. Нажмите «Сохранить», чтобы применить.';
+  const REDUNDANT_NAVIGATION_NOTICES = new Set([
+    'этот раздел уже открыт.',
+    'этот товар уже открыт.',
+    'эта категория уже открыта.',
+    'этот бренд уже открыт.',
+    'этот раздел товара уже открыт.',
+    'этот вариант уже выбран для корректировки.',
+    'этот заказ уже открыт.',
+    'этот импорт уже выбран.',
+    'эта акция уже открыта.',
+    'этот промокод уже открыт.',
+    'этот налоговый режим уже открыт.',
+    'раздел товара открыт.',
+    'вариант открыт для редактирования.',
+    'акция открыта для редактирования.',
+    'промокод открыт для редактирования.',
+    'налоговый режим открыт для редактирования.',
+    'открыта форма нового товара.',
+    'открыта форма новой категории.',
+    'открыта форма нового бренда.',
+    'открыта форма новой акции.',
+    'открыта форма нового промокода.',
+    'открыта форма нового налогового режима.',
+    'вариант выбран для корректировки остатков.',
+    'оверлей открыт в новой вкладке.',
+    'предпросмотр открыт в новой вкладке.',
+  ]);
   const HOME_STATUS_OPTIONS = [
     { value: 'draft', label: 'Черновик' },
     { value: 'in_review', label: 'На проверке' },
@@ -1004,9 +1031,19 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   function setInfo(message) {
+    if (isRedundantNavigationNotice(message)) {
+      pageError.value = '';
+      pageNotice.type = '';
+      pageNotice.text = '';
+      return;
+    }
     pageError.value = '';
     pageNotice.type = 'info';
     pageNotice.text = message;
+  }
+
+  function isRedundantNavigationNotice(message) {
+    return REDUNDANT_NAVIGATION_NOTICES.has(String(message || '').trim().toLowerCase());
   }
 
   function setLocalChange(message = LOCAL_CHANGE_NOTICE) {

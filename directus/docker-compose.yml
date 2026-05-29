@@ -110,6 +110,7 @@ services:
       STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-us-east-1}
       STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-http://storage:9000}
       STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-true}
+      CONTENT_SECURITY_POLICY_DIRECTIVES__IMG_SRC: "${DIRECTUS_CONTENT_SECURITY_POLICY_IMG_SRC:-'self' data: blob: http://localhost:9000 http://127.0.0.1:9000 http://storage:9000 https://raw.githubusercontent.com https://avatars.githubusercontent.com https://img.yug-postel.ru https://storage.yandexcloud.net https://*.storage.yandexcloud.net}"
       STOREFRONT_OPS_BACKEND_URL: ${DIRECTUS_STOREFRONT_OPS_BACKEND_URL:-http://host.docker.internal:8080}
       STOREFRONT_OPS_BACKEND_TOKEN: ${DIRECTUS_BRIDGE_TOKEN:-local-directus-bridge-token}
       STOREFRONT_OPS_PREVIEW_BASE_URL: ${DIRECTUS_STOREFRONT_OPS_PREVIEW_BASE_URL:-http://localhost:3000}

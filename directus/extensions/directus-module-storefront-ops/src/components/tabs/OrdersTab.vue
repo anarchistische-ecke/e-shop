@@ -337,7 +337,7 @@
               <dt>Телефон</dt>
               <dd>{{ orderState.detail.order.contactPhone || 'Не указан' }}</dd>
             </div>
-            <div>
+            <div class="definition-list-wide">
               <dt>Адрес</dt>
               <dd>{{ orderState.detail.order.homeAddress || orderState.detail.order.deliveryAddress || 'Не указан' }}</dd>
             </div>

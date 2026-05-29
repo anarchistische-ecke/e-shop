@@ -522,6 +522,8 @@
 .storefront-ops .metric-card strong {
   font-size: 14px;
   line-height: 1.35;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .storefront-ops .metric-code {
@@ -570,12 +572,13 @@
 }
 
 .storefront-ops .definition-list-contact {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
 }
 
 .storefront-ops .definition-list div {
   display: grid;
   gap: 3px;
+  min-inline-size: 0;
 }
 
 .storefront-ops .definition-list dt {
@@ -588,6 +591,15 @@
 
 .storefront-ops .definition-list dd {
   margin: 0;
+  min-inline-size: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.storefront-ops .definition-list-wide {
+  grid-column: 1 / -1;
 }
 
 .storefront-ops .rma-decision-form {
