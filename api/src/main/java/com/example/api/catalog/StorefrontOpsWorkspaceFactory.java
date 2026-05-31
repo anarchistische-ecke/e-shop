@@ -68,7 +68,7 @@ public class StorefrontOpsWorkspaceFactory {
                 totalStock(product),
                 images.stream()
                         .sorted(Comparator.comparing(ProductImage::getPosition).thenComparing(ProductImage::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                        .map(ProductImage::getUrl)
+                        .map(this::toPreviewUrl)
                         .filter(StringUtils::hasText)
                         .findFirst()
                         .orElse(null),
@@ -208,10 +208,17 @@ public class StorefrontOpsWorkspaceFactory {
     private StorefrontOpsWorkspaceModels.ProductImageSummary toImageSummary(ProductImage image) {
         return new StorefrontOpsWorkspaceModels.ProductImageSummary(
                 image.getId(),
-                image.getUrl(),
+                toPreviewUrl(image),
                 image.getPosition(),
                 image.getVariant() != null ? image.getVariant().getId() : null
         );
+    }
+
+    private String toPreviewUrl(ProductImage image) {
+        MediaModels.MediaManifest manifest = responseFactory.toMediaManifest(image, "");
+        return manifest != null && StringUtils.hasText(manifest.url())
+                ? manifest.url()
+                : image.getUrl();
     }
 
     private StorefrontOpsWorkspaceModels.VariantSummary toVariantSummary(ProductVariant variant) {
