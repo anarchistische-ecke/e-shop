@@ -142,7 +142,7 @@
                 <span>Витрина</span>
                 <label class="ops-toggle">
                   <input v-model="productForm.isActive" type="checkbox" />
-                  <span>{{ productForm.isActive ? 'Показывать товар' : 'Скрыть товар' }}</span>
+                  <span>{{ productForm.isActive ? 'Товар виден на витрине' : 'Товар скрыт с витрины' }}</span>
                 </label>
               </label>
             </div>

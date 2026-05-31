@@ -299,10 +299,61 @@
   background: var(--theme--background);
   border: 1px solid var(--theme--border-color);
   border-radius: 12px;
+  cursor: pointer;
   display: flex;
   gap: 10px;
   min-height: 44px;
   padding: 10px 12px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.storefront-ops .ops-toggle:has(input:checked) {
+  background: color-mix(in srgb, var(--green) 7%, var(--theme--background));
+  border-color: color-mix(in srgb, var(--green) 48%, var(--theme--border-color));
+}
+
+.storefront-ops .ops-toggle input[type='checkbox'] {
+  appearance: none;
+  background: var(--theme--background-subdued);
+  border: 1px solid var(--theme--border-color);
+  border-radius: 999px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  inline-size: 38px;
+  min-block-size: 22px;
+  padding: 2px;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+}
+
+.storefront-ops .ops-toggle input[type='checkbox']::before {
+  background: var(--theme--foreground-subdued);
+  border-radius: 50%;
+  content: '';
+  display: block;
+  block-size: 16px;
+  inline-size: 16px;
+  transition:
+    background-color 120ms ease,
+    transform 120ms ease;
+}
+
+.storefront-ops .ops-toggle input[type='checkbox']:checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.storefront-ops .ops-toggle input[type='checkbox']:checked::before {
+  background: var(--theme--background);
+  transform: translateX(16px);
+}
+
+.storefront-ops .ops-toggle input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--theme--primary);
+  outline-offset: 2px;
 }
 
 .storefront-ops .ops-toggle span {
