@@ -59,6 +59,9 @@ media:
     public-base-url: ${MEDIA_DERIVATIVES_PUBLIC_BASE_URL:http://localhost:9000/directus}
     path-prefix: ${MEDIA_DERIVATIVES_PATH_PREFIX:media}
 
+catalogue:
+  product-image-preview-base-url: ${CATALOGUE_PRODUCT_IMAGE_PREVIEW_BASE_URL:http://localhost:8080/products/images}
+
 management:
   endpoints:
     web:

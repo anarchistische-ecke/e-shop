@@ -157,7 +157,7 @@ services:
       STORAGE_S3_REGION: ${DIRECTUS_STORAGE_S3_REGION:-ru-central1}
       STORAGE_S3_ENDPOINT: ${DIRECTUS_STORAGE_S3_ENDPOINT:-https://storage.yandexcloud.net}
       STORAGE_S3_FORCE_PATH_STYLE: ${DIRECTUS_STORAGE_S3_FORCE_PATH_STYLE:-false}
-      CONTENT_SECURITY_POLICY_DIRECTIVES__IMG_SRC: "${DIRECTUS_CONTENT_SECURITY_POLICY_IMG_SRC:-'self' data: blob: https://raw.githubusercontent.com https://avatars.githubusercontent.com https://img.yug-postel.ru https://storage.yandexcloud.net https://*.storage.yandexcloud.net}"
+      CONTENT_SECURITY_POLICY_DIRECTIVES__IMG_SRC: "${DIRECTUS_CONTENT_SECURITY_POLICY_IMG_SRC:-'self' data: blob: https://raw.githubusercontent.com https://avatars.githubusercontent.com https://api.yug-postel.ru https://img.yug-postel.ru https://storage.yandexcloud.net https://*.storage.yandexcloud.net}"
       STOREFRONT_OPS_BACKEND_URL: ${DIRECTUS_STOREFRONT_OPS_BACKEND_URL:-http://api:8080}
       STOREFRONT_OPS_BACKEND_TOKEN: ${DIRECTUS_BRIDGE_TOKEN:?Set DIRECTUS_BRIDGE_TOKEN in the deployment .env}
       STOREFRONT_OPS_PREVIEW_BASE_URL: ${DIRECTUS_STOREFRONT_OPS_PREVIEW_BASE_URL:-}

@@ -72,3 +72,6 @@ yandex:
     secret-key: ${YANDEX_STORAGE_SECRET:?Secret key is required}
     endpoint: ${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}
     public-base-url: ${YANDEX_STORAGE_PUBLIC_BASE_URL:${YANDEX_STORAGE_ENDPOINT:https://storage.yandexcloud.net}}
+
+catalogue:
+  product-image-preview-base-url: ${CATALOGUE_PRODUCT_IMAGE_PREVIEW_BASE_URL:https://api.yug-postel.ru/products/images}

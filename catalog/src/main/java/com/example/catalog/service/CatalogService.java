@@ -143,6 +143,11 @@ public class CatalogService {
         return images;
     }
 
+    public ProductImage getProductImage(UUID imageId) {
+        return imageRepository.findById(imageId)
+                .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
+    }
+
     public String removeProductImage(UUID productId, UUID imageId) {
         ProductImage image = imageRepository.findById(imageId)
                 .orElseThrow(() -> new IllegalArgumentException("Image not found: " + imageId));
