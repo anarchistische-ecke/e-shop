@@ -219,25 +219,24 @@ jobs:
             bash ./scripts/deploy-stack.sh \
               --env-file .env \
               --compose-file docker-compose.prod.yml
-          else
-            args=(
-              bash ./scripts/deploy-runtime-bluegreen.sh
-              --env-file .env
-              --compose-file docker-compose.prod.yml
-              --deploy-ref "${DEPLOY_REF}"
-              --deploy-sha "${DEPLOY_SHA}"
-              --api-image-repository "${API_IMAGE_REPOSITORY}"
-              --api-image-tag "${API_IMAGE_TAG}"
-              --run-id "${DEPLOY_RUN_ID}"
-            )
-            if [ -n "${STOREFRONT_IMAGE_REPOSITORY:-}" ]; then
-              args+=(--storefront-image-repository "${STOREFRONT_IMAGE_REPOSITORY}")
-            fi
-            if [ -n "${STOREFRONT_IMAGE_TAG:-}" ]; then
-              args+=(--storefront-image-tag "${STOREFRONT_IMAGE_TAG}")
-            fi
-            "${args[@]}"
           fi
+          args=(
+            bash ./scripts/deploy-runtime-bluegreen.sh
+            --env-file .env
+            --compose-file docker-compose.prod.yml
+            --deploy-ref "${DEPLOY_REF}"
+            --deploy-sha "${DEPLOY_SHA}"
+            --api-image-repository "${API_IMAGE_REPOSITORY}"
+            --api-image-tag "${API_IMAGE_TAG}"
+            --run-id "${DEPLOY_RUN_ID}"
+          )
+          if [ -n "${STOREFRONT_IMAGE_REPOSITORY:-}" ]; then
+            args+=(--storefront-image-repository "${STOREFRONT_IMAGE_REPOSITORY}")
+          fi
+          if [ -n "${STOREFRONT_IMAGE_TAG:-}" ]; then
+            args+=(--storefront-image-tag "${STOREFRONT_IMAGE_TAG}")
+          fi
+          "${args[@]}"
 
       - name: Stage deploy diagnostics
         if: ${{ steps.deploy_remote.outcome == 'failure' }}

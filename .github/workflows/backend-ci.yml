@@ -33,6 +33,9 @@ jobs:
             bash ./scripts/classify-change-set.sh --head-ref HEAD
           fi
 
+      - name: Verify production release drift guard
+        run: bash ./scripts/tests/check-stack-health-release-drift.test.sh
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
