@@ -185,7 +185,12 @@ bash "$ROOT_DIR/scripts/directus-published-at-bootstrap.sh" \
 echo "Running stack health checks..."
 bash "$ROOT_DIR/scripts/check-stack-health.sh" \
   --env-file "$ENV_FILE" \
-  --compose-file "$COMPOSE_FILE"
+  --compose-file "$COMPOSE_FILE" \
+  --api-url "http://127.0.0.1:8080/health/redis" \
+  --directus-url "http://127.0.0.1:8055/server/health" \
+  --storefront-url "http://127.0.0.1:${STOREFRONT_HOST_PORT:-3000}/healthz" \
+  --content-url "http://127.0.0.1:8080/content/navigation?placement=header" \
+  --skip-public
 
 echo "Deployment complete."
 compose ps

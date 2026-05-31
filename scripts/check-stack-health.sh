@@ -16,6 +16,7 @@ PUBLIC_STOREFRONT_URL=""
 PUBLIC_CONTENT_URL=""
 SKIP_PUBLIC=false
 VERIFY_RUNTIME_STATE=false
+EXPECTED_RELEASE_ID=""
 
 # shellcheck source=scripts/lib/env-file.sh
 source "$ROOT_DIR/scripts/lib/env-file.sh"
@@ -38,6 +39,7 @@ Usage:
     [--public-content-url <url>] \
     [--skip-public] \
     [--verify-runtime-state] \
+    [--expected-release-id <git-sha>] \
     [--timeout-seconds <seconds>]
 EOF
 }
@@ -96,6 +98,10 @@ while [[ $# -gt 0 ]]; do
       VERIFY_RUNTIME_STATE=true
       shift
       ;;
+    --expected-release-id)
+      EXPECTED_RELEASE_ID="$2"
+      shift 2
+      ;;
     --timeout-seconds)
       WAIT_TIMEOUT_SECONDS="$2"
       shift 2
@@ -151,10 +157,26 @@ check_url() {
 }
 
 verify_runtime_state() {
-  local upstream_api_port upstream_directus_port upstream_storefront_port
+  local current_release_sha upstream_api_port upstream_directus_port upstream_storefront_port
 
   if [[ -z "${CURRENT_LIVE_API_PORT:-}" || -z "${CURRENT_LIVE_DIRECTUS_PORT:-}" || -z "${CURRENT_LIVE_STOREFRONT_PORT:-}" ]]; then
     echo "Runtime state is incomplete; cannot verify nginx upstreams." >&2
+    return 1
+  fi
+
+  if [[ -z "${CURRENT_LIVE_RELEASE_ID:-}" || -z "${CURRENT_LIVE_RELEASE_DIR:-}" ]]; then
+    echo "Runtime state is incomplete; cannot verify the live release." >&2
+    return 1
+  fi
+
+  current_release_sha="$(git -C "$CURRENT_LIVE_RELEASE_DIR" rev-parse HEAD 2>/dev/null || true)"
+  if [[ "$current_release_sha" != "$CURRENT_LIVE_RELEASE_ID" ]]; then
+    echo "Live release directory drift detected: ${CURRENT_LIVE_RELEASE_DIR} resolves to ${current_release_sha:-unset}, state expects ${CURRENT_LIVE_RELEASE_ID}." >&2
+    return 1
+  fi
+
+  if [[ -n "$EXPECTED_RELEASE_ID" && "$CURRENT_LIVE_RELEASE_ID" != "$EXPECTED_RELEASE_ID" ]]; then
+    echo "Live release drift detected: production serves ${CURRENT_LIVE_RELEASE_ID}, expected ${EXPECTED_RELEASE_ID}." >&2
     return 1
   fi
 

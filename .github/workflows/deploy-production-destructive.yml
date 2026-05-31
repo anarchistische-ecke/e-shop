@@ -116,6 +116,8 @@ jobs:
       GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
       API_IMAGE_REPOSITORY: ${{ needs.build.outputs.image_repository }}
       API_IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+      STOREFRONT_IMAGE_REPOSITORY: ${{ vars.STOREFRONT_IMAGE_REPOSITORY }}
+      STOREFRONT_IMAGE_TAG: ${{ vars.STOREFRONT_IMAGE_TAG }}
       SKIP_BACKUP: ${{ inputs.skip_backup }}
     steps:
       - name: Skip deploy when VM deploy path is not configured
@@ -179,6 +181,23 @@ jobs:
             --env-file .env \
             --compose-file docker-compose.prod.yml \
             ${destructive_args}
+          runtime_args=(
+            bash ./scripts/deploy-runtime-bluegreen.sh
+            --env-file .env
+            --compose-file docker-compose.prod.yml
+            --deploy-ref "${DEPLOY_REF}"
+            --deploy-sha "${DEPLOY_SHA}"
+            --api-image-repository "${API_IMAGE_REPOSITORY}"
+            --api-image-tag "${API_IMAGE_TAG}"
+            --run-id "${DEPLOY_RUN_ID}"
+          )
+          if [ -n "${STOREFRONT_IMAGE_REPOSITORY:-}" ]; then
+            runtime_args+=(--storefront-image-repository "${STOREFRONT_IMAGE_REPOSITORY}")
+          fi
+          if [ -n "${STOREFRONT_IMAGE_TAG:-}" ]; then
+            runtime_args+=(--storefront-image-tag "${STOREFRONT_IMAGE_TAG}")
+          fi
+          "${runtime_args[@]}"
 
       - name: Stage deploy diagnostics
         if: ${{ steps.deploy_remote.outcome == 'failure' }}

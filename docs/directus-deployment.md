@@ -46,11 +46,11 @@ The workflows that matter right now are:
   - runs on pushes to `main` and manual dispatch
   - builds `ghcr.io/<repo-owner>/eshop-api:<sha>`
   - uses `scripts/deploy-runtime-bluegreen.sh` for runtime-safe changes
-  - uses `scripts/deploy-stack.sh` for destructive changes after printing a warning
+  - uses `scripts/deploy-stack.sh` for destructive maintenance, then completes the same blue-green cutover
 - `deploy-production-destructive`
   - file: `.github/workflows/deploy-production-destructive.yml`
   - manual only
-  - runs `scripts/deploy-stack.sh`
+  - runs `scripts/deploy-stack.sh`, then completes a blue-green cutover
   - exists as an operator-triggered destructive apply path with optional `skip_backup`
 - `rollback-production`
   - file: `.github/workflows/rollback-production.yml`
@@ -61,6 +61,7 @@ The workflows that matter right now are:
   - file: `.github/workflows/ops-health-check.yml`
   - runs every 15 minutes and on manual dispatch
   - SSHes to the VM and runs `scripts/check-stack-health.sh`
+  - fails when the recorded live release differs from the deploy checkout, even if the older slot is still healthy
 
 Also present but intentionally unused for now:
 
@@ -70,19 +71,19 @@ Also present but intentionally unused for now:
 
 ## Suitability For Blue-Green On One VM
 
-The current system is suitable for blue-green deployment on a single VM only for runtime-safe application and runtime changes.
+The current system uses blue-green traffic cutover on a single VM for both runtime-safe and destructive releases.
 
-It is not full-stack blue-green for destructive changes because:
+Destructive changes still require an in-place maintenance phase because:
 
 - PostgreSQL and Redis are shared by both slots
 - changes to Directus schema, Directus seed content, `docker-compose.prod.yml`, `docker-compose.runtime-slot.yml`, and `scripts/directus-*` are classified as destructive
-- destructive production deploys run in place through `scripts/deploy-stack.sh`, not through slot-based blue-green cutover
+- destructive production deploys run the shared-data maintenance phase through `scripts/deploy-stack.sh` before slot-based blue-green cutover
 - the first bootstrap is manual
 
 Treat the production workflow as:
 
 - blue-green for runtime-safe releases
-- automatic in-place apply for destructive releases
+- in-place shared-data maintenance followed by blue-green cutover for destructive releases
 - manual for the first bootstrap
 
 ## Runtime-Safe Deploy Flow
@@ -124,6 +125,8 @@ This path still owns:
 - schema, seed, governance, and compose changes
 
 The destructive flow is also used automatically by `.github/workflows/deploy-production-runtime.yml` whenever the change classifier marks a `main` deploy as destructive.
+
+After the destructive maintenance phase succeeds, both production workflows run `scripts/deploy-runtime-bluegreen.sh`. This switches nginx to the new release slot, records the live release in `.deploy-state/runtime-live.env`, and stops the temporary default-stack API, Directus, and storefront containers.
 
 ## What The VM Must Already Have
 

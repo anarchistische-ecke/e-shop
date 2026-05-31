@@ -429,6 +429,13 @@ PRE_CUTOVER_PREVIOUS_LIVE_PROJECT="${PREVIOUS_LIVE_PROJECT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_API_PORT="${PREVIOUS_LIVE_API_PORT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_DIRECTUS_PORT="${PREVIOUS_LIVE_DIRECTUS_PORT:-}"
 PRE_CUTOVER_PREVIOUS_LIVE_STOREFRONT_PORT="${PREVIOUS_LIVE_STOREFRONT_PORT:-}"
+
+if [[ -n "${CURRENT_LIVE_SLOT:-}" ]]; then
+  CURRENT_PHASE="stop-default-maintenance-runtime"
+  legacy_compose stop api directus storefront >/dev/null
+  CURRENT_PHASE="preflight"
+fi
+
 ensure_host_capacity
 check_keycloak_dependency
 ensure_nginx_cutover_contract
@@ -567,6 +574,7 @@ bash "$ROOT_DIR/scripts/check-stack-health.sh" \
   --env-file "$ENV_FILE" \
   --compose-file "$COMPOSE_FILE" \
   --verify-runtime-state \
+  --expected-release-id "$TARGET_SHA" \
   --timeout-seconds "$WAIT_TIMEOUT_SECONDS"
 
 CURRENT_PHASE="retire-previous-live"
@@ -583,9 +591,9 @@ if [[ -n "${PREVIOUS_LIVE_PROJECT:-}" && "$PREVIOUS_LIVE_PROJECT" != "$CANDIDATE
   fi
 fi
 
-if [[ -z "${PREVIOUS_LIVE_SLOT:-}" ]]; then
-  legacy_compose stop api directus storefront >/dev/null 2>&1 || true
-fi
+# The default-stack containers are only a bootstrap and destructive-maintenance
+# path. Public traffic always belongs on the recorded blue-green slot.
+legacy_compose stop api directus storefront >/dev/null 2>&1 || true
 
 CURRENT_PHASE="complete"
 cat >"$(runtime_summary_file)" <<EOF
