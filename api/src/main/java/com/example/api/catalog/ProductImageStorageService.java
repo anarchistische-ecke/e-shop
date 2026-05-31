@@ -3,9 +3,12 @@ package com.example.api.catalog;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
@@ -54,6 +57,20 @@ public class ProductImageStorageService {
         return new StoredImage(key, publicUrlFor(key), position);
     }
 
+    public StoredImageContent download(String objectKey) {
+        if (objectKey == null || objectKey.isBlank()) {
+            throw new IllegalArgumentException("Image object key is required");
+        }
+        if (bucketName == null || bucketName.isBlank()) {
+            throw new IllegalStateException("Yandex Object Storage bucket is not configured");
+        }
+        ResponseBytes<GetObjectResponse> response = s3Client.getObjectAsBytes(GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build());
+        return new StoredImageContent(response.asByteArray(), response.response().contentType());
+    }
+
     public void delete(String objectKey) {
         if (objectKey == null || objectKey.isBlank()) {
             return;
@@ -93,5 +110,8 @@ public class ProductImageStorageService {
     }
 
     public record StoredImage(String objectKey, String url, int position) {
+    }
+
+    public record StoredImageContent(byte[] bytes, String contentType) {
     }
 }

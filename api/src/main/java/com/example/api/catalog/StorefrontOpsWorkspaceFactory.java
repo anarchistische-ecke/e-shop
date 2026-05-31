@@ -7,6 +7,7 @@ import com.example.catalog.domain.Product;
 import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -22,13 +23,16 @@ public class StorefrontOpsWorkspaceFactory {
 
     private final CatalogService catalogService;
     private final CatalogueResponseFactory responseFactory;
+    private final String productImagePreviewBaseUrl;
 
     public StorefrontOpsWorkspaceFactory(
             CatalogService catalogService,
-            CatalogueResponseFactory responseFactory
+            CatalogueResponseFactory responseFactory,
+            @Value("${catalogue.product-image-preview-base-url:https://api.yug-postel.ru/products/images}") String productImagePreviewBaseUrl
     ) {
         this.catalogService = catalogService;
         this.responseFactory = responseFactory;
+        this.productImagePreviewBaseUrl = normalizeBaseUrl(productImagePreviewBaseUrl);
     }
 
     public List<StorefrontOpsWorkspaceModels.BrandOption> toBrandOptions(List<Brand> brands) {
@@ -215,10 +219,17 @@ public class StorefrontOpsWorkspaceFactory {
     }
 
     private String toPreviewUrl(ProductImage image) {
-        MediaModels.MediaManifest manifest = responseFactory.toMediaManifest(image, "");
-        return manifest != null && StringUtils.hasText(manifest.url())
-                ? manifest.url()
+        return image.getId() != null && StringUtils.hasText(productImagePreviewBaseUrl)
+                ? productImagePreviewBaseUrl + "/" + image.getId() + "/preview"
                 : image.getUrl();
+    }
+
+    private String normalizeBaseUrl(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.endsWith("/") ? trimmed.substring(0, trimmed.length() - 1) : trimmed;
     }
 
     private StorefrontOpsWorkspaceModels.VariantSummary toVariantSummary(ProductVariant variant) {

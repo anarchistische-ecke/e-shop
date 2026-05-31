@@ -142,6 +142,19 @@ public class CatalogController {
         return ResponseEntity.ok(images);
     }
 
+    @GetMapping("/images/{imageId}/preview")
+    public ResponseEntity<byte[]> previewProductImage(@PathVariable UUID imageId) {
+        var image = catalogService.getProductImage(imageId);
+        var content = imageStorageService.download(image.getObjectKey());
+        MediaType contentType = content.contentType() != null && !content.contentType().isBlank()
+                ? MediaType.parseMediaType(content.contentType())
+                : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
+                .contentType(contentType)
+                .body(content.bytes());
+    }
+
     @DeleteMapping("/{productId}/images/{imageId}")
     public ResponseEntity<Void> deleteProductImage(@PathVariable UUID productId, @PathVariable UUID imageId) {
         String objectKey = catalogService.removeProductImage(productId, imageId);

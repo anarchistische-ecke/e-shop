@@ -10,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,7 +28,11 @@ class StorefrontOpsWorkspaceFactoryTest {
 
     @BeforeEach
     void setUp() {
-        workspaceFactory = new StorefrontOpsWorkspaceFactory(catalogService, responseFactory);
+        workspaceFactory = new StorefrontOpsWorkspaceFactory(
+                catalogService,
+                responseFactory,
+                "https://api.example.test/products/images/"
+        );
     }
 
     @Test
@@ -44,23 +47,15 @@ class StorefrontOpsWorkspaceFactoryTest {
         );
         image.setId(UUID.fromString("22222222-2222-4222-8222-222222222222"));
 
-        String cdnUrl = "https://img.example.test/media/products/product-id/image-id/w1600.webp";
+        String previewUrl = "https://api.example.test/products/images/22222222-2222-4222-8222-222222222222/preview";
         when(catalogService.getProductImages(product.getId())).thenReturn(List.of(image));
-        when(responseFactory.toMediaManifest(image, "")).thenReturn(new MediaModels.MediaManifest(
-                cdnUrl,
-                image.getUrl(),
-                "",
-                null,
-                null,
-                Map.of()
-        ));
 
         StorefrontOpsWorkspaceModels.ProductSummary summary = workspaceFactory.toProductSummary(product, null);
         StorefrontOpsWorkspaceModels.ProductDetail detail = workspaceFactory.toProductDetail(product, null);
 
-        assertThat(summary.primaryImageUrl()).isEqualTo(cdnUrl);
+        assertThat(summary.primaryImageUrl()).isEqualTo(previewUrl);
         assertThat(detail.images()).singleElement()
                 .extracting(StorefrontOpsWorkspaceModels.ProductImageSummary::url)
-                .isEqualTo(cdnUrl);
+                .isEqualTo(previewUrl);
     }
 }
