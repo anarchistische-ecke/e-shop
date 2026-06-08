@@ -98,22 +98,23 @@
           </button>
         </nav>
 
-        <div v-if="productState.panel === 'main'" class="detail-content panel-main">
-          <form class="editor-form" @submit.prevent="submitProduct">
-            <div v-if="productForm.id" class="metrics-row">
-              <article class="metric-card">
-                <span>ID товара</span>
-                <strong class="metric-code">{{ productForm.id }}</strong>
-              </article>
-              <article class="metric-card">
-                <span>Создан</span>
-                <strong>{{ formatDateTime(productState.detail?.item?.createdAt) }}</strong>
-              </article>
-              <article class="metric-card">
-                <span>Обновлён</span>
-                <strong>{{ formatDateTime(productState.detail?.item?.updatedAt) }}</strong>
-              </article>
-            </div>
+        <template v-if="productState.panel === 'main'">
+          <div class="detail-content panel-main">
+            <form id="storefront-ops-product-form" class="editor-form" @submit.prevent="submitProduct">
+              <div v-if="productForm.id" class="metrics-row">
+                <article class="metric-card">
+                  <span>ID товара</span>
+                  <strong class="metric-code">{{ productForm.id }}</strong>
+                </article>
+                <article class="metric-card">
+                  <span>Создан</span>
+                  <strong>{{ formatDateTime(productState.detail?.item?.createdAt) }}</strong>
+                </article>
+                <article class="metric-card">
+                  <span>Обновлён</span>
+                  <strong>{{ formatDateTime(productState.detail?.item?.updatedAt) }}</strong>
+                </article>
+              </div>
 
             <div class="form-grid">
               <label class="ops-field ops-field-required">
@@ -266,17 +267,18 @@
               </div>
               <div v-else class="empty-inline">Нет категорий под текущий фильтр.</div>
             </section>
-
-            <div class="sticky-actions">
-              <button class="button button-primary" type="submit" :disabled="isSubmitting">
-                {{ productForm.id ? 'Сохранить товар' : 'Создать товар' }}
-              </button>
-              <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetProductEditor">
-                Сбросить
-              </button>
-            </div>
           </form>
-        </div>
+          </div>
+
+          <div class="sticky-actions detail-footer-actions">
+            <button class="button button-primary" type="submit" form="storefront-ops-product-form" :disabled="isSubmitting">
+              {{ productForm.id ? 'Сохранить товар' : 'Создать товар' }}
+            </button>
+            <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetProductEditor">
+              Сбросить
+            </button>
+          </div>
+        </template>
 
         <div v-else-if="productState.panel === 'variants'" class="detail-content panel-variants">
           <div v-if="!productForm.id" class="empty-inline">

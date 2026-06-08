@@ -88,7 +88,7 @@
           Оверлей категории сейчас не читается. Таксономию можно редактировать без ограничений.
         </div>
 
-        <form class="editor-form category-editor" @submit.prevent="submitCategory">
+        <form id="storefront-ops-category-form" class="editor-form category-editor" @submit.prevent="submitCategory">
           <div v-if="categoryForm.id || categoryState.detail?.item?.fullPath" class="metrics-row compact-metrics">
             <article class="metric-card">
               <span>Путь</span>
@@ -241,16 +241,16 @@
               </div>
             </article>
           </div>
-
-          <div class="sticky-actions">
-            <button class="button button-primary" type="submit" :disabled="isSubmitting">
-              {{ categoryForm.id ? 'Сохранить категорию' : 'Создать категорию' }}
-            </button>
-            <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetCategoryEditor">
-              Сбросить
-            </button>
-          </div>
         </form>
+
+        <div class="sticky-actions detail-footer-actions">
+          <button class="button button-primary" type="submit" form="storefront-ops-category-form" :disabled="isSubmitting">
+            {{ categoryForm.id ? 'Сохранить категорию' : 'Создать категорию' }}
+          </button>
+          <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetCategoryEditor">
+            Сбросить
+          </button>
+        </div>
       </section>
     </template>
   </StorefrontOpsTabShell>

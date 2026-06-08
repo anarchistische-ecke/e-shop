@@ -78,7 +78,7 @@
           </article>
         </div>
 
-        <form class="editor-form inventory-editor" @submit.prevent="submitInventoryAdjustment">
+        <form id="storefront-ops-inventory-form" class="editor-form inventory-editor" @submit.prevent="submitInventoryAdjustment">
           <div class="form-grid">
             <label class="ops-field ops-field-required">
               <span>Изменение</span>
@@ -95,16 +95,16 @@
             <span>Причина</span>
             <textarea v-model="inventoryForm.reason" rows="4" />
           </label>
-
-          <div class="sticky-actions">
-            <button class="button button-primary" type="submit" :disabled="isSubmitting">
-              Применить корректировку
-            </button>
-            <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetInventoryEditor">
-              Новый ключ
-            </button>
-          </div>
         </form>
+
+        <div class="sticky-actions detail-footer-actions">
+          <button class="button button-primary" type="submit" form="storefront-ops-inventory-form" :disabled="isSubmitting">
+            Применить корректировку
+          </button>
+          <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetInventoryEditor">
+            Новый ключ
+          </button>
+        </div>
       </section>
     </template>
   </StorefrontOpsTabShell>

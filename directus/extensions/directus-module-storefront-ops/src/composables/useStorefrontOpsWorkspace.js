@@ -2366,7 +2366,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     if (!silent) {
       clearMessages();
     }
-    loading.categories = true;
+    const showListLoading = !categoryState.loaded;
+    if (showListLoading) {
+      loading.categories = true;
+    }
     try {
       const response = await bridgeRequest(`/workspace/categories/${id}`);
       categoryState.detail = response;
@@ -2378,7 +2381,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     } catch (error) {
       setError(error);
     } finally {
-      loading.categories = false;
+      if (showListLoading) {
+        loading.categories = false;
+      }
     }
   }
 
@@ -2405,7 +2410,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     if (!silent) {
       clearMessages();
     }
-    loading.brands = true;
+    const showListLoading = !brandState.loaded;
+    if (showListLoading) {
+      loading.brands = true;
+    }
     try {
       const response = await bridgeRequest(`/workspace/brands/${id}`);
       brandState.detail = response;
@@ -2415,7 +2423,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     } catch (error) {
       setError(error);
     } finally {
-      loading.brands = false;
+      if (showListLoading) {
+        loading.brands = false;
+      }
     }
   }
 
@@ -2493,7 +2503,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     if (!silent) {
       clearMessages();
     }
-    loading.orders = true;
+    const showListLoading = !orderState.loaded;
+    if (showListLoading) {
+      loading.orders = true;
+    }
     try {
       const response = await bridgeRequest(`/admin/orders/${id}`);
       orderState.detail = response;
@@ -2506,7 +2519,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     } catch (error) {
       setError(error);
     } finally {
-      loading.orders = false;
+      if (showListLoading) {
+        loading.orders = false;
+      }
     }
   }
 

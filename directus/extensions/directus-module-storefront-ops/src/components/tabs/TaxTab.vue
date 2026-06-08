@@ -50,7 +50,7 @@
             <p class="detail-subtitle">Активный режим используется при создании чеков YooKassa.</p>
           </div>
         </header>
-        <form class="editor-form" @submit.prevent="submitTax">
+        <form id="storefront-ops-tax-form" class="editor-form" @submit.prevent="submitTax">
           <div class="form-grid">
             <label class="ops-field ops-field-required">
               <span>Название</span>
@@ -85,15 +85,15 @@
               <span>{{ taxForm.active ? 'Использовать в чеках' : 'Не использовать' }}</span>
             </label>
           </label>
-          <div class="sticky-actions">
-            <button class="button button-primary" type="submit" :disabled="isSubmitting">
-              {{ taxForm.id ? 'Сохранить режим' : 'Создать режим' }}
-            </button>
-            <button v-if="taxForm.id" class="button button-danger" type="button" :disabled="isSubmitting" @click="deleteTax">
-              Удалить
-            </button>
-          </div>
         </form>
+        <div class="sticky-actions detail-footer-actions">
+          <button class="button button-primary" type="submit" form="storefront-ops-tax-form" :disabled="isSubmitting">
+            {{ taxForm.id ? 'Сохранить режим' : 'Создать режим' }}
+          </button>
+          <button v-if="taxForm.id" class="button button-danger" type="button" :disabled="isSubmitting" @click="deleteTax">
+            Удалить
+          </button>
+        </div>
       </section>
     </template>
   </StorefrontOpsTabShell>

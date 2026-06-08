@@ -71,7 +71,7 @@
           </div>
         </header>
 
-        <form class="editor-form brand-editor" @submit.prevent="submitBrand">
+        <form id="storefront-ops-brand-form" class="editor-form brand-editor" @submit.prevent="submitBrand">
           <div class="metrics-row">
             <article class="metric-card">
               <span>Товаров у бренда</span>
@@ -95,16 +95,16 @@
             <span>Описание</span>
             <textarea v-model="brandForm.description" rows="6" />
           </label>
-
-          <div class="sticky-actions">
-            <button class="button button-primary" type="submit" :disabled="isSubmitting">
-              {{ brandForm.id ? 'Сохранить бренд' : 'Создать бренд' }}
-            </button>
-            <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetBrandEditor">
-              Сбросить
-            </button>
-          </div>
         </form>
+
+        <div class="sticky-actions detail-footer-actions">
+          <button class="button button-primary" type="submit" form="storefront-ops-brand-form" :disabled="isSubmitting">
+            {{ brandForm.id ? 'Сохранить бренд' : 'Создать бренд' }}
+          </button>
+          <button class="button button-secondary" type="button" :disabled="isSubmitting" @click="resetBrandEditor">
+            Сбросить
+          </button>
+        </div>
       </section>
     </template>
   </StorefrontOpsTabShell>
