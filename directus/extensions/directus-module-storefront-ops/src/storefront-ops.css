@@ -644,11 +644,6 @@
   width: 100%;
 }
 
-.storefront-ops .category-image-preview img {
-  aspect-ratio: 16 / 10;
-  block-size: clamp(180px, 28dvh, 300px);
-}
-
 .storefront-ops .media-preview {
   aspect-ratio: 16 / 10;
 }
@@ -663,7 +658,7 @@
 }
 
 .storefront-ops .category-image-preview {
-  inline-size: min(420px, 100%);
+  max-width: 320px;
 }
 
 .storefront-ops .definition-list {
@@ -1055,6 +1050,8 @@ body.storefront-ops-view .sidebar-toggle {
 }
 
 body.storefront-ops-view {
+  --storefront-ops-private-view-header-size: 70px;
+
   overflow: hidden !important;
 }
 
@@ -1064,20 +1061,23 @@ body.storefront-ops-view #main-content {
   max-inline-size: none !important;
   min-block-size: 0 !important;
   min-inline-size: 0 !important;
+  overflow: hidden !important;
 }
 
 body.storefront-ops-view .private-view.workspace-view {
-  block-size: 100% !important;
+  block-size: 100dvh !important;
   inline-size: 100% !important;
   max-inline-size: none !important;
   min-block-size: 0 !important;
   min-inline-size: 0 !important;
+  overflow: hidden !important;
 }
 
 body.storefront-ops-view .private-view.workspace-view > .root-split {
   block-size: 100% !important;
   grid-template-columns: 0 0 minmax(0, 1fr) !important;
   min-block-size: 0 !important;
+  overflow: hidden !important;
 }
 
 body.storefront-ops-view .private-view.workspace-view > .root-split > .sp-start,
@@ -1094,6 +1094,7 @@ body.storefront-ops-view #main-content > .main-split {
   block-size: 100% !important;
   grid-template-columns: minmax(0, 1fr) 0px 0px !important;
   min-block-size: 0 !important;
+  overflow: hidden !important;
 }
 
 body.storefront-ops-view #main-content .sp-start,
@@ -1103,10 +1104,11 @@ body.storefront-ops-view #main-content .main-content-container {
   max-inline-size: none !important;
   min-block-size: 0 !important;
   min-inline-size: 0 !important;
+  overflow: hidden !important;
 }
 
 body.storefront-ops-view .storefront-ops.workspace {
-  block-size: 100% !important;
+  block-size: calc(100dvh - var(--storefront-ops-private-view-header-size)) !important;
 }
 
 body.storefront-ops-view #main-content .sp-end {
