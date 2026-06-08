@@ -1,3 +1,10 @@
+.storefront-ops,
+.storefront-ops *,
+.storefront-ops *::before,
+.storefront-ops *::after {
+  box-sizing: border-box;
+}
+
 .storefront-ops.workspace {
   block-size: 100%;
   display: flex;
@@ -476,9 +483,7 @@
   overflow: auto;
 }
 
-.storefront-ops .detail-card > .editor-form,
-.storefront-ops .detail-content > .editor-form {
-  block-size: 100%;
+.storefront-ops .detail-card > .editor-form {
   display: flex;
   flex-direction: column;
   min-block-size: 0;
@@ -763,6 +768,13 @@
 
 .storefront-ops .editor-form > .sticky-actions:last-child {
   margin-block-start: auto;
+}
+
+.storefront-ops .detail-card > .detail-footer-actions {
+  flex: 0 0 auto;
+  margin: 0 -14px -14px;
+  position: static;
+  z-index: 2;
 }
 
 .storefront-ops .home-action-dock {
