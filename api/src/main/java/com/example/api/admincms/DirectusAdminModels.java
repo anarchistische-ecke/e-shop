@@ -173,13 +173,37 @@ public final class DirectusAdminModels {
 
     public record ImportDryRunResponse(
             ImportJobView job,
-            List<ImportRowView> rows
+            List<ImportRowView> rows,
+            ImportReport report
     ) {
     }
 
     public record ImportCommitResponse(
             ImportJobView job,
-            int appliedRows
+            int appliedRows,
+            ImportReport report
+    ) {
+    }
+
+    public record ImportReport(
+            int matchedRows,
+            int skippedRows,
+            int changedRows,
+            int unchangedRows,
+            int invalidRows,
+            int notUpdatedRows,
+            List<NotUpdatedVariantView> notUpdatedVariants
+    ) {
+    }
+
+    public record NotUpdatedVariantView(
+            UUID variantId,
+            String sku,
+            String productName,
+            String productSlug,
+            String variantName,
+            int currentStock,
+            boolean productActive
     ) {
     }
 

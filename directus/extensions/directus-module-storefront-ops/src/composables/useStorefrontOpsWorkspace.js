@@ -339,9 +339,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     selectedJobId: '',
     file: null,
     dryRun: null,
+    notUpdatedModalOpen: false,
     mapping: {
-      sku: 'sku',
-      productName: 'product_name',
+      sku: 'Номенклатура.Артикул',
+      productName: 'Номенклатура',
       productSlug: 'product_slug',
       variantName: 'variant_name',
       brandSlug: 'brand_slug',
@@ -353,15 +354,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   });
 
   const importMappingFields = [
-    { key: 'sku', label: 'SKU' },
-    { key: 'productName', label: 'Товар' },
-    { key: 'productSlug', label: 'Слаг товара' },
-    { key: 'variantName', label: 'Вариант' },
-    { key: 'brandSlug', label: 'Бренд' },
-    { key: 'categorySlug', label: 'Категория' },
-    { key: 'priceAmount', label: 'Цена' },
-    { key: 'stockQuantity', label: 'Остаток' },
-    { key: 'currency', label: 'Валюта' },
+    { key: 'sku', label: 'Артикул' },
+    { key: 'productName', label: 'Название' },
   ];
 
   const promotionState = reactive({
@@ -905,6 +899,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     onImportFileSelected,
     dryRunImport,
     commitImport,
+    openImportNotUpdatedModal,
+    closeImportNotUpdatedModal,
+    downloadImportNotUpdated,
     addPromotionTarget,
     removePromotionTarget,
     submitPromotion,
@@ -3721,6 +3718,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   function onImportFileSelected(event) {
     importState.file = event?.target?.files?.[0] || null;
     importState.dryRun = null;
+    importState.notUpdatedModalOpen = false;
   }
 
   async function dryRunImport() {
@@ -3764,12 +3762,34 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         data: { jobId },
       });
       await Promise.allSettled([loadImports(), loadProducts({ reloadSelected: true }), loadInventory()]);
-      setSuccess('Импорт применён к каталогу и остаткам.');
+      setSuccess('Остатки обновлены.');
     } catch (error) {
       setError(error);
     } finally {
       isSubmitting.value = false;
     }
+  }
+
+  function openImportNotUpdatedModal() {
+    if (!importState.dryRun?.report?.notUpdatedRows) {
+      setInfo('Все варианты каталога найдены в последнем dry-run.');
+      return;
+    }
+    importState.notUpdatedModalOpen = true;
+  }
+
+  function closeImportNotUpdatedModal() {
+    importState.notUpdatedModalOpen = false;
+  }
+
+  function downloadImportNotUpdated(format) {
+    const jobId = importState.dryRun?.job?.id || importState.selectedJobId;
+    if (!jobId) {
+      pageError.value = 'Сначала выполните dry-run.';
+      return;
+    }
+    const extension = format === 'xlsx' ? 'xlsx' : 'txt';
+    window.open(`/storefront-ops-bridge/admin/imports/${jobId}/not-updated.${extension}`, '_blank', 'noopener,noreferrer');
   }
 
   function startCreatePromotion({ silent = false } = {}) {

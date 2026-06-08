@@ -4,11 +4,13 @@ import com.example.api.admincms.DirectusAdminModels.ImportCommitResponse;
 import com.example.api.admincms.DirectusAdminModels.ImportDryRunResponse;
 import com.example.api.admincms.DirectusAdminModels.ImportJobView;
 import com.example.api.admincms.DirectusAdminModels.ImportMapping;
+import com.example.api.admincms.DirectusAdminModels.ImportReport;
 import com.example.api.admincms.DirectusAdminModels.ImportRowView;
 import com.example.api.admincms.DirectusAdminModels.LowStockAlertResponse;
 import com.example.api.admincms.DirectusAdminModels.LowStockRow;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsRow;
+import com.example.api.admincms.DirectusAdminModels.NotUpdatedVariantView;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderSearchResponse;
@@ -32,7 +34,6 @@ import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.api.catalog.DirectusBridgeSecurity;
 import com.example.api.notification.NotificationOrchestrator;
 import com.example.catalog.domain.Brand;
-import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.repository.ProductRepository;
@@ -54,7 +55,10 @@ import jakarta.transaction.Transactional;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
@@ -63,6 +67,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -71,7 +76,6 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -102,6 +106,10 @@ public class DirectusAdminService {
     );
     private static final Set<String> PICKER_VISIBLE_STATUSES = Set.of("PAID", "PROCESSING", "READY_FOR_PICKUP", "SHIPPED");
     private static final Set<String> PICKER_TARGET_STATUSES = Set.of("PROCESSING", "READY_FOR_PICKUP", "SHIPPED");
+    private static final String STOCK_IMPORT_MODE = "STOCK_ONLY";
+    private static final String SAMPLE_SKU_HEADER = "Номенклатура.Артикул";
+    private static final String ATRIUM_STOCK_HEADER = "Склад 21 Век АТРИУМ.Остаток";
+    private static final String IP_STOCK_HEADER = "Склад 21 Век ИП.Остаток";
 
     private final OrderRepository orderRepository;
     private final OrderService orderService;
@@ -782,10 +790,11 @@ public class DirectusAdminService {
             throw new IllegalArgumentException("Import file is required");
         }
         ImportMapping resolvedMapping = resolveMapping(mapping);
-        List<Map<String, String>> sourceRows = readRows(file);
+        List<Map<String, String>> sourceRows = readRows(file, resolvedMapping);
         CatalogueImportJob job = new CatalogueImportJob();
         job.setFileName(file.getOriginalFilename());
         job.setStatus("DRY_RUN");
+        job.setMode(STOCK_IMPORT_MODE);
         job.setCreatedBy(principal.actor());
         job.setTotalRows(sourceRows.size());
 
@@ -793,13 +802,18 @@ public class DirectusAdminService {
         int valid = 0;
         int invalid = 0;
         for (int index = 0; index < sourceRows.size(); index++) {
-            CatalogueImportRow row = toImportRow(index + 2, sourceRows.get(index), resolvedMapping);
+            Map<String, String> sourceRow = sourceRows.get(index);
+            Integer sourceRowNumber = parseInteger(sourceRow.get("__rowNumber"));
+            CatalogueImportRow row = toImportRow(sourceRowNumber != null ? sourceRowNumber : index + 2, sourceRow, resolvedMapping);
+            rows.add(row);
+        }
+        markDuplicateSkus(rows);
+        for (CatalogueImportRow row : rows) {
             if (row.isValid()) {
                 valid++;
             } else {
                 invalid++;
             }
-            rows.add(row);
         }
         job.setValidRows(valid);
         job.setInvalidRows(invalid);
@@ -808,36 +822,93 @@ public class DirectusAdminService {
             row.setJobId(job.getId());
         }
         rows = importRowRepository.saveAll(rows);
-        return new ImportDryRunResponse(ImportJobView.from(job), rows.stream().map(this::toImportRowView).toList());
+        ImportReport report = buildImportReport(rows);
+        return new ImportDryRunResponse(ImportJobView.from(job), rows.stream().map(this::toImportRowView).toList(), report);
     }
 
     public ImportCommitResponse commitImport(UUID jobId) {
         CatalogueImportJob job = importJobRepository.findById(jobId)
                 .orElseThrow(() -> new IllegalArgumentException("Import job not found: " + jobId));
         if ("COMMITTED".equalsIgnoreCase(job.getStatus())) {
-            return new ImportCommitResponse(ImportJobView.from(job), job.getValidRows());
+            List<CatalogueImportRow> rows = importRowRepository.findByJobIdOrderByRowNumberAsc(jobId);
+            return new ImportCommitResponse(ImportJobView.from(job), appliedRows(rows), buildImportReport(rows));
         }
         if (job.getInvalidRows() > 0) {
             throw new IllegalStateException("Import has invalid rows and cannot be committed");
         }
 
         List<CatalogueImportRow> rows = importRowRepository.findByJobIdOrderByRowNumberAsc(jobId);
+        ImportReport reportBeforeCommit = buildImportReport(rows);
         int applied = 0;
         for (CatalogueImportRow row : rows) {
             if (!row.isValid()) {
                 continue;
             }
-            applyImportRow(row);
-            applied++;
+            if (applyImportRow(row)) {
+                applied++;
+            }
         }
         job.setStatus("COMMITTED");
         job.setCommittedAt(OffsetDateTime.now());
         job = importJobRepository.save(job);
-        return new ImportCommitResponse(ImportJobView.from(job), applied);
+        return new ImportCommitResponse(ImportJobView.from(job), applied, reportBeforeCommit);
     }
 
     public List<ImportJobView> listImports() {
         return importJobRepository.findTop25ByOrderByCreatedAtDesc().stream().map(ImportJobView::from).toList();
+    }
+
+    public ImportReport importReport(UUID jobId) {
+        if (!importJobRepository.existsById(jobId)) {
+            throw new IllegalArgumentException("Import job not found: " + jobId);
+        }
+        return buildImportReport(importRowRepository.findByJobIdOrderByRowNumberAsc(jobId));
+    }
+
+    public byte[] notUpdatedImportReportText(UUID jobId) {
+        ImportReport report = importReport(jobId);
+        StringBuilder builder = new StringBuilder();
+        builder.append("sku\tproduct_name\tproduct_slug\tvariant_name\tcurrent_stock\tproduct_active\n");
+        for (NotUpdatedVariantView row : report.notUpdatedVariants()) {
+            builder
+                    .append(textCell(row.sku())).append('\t')
+                    .append(textCell(row.productName())).append('\t')
+                    .append(textCell(row.productSlug())).append('\t')
+                    .append(textCell(row.variantName())).append('\t')
+                    .append(row.currentStock()).append('\t')
+                    .append(row.productActive())
+                    .append('\n');
+        }
+        return builder.toString().getBytes(StandardCharsets.UTF_8);
+    }
+
+    public byte[] notUpdatedImportReportWorkbook(UUID jobId) {
+        ImportReport report = importReport(jobId);
+        try (var workbook = new XSSFWorkbook(); var out = new ByteArrayOutputStream()) {
+            org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Not updated");
+            Row header = sheet.createRow(0);
+            String[] headers = {"SKU", "Product name", "Product slug", "Variant name", "Current stock", "Product active"};
+            for (int column = 0; column < headers.length; column++) {
+                header.createCell(column).setCellValue(headers[column]);
+            }
+            int rowIndex = 1;
+            for (NotUpdatedVariantView row : report.notUpdatedVariants()) {
+                Row sheetRow = sheet.createRow(rowIndex++);
+                sheetRow.createCell(0).setCellValue(textCell(row.sku()));
+                sheetRow.createCell(1).setCellValue(textCell(row.productName()));
+                sheetRow.createCell(2).setCellValue(textCell(row.productSlug()));
+                sheetRow.createCell(3).setCellValue(textCell(row.variantName()));
+                sheetRow.createCell(4).setCellValue(row.currentStock());
+                sheetRow.createCell(5).setCellValue(row.productActive());
+            }
+            for (int column = 0; column < headers.length; column++) {
+                sheet.autoSizeColumn(column);
+            }
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to build not-updated import workbook", ex);
+        }
     }
 
     public List<PromotionView> listPromotions() {
@@ -1109,42 +1180,100 @@ public class DirectusAdminService {
                 .orElse(5);
     }
 
-    private void applyImportRow(CatalogueImportRow row) {
+    private boolean applyImportRow(CatalogueImportRow row) {
         ProductVariant existingVariant = variantRepository.findBySku(row.getSku()).orElse(null);
-        Product product;
-        if (existingVariant != null && existingVariant.getProduct() != null) {
-            product = existingVariant.getProduct();
-        } else {
-            product = productRepository.findBySlug(row.getProductSlug())
-                    .orElseGet(() -> catalogService.createProduct(row.getProductName(), null, row.getProductSlug()));
-        }
-
-        Product updates = new Product(
-                StringUtils.hasText(row.getProductName()) ? row.getProductName() : product.getName(),
-                product.getDescription(),
-                StringUtils.hasText(row.getProductSlug()) ? row.getProductSlug() : product.getSlug()
-        );
-        if (StringUtils.hasText(row.getBrandSlug())) {
-            catalogService.getByBrandSlug(row.getBrandSlug()).ifPresent(updates::setBrand);
-        }
-        Set<Category> categories = new LinkedHashSet<>();
-        if (StringUtils.hasText(row.getCategorySlug())) {
-            catalogService.getBySlug(row.getCategorySlug()).ifPresent(categories::add);
-        }
-        if (!categories.isEmpty()) {
-            updates.setCategories(categories);
-        }
-        product = catalogService.updateProduct(product.getId(), updates, !categories.isEmpty(), true);
-
-        Money price = Money.of(row.getPriceAmount(), defaultText(row.getCurrency(), "RUB"));
         if (existingVariant == null) {
-            catalogService.addVariant(product.getId(), row.getSku(), row.getVariantName(), price, row.getStockQuantity(), null, null, null, null);
-            return;
+            return false;
         }
         int delta = row.getStockQuantity() - existingVariant.getStockQuantity();
-        catalogService.updateVariant(product.getId(), existingVariant.getId(), row.getVariantName(), price, existingVariant.getStockQuantity(), null, null, null, null);
         if (delta != 0) {
-            inventoryService.adjustStock(existingVariant.getId(), delta, "catalogue-import-" + row.getId(), "CATALOGUE_IMPORT");
+            inventoryService.adjustStock(existingVariant.getId(), delta, "stock-import-" + row.getId(), "STOCK_IMPORT");
+            return true;
+        }
+        return false;
+    }
+
+    private ImportReport buildImportReport(List<CatalogueImportRow> rows) {
+        List<CatalogueImportRow> safeRows = rows != null ? rows : List.of();
+        Map<String, CatalogueImportRow> validRowsBySku = safeRows.stream()
+                .filter(CatalogueImportRow::isValid)
+                .filter(row -> StringUtils.hasText(row.getSku()))
+                .collect(Collectors.toMap(
+                        row -> normalizeSku(row.getSku()),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+        List<ProductVariant> variants = variantRepository.findAllByOrderBySkuAsc();
+        Map<String, ProductVariant> variantsBySku = variants.stream()
+                .filter(variant -> StringUtils.hasText(variant.getSku()))
+                .collect(Collectors.toMap(
+                        variant -> normalizeSku(variant.getSku()),
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new
+                ));
+
+        int matched = 0;
+        int skipped = 0;
+        int changed = 0;
+        int unchanged = 0;
+        for (CatalogueImportRow row : safeRows) {
+            if (!row.isValid() || !StringUtils.hasText(row.getSku())) {
+                continue;
+            }
+            ProductVariant variant = variantsBySku.get(normalizeSku(row.getSku()));
+            if (variant == null) {
+                skipped++;
+                continue;
+            }
+            matched++;
+            if (row.getStockQuantity() != null && row.getStockQuantity() == variant.getStockQuantity()) {
+                unchanged++;
+            } else {
+                changed++;
+            }
+        }
+
+        List<NotUpdatedVariantView> notUpdated = variants.stream()
+                .filter(variant -> !validRowsBySku.containsKey(normalizeSku(variant.getSku())))
+                .map(this::toNotUpdatedVariantView)
+                .toList();
+
+        int invalid = (int) safeRows.stream().filter(row -> !row.isValid()).count();
+        return new ImportReport(matched, skipped, changed, unchanged, invalid, notUpdated.size(), notUpdated);
+    }
+
+    private int appliedRows(List<CatalogueImportRow> rows) {
+        return buildImportReport(rows).changedRows();
+    }
+
+    private NotUpdatedVariantView toNotUpdatedVariantView(ProductVariant variant) {
+        Product product = variant.getProduct();
+        return new NotUpdatedVariantView(
+                variant.getId(),
+                variant.getSku(),
+                product != null ? product.getName() : null,
+                product != null ? product.getSlug() : null,
+                variant.getName(),
+                variant.getStockQuantity(),
+                product == null || product.isIsActive()
+        );
+    }
+
+    private void markDuplicateSkus(List<CatalogueImportRow> rows) {
+        Map<String, Long> counts = rows.stream()
+                .filter(row -> StringUtils.hasText(row.getSku()))
+                .collect(Collectors.groupingBy(row -> normalizeSku(row.getSku()), LinkedHashMap::new, Collectors.counting()));
+        for (CatalogueImportRow row : rows) {
+            if (!StringUtils.hasText(row.getSku()) || counts.getOrDefault(normalizeSku(row.getSku()), 0L) <= 1L) {
+                continue;
+            }
+            String duplicateMessage = "Duplicate SKU in import file";
+            row.setValid(false);
+            row.setErrorMessage(StringUtils.hasText(row.getErrorMessage())
+                    ? row.getErrorMessage() + "; " + duplicateMessage
+                    : duplicateMessage);
         }
     }
 
@@ -1152,15 +1281,11 @@ public class DirectusAdminService {
         CatalogueImportRow row = new CatalogueImportRow();
         row.setRowNumber(rowNumber);
         row.setRawData(writeRawData(raw));
-        row.setSku(read(raw, mapping.sku()));
-        row.setProductName(read(raw, mapping.productName()));
-        row.setProductSlug(defaultText(read(raw, mapping.productSlug()), slugify(defaultText(row.getProductName(), row.getSku()))));
-        row.setVariantName(defaultText(read(raw, mapping.variantName()), row.getProductName()));
-        row.setBrandSlug(read(raw, mapping.brandSlug()));
-        row.setCategorySlug(read(raw, mapping.categorySlug()));
-        row.setCurrency(defaultText(read(raw, mapping.currency()), "RUB").toUpperCase(Locale.ROOT));
-        row.setPriceAmount(parseMoneyMinor(read(raw, mapping.priceAmount())));
-        row.setStockQuantity(parseInteger(read(raw, mapping.stockQuantity())));
+        row.setSku(defaultText(read(raw, mapping.sku()), read(raw, SAMPLE_SKU_HEADER)));
+        row.setProductName(defaultText(read(raw, mapping.productName()), read(raw, "Номенклатура")));
+        row.setProductSlug(read(raw, mapping.productSlug()));
+        row.setVariantName(read(raw, mapping.variantName()));
+        row.setStockQuantity(parseStockQuantity(raw, mapping));
         validateImportRow(row);
         return row;
     }
@@ -1170,18 +1295,6 @@ public class DirectusAdminService {
         if (!StringUtils.hasText(row.getSku())) {
             errors.add("SKU is required");
         }
-        if (!StringUtils.hasText(row.getProductName())) {
-            errors.add("Product name is required");
-        }
-        if (!StringUtils.hasText(row.getProductSlug())) {
-            errors.add("Product slug is required");
-        }
-        if (!StringUtils.hasText(row.getVariantName())) {
-            errors.add("Variant name is required");
-        }
-        if (row.getPriceAmount() == null || row.getPriceAmount() < 0) {
-            errors.add("Price is required");
-        }
         if (row.getStockQuantity() == null || row.getStockQuantity() < 0) {
             errors.add("Stock is required");
         }
@@ -1189,11 +1302,39 @@ public class DirectusAdminService {
         row.setErrorMessage(errors.isEmpty() ? null : String.join("; ", errors));
     }
 
-    private List<Map<String, String>> readRows(MultipartFile file) {
+    private Integer parseStockQuantity(Map<String, String> raw, ImportMapping mapping) {
+        String singleStock = read(raw, mapping.stockQuantity());
+        if (StringUtils.hasText(singleStock)) {
+            return parseStrictStock(singleStock);
+        }
+        Integer atrium = parseStrictStock(defaultText(read(raw, ATRIUM_STOCK_HEADER), "0"));
+        Integer ip = parseStrictStock(defaultText(read(raw, IP_STOCK_HEADER), "0"));
+        if (atrium == null || ip == null) {
+            return null;
+        }
+        return atrium + ip;
+    }
+
+    private Integer parseStrictStock(String value) {
+        if (!StringUtils.hasText(value)) {
+            return 0;
+        }
+        String normalized = value.trim().replace(" ", "");
+        if (!normalized.matches("\\d+")) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(normalized);
+        } catch (RuntimeException ex) {
+            return null;
+        }
+    }
+
+    private List<Map<String, String>> readRows(MultipartFile file, ImportMapping mapping) {
         String name = file.getOriginalFilename() != null ? file.getOriginalFilename().toLowerCase(Locale.ROOT) : "";
         try {
             if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-                return readWorkbookRows(file);
+                return readWorkbookRows(file, mapping);
             }
             return readDelimitedRows(file);
         } catch (Exception ex) {
@@ -1201,35 +1342,107 @@ public class DirectusAdminService {
         }
     }
 
-    private List<Map<String, String>> readWorkbookRows(MultipartFile file) throws Exception {
+    private int findHeaderRow(Sheet sheet, DataFormatter formatter, ImportMapping mapping) {
+        String mappedSku = normalizeHeader(mapping.sku());
+        String sampleSku = normalizeHeader(SAMPLE_SKU_HEADER);
+        for (int rowIndex = sheet.getFirstRowNum(); rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+            for (Cell cell : row) {
+                String value = normalizeHeader(formatter.formatCellValue(cell));
+                if (value.equals(mappedSku) || value.equals(sampleSku)) {
+                    return rowIndex;
+                }
+            }
+        }
+        return sheet.getFirstRowNum();
+    }
+
+    private String formatCellWithMergedHeader(
+            Sheet sheet,
+            int rowIndex,
+            int column,
+            DataFormatter formatter,
+            Row subheader
+    ) {
+        Row row = sheet.getRow(rowIndex);
+        String direct = row != null ? formatter.formatCellValue(row.getCell(column)).trim() : "";
+        if (StringUtils.hasText(direct)) {
+            return direct;
+        }
+        String secondary = subheader != null ? formatter.formatCellValue(subheader.getCell(column)).trim() : "";
+        if (!StringUtils.hasText(secondary)) {
+            return "";
+        }
+        for (CellRangeAddress range : sheet.getMergedRegions()) {
+            if (range.getFirstRow() == rowIndex
+                    && range.getLastRow() == rowIndex
+                    && range.getFirstColumn() <= column
+                    && range.getLastColumn() >= column) {
+                Row firstRow = sheet.getRow(range.getFirstRow());
+                return firstRow != null ? formatter.formatCellValue(firstRow.getCell(range.getFirstColumn())).trim() : "";
+            }
+        }
+        return "";
+    }
+
+    private String uniqueHeader(List<String> existingHeaders, String headerText, int column) {
+        String base = StringUtils.hasText(headerText) ? headerText.trim() : "__column" + (column + 1);
+        if (!existingHeaders.contains(base)) {
+            return base;
+        }
+        int suffix = 2;
+        String candidate = base + "#" + suffix;
+        while (existingHeaders.contains(candidate)) {
+            suffix++;
+            candidate = base + "#" + suffix;
+        }
+        return candidate;
+    }
+
+    private List<Map<String, String>> readWorkbookRows(MultipartFile file, ImportMapping mapping) throws Exception {
         DataFormatter formatter = new DataFormatter(Locale.ROOT);
         try (var workbook = WorkbookFactory.create(file.getInputStream())) {
             var sheet = workbook.getSheetAt(0);
             if (sheet == null) {
                 return List.of();
             }
-            Row header = sheet.getRow(sheet.getFirstRowNum());
+            int headerRowIndex = findHeaderRow(sheet, formatter, mapping);
+            Row header = sheet.getRow(headerRowIndex);
             if (header == null) {
                 return List.of();
             }
+            Row subheader = sheet.getRow(headerRowIndex + 1);
+            int columnCount = Math.max(header.getLastCellNum(), subheader != null ? subheader.getLastCellNum() : 0);
             List<String> headers = new ArrayList<>();
-            for (Cell cell : header) {
-                headers.add(formatter.formatCellValue(cell).trim());
+            boolean hasSubheaders = false;
+            for (int column = 0; column < columnCount; column++) {
+                String primary = formatCellWithMergedHeader(sheet, headerRowIndex, column, formatter, subheader);
+                String secondary = subheader != null ? formatter.formatCellValue(subheader.getCell(column)).trim() : "";
+                hasSubheaders = hasSubheaders || StringUtils.hasText(secondary);
+                String headerText = StringUtils.hasText(primary) && StringUtils.hasText(secondary)
+                        ? primary + "." + secondary
+                        : defaultText(primary, secondary);
+                headers.add(uniqueHeader(headers, headerText, column));
             }
             List<Map<String, String>> rows = new ArrayList<>();
-            for (int rowIndex = sheet.getFirstRowNum() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            int firstDataRow = headerRowIndex + (hasSubheaders ? 2 : 1);
+            for (int rowIndex = firstDataRow; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row source = sheet.getRow(rowIndex);
                 if (source == null) {
                     continue;
                 }
                 Map<String, String> values = new LinkedHashMap<>();
+                values.put("__rowNumber", String.valueOf(rowIndex + 1));
                 boolean hasValue = false;
                 for (int column = 0; column < headers.size(); column++) {
                     String value = formatter.formatCellValue(source.getCell(column)).trim();
                     values.put(headers.get(column), value);
                     hasValue = hasValue || StringUtils.hasText(value);
                 }
-                if (hasValue) {
+                if (hasValue && StringUtils.hasText(defaultText(read(values, mapping.sku()), read(values, SAMPLE_SKU_HEADER)))) {
                     rows.add(values);
                 }
             }
@@ -1250,6 +1463,7 @@ public class DirectusAdminService {
             while ((line = reader.readLine()) != null) {
                 List<String> values = splitDelimited(line, delimiter);
                 Map<String, String> row = new LinkedHashMap<>();
+                row.put("__rowNumber", String.valueOf(rows.size() + 2));
                 boolean hasValue = false;
                 for (int i = 0; i < headers.size(); i++) {
                     String value = i < values.size() ? values.get(i).trim() : "";
@@ -1273,8 +1487,8 @@ public class DirectusAdminService {
             mapping = new ImportMapping(null, null, null, null, null, null, null, null, null);
         }
         return new ImportMapping(
-                defaultText(mapping.sku(), "sku"),
-                defaultText(mapping.productName(), "product_name"),
+                defaultText(mapping.sku(), SAMPLE_SKU_HEADER),
+                defaultText(mapping.productName(), "Номенклатура"),
                 defaultText(mapping.productSlug(), "product_slug"),
                 defaultText(mapping.variantName(), "variant_name"),
                 defaultText(mapping.brandSlug(), "brand_slug"),
@@ -1451,6 +1665,14 @@ public class DirectusAdminService {
 
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String normalizeSku(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    private String textCell(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "";
     }
 
     private String defaultText(String value, String fallback) {
