@@ -449,13 +449,24 @@
 .storefront-ops .detail-card,
 .storefront-ops .empty-detail {
   block-size: 100%;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
   inline-size: 100%;
   max-inline-size: none;
   min-block-size: 0;
   overflow: auto;
   padding: 14px;
+}
+
+.storefront-ops .detail-card > .detail-content,
+.storefront-ops .detail-card > .editor-form {
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.storefront-ops .detail-content > .editor-form {
+  min-block-size: 100%;
 }
 
 .storefront-ops .detail-content,
@@ -633,6 +644,11 @@
   width: 100%;
 }
 
+.storefront-ops .category-image-preview img {
+  aspect-ratio: 16 / 10;
+  block-size: clamp(180px, 28dvh, 300px);
+}
+
 .storefront-ops .media-preview {
   aspect-ratio: 16 / 10;
 }
@@ -647,7 +663,7 @@
 }
 
 .storefront-ops .category-image-preview {
-  max-width: 320px;
+  inline-size: min(420px, 100%);
 }
 
 .storefront-ops .definition-list {
@@ -732,6 +748,10 @@
   margin: 8px -14px -14px;
   padding: 12px 14px 14px;
   position: sticky;
+}
+
+.storefront-ops .editor-form > .sticky-actions:last-child {
+  margin-block-start: auto;
 }
 
 .storefront-ops .home-action-dock {
@@ -1034,6 +1054,10 @@ body.storefront-ops-view .sidebar-toggle {
   display: none !important;
 }
 
+body.storefront-ops-view {
+  overflow: hidden !important;
+}
+
 body.storefront-ops-view #main-content {
   block-size: 100% !important;
   inline-size: 100% !important;
@@ -1043,7 +1067,7 @@ body.storefront-ops-view #main-content {
 }
 
 body.storefront-ops-view .private-view.workspace-view {
-  block-size: 100dvh !important;
+  block-size: 100% !important;
   inline-size: 100% !important;
   max-inline-size: none !important;
   min-block-size: 0 !important;
@@ -1082,7 +1106,7 @@ body.storefront-ops-view #main-content .main-content-container {
 }
 
 body.storefront-ops-view .storefront-ops.workspace {
-  block-size: calc(100dvh - 54px) !important;
+  block-size: 100% !important;
 }
 
 body.storefront-ops-view #main-content .sp-end {

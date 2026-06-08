@@ -2319,7 +2319,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     if (!silent) {
       clearMessages();
     }
-    loading.products = true;
+    const showListLoading = !productState.loaded;
+    if (showListLoading) {
+      loading.products = true;
+    }
     try {
       const response = await bridgeRequest(`/workspace/products/${id}`);
       productState.detail = response;
@@ -2332,7 +2335,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     } catch (error) {
       setError(error);
     } finally {
-      loading.products = false;
+      if (showListLoading) {
+        loading.products = false;
+      }
     }
   }
 
