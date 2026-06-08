@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -251,6 +252,26 @@ public class DirectusAdminBridgeController {
         var principal = authorize(request);
         roleGuard.requireContent(principal);
         return ResponseEntity.ok(adminService.listImports());
+    }
+
+    @GetMapping(value = "/imports/{jobId}/not-updated.txt", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<byte[]> downloadNotUpdatedImportReportText(@PathVariable UUID jobId, HttpServletRequest request) {
+        var principal = authorize(request);
+        roleGuard.requireContent(principal);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"not-updated-products.txt\"")
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(adminService.notUpdatedImportReportText(jobId));
+    }
+
+    @GetMapping(value = "/imports/{jobId}/not-updated.xlsx", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    public ResponseEntity<byte[]> downloadNotUpdatedImportReportWorkbook(@PathVariable UUID jobId, HttpServletRequest request) {
+        var principal = authorize(request);
+        roleGuard.requireContent(principal);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"not-updated-products.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(adminService.notUpdatedImportReportWorkbook(jobId));
     }
 
     @GetMapping("/promotions")
