@@ -35,6 +35,9 @@ import {
 } from '../../../storefront-ops-access-policy.js';
 import { buildStorefrontPreviewUrl } from '../../../storefront-ops-preview.js';
 
+const STOREFRONT_OPS_BODY_CLASS = 'storefront-ops-view';
+const STOREFRONT_OPS_ROOT_CLASS = 'storefront-ops-view-root';
+
 export function useStorefrontOpsWorkspace(tabComponents) {
   const api = useApi();
   const { bridgeRequest, directusRequest } = createStorefrontOpsApi(api);
@@ -4496,11 +4499,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   );
 
   onMounted(async () => {
+    document.documentElement.classList.add(STOREFRONT_OPS_ROOT_CLASS);
+    document.body.classList.add(STOREFRONT_OPS_BODY_CLASS);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     syncEditorSnapshots();
     await loadAccessProfile();
     restoreInitialState();
-    document.body.classList.add('storefront-ops-view');
-    window.addEventListener('beforeunload', handleBeforeUnload);
     await mountModuleNavigation();
     bootstrapped.value = true;
     await Promise.allSettled([loadNavigationSummary(), ensureActiveTabLoaded()]);
@@ -4509,7 +4513,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
 
   onBeforeUnmount(() => {
     navigationTarget.value = '';
-    document.body.classList.remove('storefront-ops-view');
+    document.documentElement.classList.remove(STOREFRONT_OPS_ROOT_CLASS);
+    document.body.classList.remove(STOREFRONT_OPS_BODY_CLASS);
     window.removeEventListener('beforeunload', handleBeforeUnload);
   });
 
