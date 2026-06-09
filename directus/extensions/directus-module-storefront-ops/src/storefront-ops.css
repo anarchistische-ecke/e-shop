@@ -1083,23 +1083,27 @@ body.storefront-ops-view .sidebar-toggle {
   display: none !important;
 }
 
-html.storefront-ops-view-root,
-body.storefront-ops-view {
-  block-size: 100%;
-  inline-size: 100%;
-  max-block-size: 100dvh;
-  overflow: hidden !important;
-  overscroll-behavior: none;
-}
-
 body.storefront-ops-view {
   --storefront-ops-private-view-header-size: 70px;
+
+  overflow: hidden !important;
 }
 
-html.storefront-ops-view-root #app,
-body.storefront-ops-view #app {
-  block-size: 100dvh !important;
-  overflow: hidden !important;
+@media (min-width: 720px) {
+  html.storefront-ops-view-root,
+  body.storefront-ops-view {
+    block-size: 100%;
+    inline-size: 100%;
+    max-block-size: 100dvh;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  html.storefront-ops-view-root #app,
+  body.storefront-ops-view #app {
+    block-size: 100dvh !important;
+    overflow: hidden !important;
+  }
 }
 
 body.storefront-ops-view #main-content {
