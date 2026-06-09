@@ -1166,3 +1166,33 @@ body.storefront-ops-view #main-content .sp-end {
   inline-size: 0 !important;
   max-inline-size: 0 !important;
 }
+
+@media (max-width: 719px) {
+  body.storefront-ops-view .storefront-ops.workspace {
+    block-size: calc(100dvh - var(--storefront-ops-private-view-header-size)) !important;
+    min-block-size: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.storefront-ops-view .storefront-ops .pane-tabs,
+  body.storefront-ops-view .storefront-ops .pane-tabs-inline,
+  body.storefront-ops-view .storefront-ops .pane-tabs-navigation {
+    max-block-size: max-content;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: none;
+    touch-action: pan-x;
+  }
+
+  body.storefront-ops-view .storefront-ops .pane-tabs-inline {
+    flex: 0 0 auto;
+    inset-block-start: 0;
+    position: sticky;
+    top: 0;
+    z-index: 4;
+  }
+}
