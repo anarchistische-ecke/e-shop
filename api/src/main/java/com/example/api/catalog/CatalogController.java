@@ -418,6 +418,7 @@ public class CatalogController {
     }
 
     public static class VariantUpdateRequest {
+        private String sku;
         @NotBlank
         private String name;
         @NotNull
@@ -430,6 +431,14 @@ public class CatalogController {
         private Integer lengthMm;
         private Integer widthMm;
         private Integer heightMm;
+
+        public String getSku() {
+            return sku;
+        }
+
+        public void setSku(String sku) {
+            this.sku = sku;
+        }
 
         public String getName() {
             return name;

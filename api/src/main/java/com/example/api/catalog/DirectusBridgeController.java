@@ -4,6 +4,7 @@ import com.example.admin.service.AdminActivityService;
 import com.example.api.inventory.InventoryController;
 import com.example.catalog.domain.Category;
 import com.example.catalog.domain.Product;
+import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
 import com.example.catalog.service.InventoryService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -202,10 +204,19 @@ public class DirectusBridgeController {
             HttpServletRequest request
     ) {
         DirectusBridgeSecurity.DirectusBridgePrincipal principal = authorizeInventory(request);
+        String requestedSku = normalizeSku(requestBody.getSku());
+        boolean admin = rolePolicy.isAdmin(principal);
+        if (StringUtils.hasText(requestedSku) && !admin) {
+            ProductVariant current = catalogService.getVariant(productId, variantId);
+            if (!requestedSku.equals(current.getSku())) {
+                throw new AccessDeniedException("Only CMS administrators can change variant SKU");
+            }
+        }
         var price = com.example.common.domain.Money.of(requestBody.getAmount(), requestBody.getCurrency());
         var updated = catalogService.updateVariant(
                 productId,
                 variantId,
+                admin ? requestBody.getSku() : null,
                 requestBody.getName(),
                 price,
                 requestBody.getStock(),
@@ -214,7 +225,13 @@ public class DirectusBridgeController {
                 requestBody.getWidthMm(),
                 requestBody.getHeightMm()
         );
-        audit(principal, "catalogue.variant.update", Map.of("productId", productId, "variantId", variantId));
+        Map<String, Object> auditDetails = new LinkedHashMap<>();
+        auditDetails.put("productId", productId);
+        auditDetails.put("variantId", variantId);
+        if (admin && StringUtils.hasText(requestedSku)) {
+            auditDetails.put("sku", updated.getSku());
+        }
+        audit(principal, "catalogue.variant.update", auditDetails);
         return ResponseEntity.ok(responseFactory.toVariantResponse(updated));
     }
 
@@ -500,6 +517,10 @@ public class DirectusBridgeController {
             return catalogService.getBySlug(idOrSlug)
                     .orElseThrow(() -> new IllegalArgumentException("Category not found: " + idOrSlug));
         }
+    }
+
+    private String normalizeSku(String sku) {
+        return StringUtils.hasText(sku) ? sku.trim() : null;
     }
 
     private void audit(DirectusBridgeSecurity.DirectusBridgePrincipal principal, String action, Map<String, Object> details) {
