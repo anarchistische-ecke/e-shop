@@ -1196,3 +1196,156 @@ body.storefront-ops-view #main-content .sp-end {
     z-index: 4;
   }
 }
+
+@media (max-width: 719px), (hover: none) and (pointer: coarse) {
+  body.storefront-ops-view .storefront-ops.workspace {
+    block-size: calc(100dvh - var(--storefront-ops-private-view-header-size)) !important;
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    min-block-size: 0 !important;
+    min-inline-size: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.storefront-ops-view #dialog-outlet > .container.left,
+  body.storefront-ops-view #dialog-outlet > .container.right {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
+  body.storefront-ops-view .storefront-ops .workspace-shell {
+    display: block;
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    overflow: visible;
+  }
+
+  body.storefront-ops-view .storefront-ops .workspace-list,
+  body.storefront-ops-view .storefront-ops .workspace-detail,
+  body.storefront-ops-view .storefront-ops .detail-card,
+  body.storefront-ops-view .storefront-ops .empty-detail {
+    block-size: auto;
+    inline-size: 100%;
+    max-block-size: none;
+    max-inline-size: 100%;
+    min-block-size: 0;
+    min-inline-size: 0;
+    overflow: visible;
+  }
+
+  body.storefront-ops-view .storefront-ops .workspace-shell.mobile-master-detail.detail-open .workspace-list {
+    display: none;
+  }
+
+  body.storefront-ops-view .storefront-ops .workspace-shell.mobile-master-detail:not(.detail-open) .workspace-detail {
+    display: none;
+  }
+
+  body.storefront-ops-view .storefront-ops .detail-card > .detail-content,
+  body.storefront-ops-view .storefront-ops .detail-card > .editor-form {
+    block-size: auto;
+    max-block-size: none;
+    min-block-size: 0;
+    overflow: visible;
+    overscroll-behavior: auto;
+  }
+
+  body.storefront-ops-view .storefront-ops .detail-content,
+  body.storefront-ops-view .storefront-ops .editor-form,
+  body.storefront-ops-view .storefront-ops .section-block,
+  body.storefront-ops-view .storefront-ops .selector-card,
+  body.storefront-ops-view .storefront-ops .merch-card,
+  body.storefront-ops-view .storefront-ops .media-inline-panel,
+  body.storefront-ops-view .storefront-ops .context-grid,
+  body.storefront-ops-view .storefront-ops .variant-card,
+  body.storefront-ops-view .storefront-ops .media-card,
+  body.storefront-ops-view .storefront-ops .metric-card,
+  body.storefront-ops-view .storefront-ops .list-card,
+  body.storefront-ops-view .storefront-ops .choice-item,
+  body.storefront-ops-view .storefront-ops .spec-section-card,
+  body.storefront-ops-view .storefront-ops .spec-item-row,
+  body.storefront-ops-view .storefront-ops .ops-field,
+  body.storefront-ops-view .storefront-ops .ops-toggle,
+  body.storefront-ops-view .storefront-ops .search-field {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  body.storefront-ops-view .storefront-ops .form-grid,
+  body.storefront-ops-view .storefront-ops .form-grid-two,
+  body.storefront-ops-view .storefront-ops .form-grid-three,
+  body.storefront-ops-view .storefront-ops .panel-variants,
+  body.storefront-ops-view .storefront-ops .panel-media,
+  body.storefront-ops-view .storefront-ops .context-grid,
+  body.storefront-ops-view .storefront-ops .variant-list,
+  body.storefront-ops-view .storefront-ops .media-grid,
+  body.storefront-ops-view .storefront-ops .metrics-row,
+  body.storefront-ops-view .storefront-ops .spec-item-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  body.storefront-ops-view .storefront-ops .pane-tabs,
+  body.storefront-ops-view .storefront-ops .pane-tabs-inline,
+  body.storefront-ops-view .storefront-ops .pane-tabs-navigation {
+    max-block-size: max-content;
+    max-inline-size: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: none;
+    touch-action: pan-x;
+  }
+
+  body.storefront-ops-view .storefront-ops .subtabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-inline-size: 100%;
+  }
+
+  body.storefront-ops-view .storefront-ops .search-field input,
+  body.storefront-ops-view .storefront-ops .ops-field input,
+  body.storefront-ops-view .storefront-ops .ops-field select,
+  body.storefront-ops-view .storefront-ops .ops-field textarea,
+  body.storefront-ops-view .storefront-ops .button {
+    inline-size: 100%;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  body.storefront-ops-view .storefront-ops .button {
+    white-space: normal;
+  }
+
+  body.storefront-ops-view .storefront-ops .ops-toggle input[type='checkbox'] {
+    inline-size: 38px;
+    max-inline-size: 38px;
+    min-inline-size: 38px;
+  }
+
+  body.storefront-ops-view .storefront-ops .list-card-head,
+  body.storefront-ops-view .storefront-ops .variant-card > div,
+  body.storefront-ops-view .storefront-ops .variant-card strong,
+  body.storefront-ops-view .storefront-ops .variant-card p,
+  body.storefront-ops-view .storefront-ops .ops-toggle span {
+    flex: 1 1 auto;
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  body.storefront-ops-view .storefront-ops .sticky-actions {
+    margin: 8px 0 0;
+    padding: 12px 0 0;
+    position: static;
+  }
+
+  body.storefront-ops-view .storefront-ops .detail-card > .detail-footer-actions {
+    margin: 8px 0 0;
+  }
+}
