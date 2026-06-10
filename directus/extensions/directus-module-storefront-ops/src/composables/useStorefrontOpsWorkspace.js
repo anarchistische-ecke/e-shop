@@ -3079,7 +3079,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       id: variant.id || '',
       sku: variant.sku || '',
       name: variant.name || '',
-      amount: Number(variant.price?.amount || 0),
+      amount: minorToMajor(variant.price?.amount) ?? 0,
       currency: variant.price?.currency || 'RUB',
       stock: Number(variant.stock || 0),
       weightGrossG: variant.weightGrossG ?? null,
@@ -3274,7 +3274,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     try {
       const payload = {
         name: variantForm.name.trim(),
-        amount: Number(variantForm.amount || 0),
+        amount: majorToMinor(variantForm.amount) ?? 0,
         currency: String(variantForm.currency || 'RUB').trim().toUpperCase(),
         stock: Number(variantForm.stock || 0),
         weightGrossG: normalizeNullableNumber(variantForm.weightGrossG),

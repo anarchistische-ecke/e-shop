@@ -337,7 +337,7 @@
               <div class="form-grid">
                 <label class="ops-field ops-field-required">
                   <span>Цена</span>
-                  <input v-model.number="variantForm.amount" type="number" min="0" step="1" />
+                  <input v-model.number="variantForm.amount" type="number" min="0" step="0.01" />
                 </label>
 
                 <label class="ops-field ops-field-required">

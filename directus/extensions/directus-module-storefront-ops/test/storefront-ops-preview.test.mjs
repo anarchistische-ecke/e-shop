@@ -16,6 +16,7 @@ import {
   formatMoney,
   formatMinorMoney,
   majorToMinor,
+  minorToMajor,
   normalizeSpecificationsForPayload,
 } from '../src/storefront-ops-formatters.js';
 import {
@@ -97,6 +98,7 @@ test('module formatter utilities keep bridge params and payloads stable', () => 
   );
   assert.equal(formatMinorMoney(123456, 'RUB'), '1 234,56 RUB');
   assert.equal(formatMoney({ amount: 1530000, currency: 'RUB' }), '15 300 RUB');
+  assert.equal(minorToMajor(600000), 6000);
   assert.equal(majorToMinor('19.95'), 1995);
   assert.deepEqual(
     normalizeSpecificationsForPayload([
