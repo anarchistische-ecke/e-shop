@@ -230,7 +230,10 @@ public class YooKassaClient {
     }
 
     public static class Confirmation {
+        private static final String DEFAULT_LOCALE = "ru_RU";
+
         public String type;
+        public String locale;
         @JsonProperty("return_url")
         public String returnUrl;
         @JsonProperty("confirmation_url")
@@ -241,6 +244,7 @@ public class YooKassaClient {
         public static Confirmation redirect(String returnUrl) {
             Confirmation confirmation = new Confirmation();
             confirmation.type = "redirect";
+            confirmation.locale = DEFAULT_LOCALE;
             confirmation.returnUrl = returnUrl;
             return confirmation;
         }
@@ -248,6 +252,7 @@ public class YooKassaClient {
         public static Confirmation embedded() {
             Confirmation confirmation = new Confirmation();
             confirmation.type = "embedded";
+            confirmation.locale = DEFAULT_LOCALE;
             return confirmation;
         }
     }

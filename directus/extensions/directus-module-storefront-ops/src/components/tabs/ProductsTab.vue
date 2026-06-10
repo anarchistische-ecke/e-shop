@@ -321,7 +321,11 @@
               <div class="form-grid">
                 <label class="ops-field ops-field-required">
                   <span>SKU</span>
-                  <input v-model.trim="variantForm.sku" type="text" :disabled="Boolean(variantForm.id)" />
+                  <input
+                    v-model.trim="variantForm.sku"
+                    type="text"
+                    :disabled="Boolean(variantForm.id) && roleKind !== 'admin'"
+                  />
                 </label>
 
                 <label class="ops-field ops-field-required">

@@ -20,13 +20,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -148,6 +151,104 @@ class DirectusBridgeControllerTest {
                 .andExpect(jsonPath("$.variantId").value(variantId.toString()))
                 .andExpect(jsonPath("$.stock").value(7))
                 .andExpect(jsonPath("$.applied").value(true));
+    }
+
+    @Test
+    void updateVariant_rejectsSkuChangeForInventoryRole() throws Exception {
+        UUID productId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        UUID variantId = UUID.fromString("33333333-3333-4333-8333-333333333333");
+        ProductVariant current = new ProductVariant("SKU-1", "Linen / white", Money.of(1000, "RUB"), 7);
+        current.setId(variantId);
+        when(catalogService.getVariant(eq(productId), eq(variantId))).thenReturn(current);
+
+        mockMvc.perform(withBridgeRole(put("/internal/directus/catalogue/products/{productId}/variants/{variantId}", productId, variantId)
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"sku":"SKU-2","name":"Linen / white","amount":1000,"currency":"RUB","stock":7}
+                                """), "inventory-role"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void updateVariant_allowsUnchangedSkuForInventoryRole() throws Exception {
+        UUID productId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        UUID variantId = UUID.fromString("33333333-3333-4333-8333-333333333333");
+        ProductVariant current = new ProductVariant("SKU-1", "Linen / white updated", Money.of(1200, "RUB"), 9);
+        current.setId(variantId);
+        when(catalogService.getVariant(eq(productId), eq(variantId))).thenReturn(current);
+        when(catalogService.updateVariant(
+                eq(productId),
+                eq(variantId),
+                isNull(),
+                eq("Linen / white updated"),
+                any(Money.class),
+                eq(9),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull()
+        )).thenReturn(current);
+
+        mockMvc.perform(withBridgeRole(put("/internal/directus/catalogue/products/{productId}/variants/{variantId}", productId, variantId)
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"sku":"SKU-1","name":"Linen / white updated","amount":1200,"currency":"RUB","stock":9}
+                                """), "inventory-role"))
+                .andExpect(status().isOk());
+
+        verify(catalogService).updateVariant(
+                eq(productId),
+                eq(variantId),
+                isNull(),
+                eq("Linen / white updated"),
+                any(Money.class),
+                eq(9),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull()
+        );
+    }
+
+    @Test
+    void updateVariant_allowsSkuChangeForAdminRole() throws Exception {
+        UUID productId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+        UUID variantId = UUID.fromString("33333333-3333-4333-8333-333333333333");
+        ProductVariant updated = new ProductVariant("SKU-2", "Linen / white updated", Money.of(1200, "RUB"), 9);
+        updated.setId(variantId);
+        when(catalogService.updateVariant(
+                eq(productId),
+                eq(variantId),
+                eq("SKU-2"),
+                eq("Linen / white updated"),
+                any(Money.class),
+                eq(9),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull()
+        )).thenReturn(updated);
+
+        mockMvc.perform(withBridgeRole(put("/internal/directus/catalogue/products/{productId}/variants/{variantId}", productId, variantId)
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"sku":"SKU-2","name":"Linen / white updated","amount":1200,"currency":"RUB","stock":9}
+                                """), "admin-role"))
+                .andExpect(status().isOk());
+
+        verify(catalogService).updateVariant(
+                eq(productId),
+                eq(variantId),
+                eq("SKU-2"),
+                eq("Linen / white updated"),
+                any(Money.class),
+                eq(9),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull()
+        );
     }
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder withBridgeRole(

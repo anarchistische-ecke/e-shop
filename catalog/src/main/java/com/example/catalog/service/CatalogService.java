@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -80,11 +81,21 @@ public class CatalogService {
                                         Integer lengthMm,
                                         Integer widthMm,
                                         Integer heightMm) {
-        ProductVariant variant = variantRepository.findById(variantId)
-                .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
-        if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
-            throw new IllegalArgumentException("Variant does not belong to product: " + productId);
-        }
+        return updateVariant(productId, variantId, null, name, price, stock, weightGrossG, lengthMm, widthMm, heightMm);
+    }
+
+    public ProductVariant updateVariant(UUID productId,
+                                        UUID variantId,
+                                        String sku,
+                                        String name,
+                                        Money price,
+                                        int stock,
+                                        Integer weightGrossG,
+                                        Integer lengthMm,
+                                        Integer widthMm,
+                                        Integer heightMm) {
+        ProductVariant variant = getVariant(productId, variantId);
+        updateSkuIfProvided(variant, sku);
         if (name != null && !name.isBlank()) {
             variant.setName(name);
         }
@@ -105,6 +116,34 @@ public class CatalogService {
             variant.setHeightMm(heightMm);
         }
         return variantRepository.save(variant);
+    }
+
+    public ProductVariant getVariant(UUID productId, UUID variantId) {
+        ProductVariant variant = variantRepository.findWithProductById(variantId)
+                .orElseThrow(() -> new IllegalArgumentException("Variant not found: " + variantId));
+        if (variant.getProduct() == null || !variant.getProduct().getId().equals(productId)) {
+            throw new IllegalArgumentException("Variant does not belong to product: " + productId);
+        }
+        return variant;
+    }
+
+    private void updateSkuIfProvided(ProductVariant variant, String sku) {
+        if (sku == null) {
+            return;
+        }
+        String normalizedSku = sku.trim();
+        if (normalizedSku.isBlank()) {
+            throw new IllegalArgumentException("SKU must not be blank");
+        }
+        if (Objects.equals(normalizedSku, variant.getSku())) {
+            return;
+        }
+        variantRepository.findBySku(normalizedSku)
+                .filter(existing -> !Objects.equals(existing.getId(), variant.getId()))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("SKU already exists: " + normalizedSku);
+                });
+        variant.setSku(normalizedSku);
     }
 
     public void deleteVariant(UUID productId, UUID variantId) {

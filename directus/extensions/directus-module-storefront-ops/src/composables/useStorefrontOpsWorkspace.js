@@ -3273,7 +3273,6 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     clearMessages();
     try {
       const payload = {
-        sku: variantForm.sku.trim(),
         name: variantForm.name.trim(),
         amount: Number(variantForm.amount || 0),
         currency: String(variantForm.currency || 'RUB').trim().toUpperCase(),
@@ -3283,6 +3282,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         widthMm: normalizeNullableNumber(variantForm.widthMm),
         heightMm: normalizeNullableNumber(variantForm.heightMm),
       };
+      if (!variantForm.id || roleKind.value === 'admin') {
+        payload.sku = variantForm.sku.trim();
+      }
       const path = variantForm.id
         ? `/products/${productForm.id}/variants/${variantForm.id}`
         : `/products/${productForm.id}/variants`;
