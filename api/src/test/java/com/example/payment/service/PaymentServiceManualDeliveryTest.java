@@ -106,6 +106,8 @@ class PaymentServiceManualDeliveryTest {
 
         assertEquals("4200.00", request.amount.value);
         assertEquals("RUB", request.amount.currency);
+        assertEquals("embedded", request.confirmation.type);
+        assertEquals("ru_RU", request.confirmation.locale);
         assertEquals(6, request.receipt.taxSystemCode);
         assertEquals(1, request.receipt.items.size());
         assertEquals("Сатиновый комплект Sand (200x220)", request.receipt.items.getFirst().description);
