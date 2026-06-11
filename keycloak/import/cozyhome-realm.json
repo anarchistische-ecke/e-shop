@@ -8,6 +8,10 @@
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
   "rememberMe": true,
+  "ssoSessionIdleTimeout": 28800,
+  "ssoSessionMaxLifespan": 43200,
+  "ssoSessionIdleTimeoutRememberMe": 2592000,
+  "ssoSessionMaxLifespanRememberMe": 7776000,
   "verifyEmail": false,
   "loginTheme": "postel-yug",
   "defaultRoles": [
