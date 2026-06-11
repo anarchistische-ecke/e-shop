@@ -5,6 +5,39 @@
   box-sizing: border-box;
 }
 
+.storefront-ops :where(
+  aside,
+  article,
+  button,
+  div,
+  fieldset,
+  form,
+  header,
+  input,
+  label,
+  main,
+  nav,
+  section,
+  select,
+  textarea,
+  dl,
+  dt,
+  dd,
+  p,
+  strong,
+  span
+) {
+  min-inline-size: 0;
+}
+
+.storefront-ops :where(input, select, textarea, button) {
+  max-inline-size: 100%;
+}
+
+.storefront-ops :where(img, video, svg) {
+  max-inline-size: 100%;
+}
+
 .storefront-ops.workspace {
   block-size: 100%;
   display: flex;
@@ -163,6 +196,7 @@
   inline-size: 100%;
   min-block-size: 0;
   min-inline-size: 0;
+  overflow: hidden;
 }
 
 .storefront-ops .workspace-list {
@@ -172,9 +206,11 @@
   gap: 12px;
   min-block-size: 0;
   min-inline-size: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   padding: 14px;
+  scrollbar-gutter: stable;
 }
 
 .storefront-ops .section-block-compact {
@@ -192,8 +228,9 @@
   display: grid;
   gap: 10px;
   inline-size: 100%;
+  max-inline-size: 100%;
   min-block-size: 0;
-  min-width: 0;
+  min-inline-size: 0;
   overflow: hidden;
 }
 
@@ -203,7 +240,7 @@
 
 .storefront-ops .detail-card {
   inline-size: 100%;
-  max-inline-size: none;
+  max-inline-size: 100%;
 }
 
 .storefront-ops .pane-header,
@@ -215,8 +252,20 @@
 .storefront-ops .spec-items-head {
   align-items: flex-start;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: space-between;
+}
+
+.storefront-ops .pane-header > div,
+.storefront-ops .detail-header > div,
+.storefront-ops .section-head > div,
+.storefront-ops .selector-card-head > div,
+.storefront-ops .merch-card-head > div,
+.storefront-ops .spec-section-head > div,
+.storefront-ops .spec-items-head > div {
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .storefront-ops .pane-header h2,
@@ -273,7 +322,10 @@
   border: 1px solid var(--theme--border-color);
   border-radius: 12px;
   color: inherit;
+  inline-size: 100%;
+  max-inline-size: 100%;
   min-height: 44px;
+  min-inline-size: 0;
   padding: 10px 12px;
 }
 
@@ -387,6 +439,9 @@
   color: inherit;
   display: grid;
   gap: 6px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   padding: 12px;
   text-align: left;
 }
@@ -399,12 +454,15 @@
 .storefront-ops .list-card-head {
   align-items: flex-start;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   justify-content: space-between;
 }
 
 .storefront-ops .list-card-head strong {
   line-height: 1.3;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .storefront-ops .list-card-slug,
@@ -462,8 +520,10 @@
   flex-direction: column;
   gap: 14px;
   inline-size: 100%;
-  max-inline-size: none;
+  max-block-size: 100%;
+  max-inline-size: 100%;
   min-block-size: 0;
+  min-inline-size: 0;
   padding: 14px;
 }
 
@@ -479,20 +539,27 @@
 .storefront-ops .detail-card > .detail-content,
 .storefront-ops .detail-card > .editor-form {
   flex: 1 1 auto;
+  inline-size: 100%;
+  max-inline-size: 100%;
   min-block-size: 0;
+  min-inline-size: 0;
 }
 
 .storefront-ops .detail-card > .detail-content {
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .storefront-ops .detail-card > .editor-form {
   display: flex;
   flex-direction: column;
   min-block-size: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .storefront-ops .detail-content,
@@ -502,10 +569,12 @@
 .storefront-ops .selector-card,
 .storefront-ops .media-inline-panel,
 .storefront-ops .context-grid {
+  align-content: start;
   display: grid;
   gap: 14px;
   inline-size: 100%;
-  max-inline-size: none;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .storefront-ops .detail-kicker {
@@ -541,6 +610,9 @@
 .storefront-ops .form-grid {
   display: grid;
   gap: 12px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .storefront-ops .form-grid-three {
@@ -565,6 +637,9 @@
   background: var(--theme--background);
   border: 1px solid var(--theme--border-color-subdued);
   border-radius: 14px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   padding: 14px;
 }
 
@@ -579,8 +654,15 @@
   border-radius: 12px;
   display: flex;
   gap: 10px;
+  inline-size: 100%;
+  max-inline-size: 100%;
   min-height: 48px;
+  min-inline-size: 0;
   padding: 10px 12px;
+}
+
+.storefront-ops .choice-item > div {
+  min-inline-size: 0;
 }
 
 .storefront-ops .choice-item strong {
@@ -595,6 +677,9 @@
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .storefront-ops .compact-metrics .metric-card,
@@ -743,6 +828,9 @@
   border-radius: 14px;
   display: grid;
   gap: 12px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   padding: 14px;
 }
 
@@ -753,6 +841,9 @@
   border-radius: 12px;
   display: grid;
   gap: 10px;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   padding: 10px;
 }
 
@@ -767,13 +858,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  inline-size: 100%;
   margin: 8px -14px -14px;
   padding: 12px 14px 14px;
-  position: sticky;
+  position: static;
 }
 
 .storefront-ops .editor-form > .sticky-actions:last-child {
-  margin-block-start: auto;
+  margin-block-start: 8px;
 }
 
 .storefront-ops .detail-card > .detail-footer-actions {
@@ -784,19 +876,7 @@
 }
 
 .storefront-ops .home-action-dock {
-  align-self: end;
-  background: color-mix(in srgb, var(--theme--background-subdued) 92%, transparent);
-  border: 1px solid var(--theme--border-color);
-  border-radius: 14px;
-  box-shadow: 0 14px 34px color-mix(in srgb, var(--theme--background) 55%, transparent);
-  inline-size: fit-content;
-  margin: 0;
-  padding: 8px;
-  z-index: 8;
-}
-
-.storefront-ops .editor-form:has(.home-action-dock) {
-  padding-block-end: 72px;
+  display: none;
 }
 
 .storefront-ops .sticky-actions-inline {
@@ -886,7 +966,8 @@
 .storefront-ops .panel-media > .editor-form,
 .storefront-ops .context-grid > * {
   inline-size: 100%;
-  max-inline-size: none;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 .storefront-ops .inventory-editor {
@@ -898,10 +979,10 @@
 .storefront-ops .brand-editor,
 .storefront-ops .inventory-editor,
 .storefront-ops .panel-variants .editor-form,
-.storefront-ops .panel-media .editor-form {
-  inline-size: 100%;
-  max-inline-size: none;
-}
+  .storefront-ops .panel-media .editor-form {
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
 
 .storefront-ops .brand-editor .metrics-row {
   grid-template-columns: minmax(0, 260px);
@@ -1165,6 +1246,13 @@ body.storefront-ops-view .storefront-ops.workspace {
 body.storefront-ops-view #main-content .sp-end {
   inline-size: 0 !important;
   max-inline-size: 0 !important;
+}
+
+body.storefront-ops-view #dialog-outlet > .container.left,
+body.storefront-ops-view #dialog-outlet > .container.right {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 @media (max-width: 719px) {
