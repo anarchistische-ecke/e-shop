@@ -44,7 +44,13 @@
           <strong>Загружаю контент главной</strong>
         </div>
 
-        <form v-else class="editor-form" @submit.prevent="saveHomeContent">
+        <form
+          v-else
+          id="storefront-ops-home-form"
+          ref="homeDetailScroller"
+          class="editor-form"
+          @submit.prevent="saveHomeContent"
+        >
           <section class="section-block">
             <div class="section-head">
               <div>
@@ -731,13 +737,12 @@
               <div v-else class="empty-inline">Элементы пока не добавлены.</div>
             </section>
           </section>
-
-          <div class="sticky-actions home-action-dock">
-            <button class="button button-primary" type="submit" :disabled="isSubmitting">
-              Сохранить главную
-            </button>
-          </div>
         </form>
+        <div v-if="!isTabLoading('home')" class="sticky-actions detail-footer-actions">
+          <button class="button button-primary" type="submit" form="storefront-ops-home-form" :disabled="isSubmitting">
+            Сохранить главную
+          </button>
+        </div>
       </section>
     </template>
   </StorefrontOpsTabShell>
@@ -751,11 +756,12 @@ import { STOREFRONT_OPS_TAB_PROP_KEYS } from '../../storefront-ops-tab-props.js'
 
 const props = defineProps(STOREFRONT_OPS_TAB_PROP_KEYS);
 const homeDetailCard = ref(null);
+const homeDetailScroller = ref(null);
 
 async function selectAndScrollHomeSection(index) {
   props.selectHomeSection(index);
   await nextTick();
-  const container = homeDetailCard.value;
+  const container = homeDetailScroller.value || homeDetailCard.value;
   if (!container) {
     return;
   }

@@ -160,38 +160,39 @@
           </div>
         </header>
 
-        <p v-if="orderState.selectedFilteredOut" class="inline-note">
-          Выбранный заказ не попадает в текущий список из-за фильтров.
-          <button class="button button-secondary button-small" type="button" @click="resetOrderFiltersForSelected">
-            Сбросить фильтры
-          </button>
-        </p>
+        <div class="detail-content orders-detail-content">
+          <p v-if="orderState.selectedFilteredOut" class="inline-note">
+            Выбранный заказ не попадает в текущий список из-за фильтров.
+            <button class="button button-secondary button-small" type="button" @click="resetOrderFiltersForSelected">
+              Сбросить фильтры
+            </button>
+          </p>
 
-        <p v-if="isOrderArchived(orderState.detail.order)" class="inline-note">
-          Заказ в архиве: {{ orderState.detail.order.archiveReason || 'причина не указана' }}.
-          Операции по заказу доступны после восстановления.
-        </p>
+          <p v-if="isOrderArchived(orderState.detail.order)" class="inline-note">
+            Заказ в архиве: {{ orderState.detail.order.archiveReason || 'причина не указана' }}.
+            Операции по заказу доступны после восстановления.
+          </p>
 
-        <div class="metrics-row">
-          <article class="metric-card">
-            <span>Статус</span>
-            <strong>{{ isOrderArchived(orderState.detail.order) ? 'В архиве' : orderStatusLabel(orderState.detail.order.status) }}</strong>
-          </article>
-          <article class="metric-card">
-            <span>Сумма</span>
-            <strong>{{ formatMoney(orderState.detail.order.totalAmount) }}</strong>
-          </article>
-          <article class="metric-card">
-            <span>Менеджер</span>
-            <strong>{{ orderManagerLabel(orderState.detail.order) }}</strong>
-          </article>
-          <article v-if="isOrderArchived(orderState.detail.order)" class="metric-card">
-            <span>Архивировал</span>
-            <strong>{{ orderState.detail.order.archivedBy || 'Не указано' }}</strong>
-          </article>
-        </div>
+          <div class="metrics-row">
+            <article class="metric-card">
+              <span>Статус</span>
+              <strong>{{ isOrderArchived(orderState.detail.order) ? 'В архиве' : orderStatusLabel(orderState.detail.order.status) }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Сумма</span>
+              <strong>{{ formatMoney(orderState.detail.order.totalAmount) }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Менеджер</span>
+              <strong>{{ orderManagerLabel(orderState.detail.order) }}</strong>
+            </article>
+            <article v-if="isOrderArchived(orderState.detail.order)" class="metric-card">
+              <span>Архивировал</span>
+              <strong>{{ orderState.detail.order.archivedBy || 'Не указано' }}</strong>
+            </article>
+          </div>
 
-        <section class="section-block">
+          <section class="section-block">
           <div class="section-head">
             <div>
               <h3>Статус</h3>
@@ -222,9 +223,9 @@
               Для текущей роли изменение статуса этого заказа недоступно.
             </p>
           </form>
-        </section>
+          </section>
 
-        <section class="section-block">
+          <section class="section-block">
           <div class="section-head">
             <div>
               <h3>Оплата и возвраты</h3>
@@ -315,9 +316,9 @@
               </button>
             </div>
           </form>
-        </section>
+          </section>
 
-        <section class="section-block">
+          <section class="section-block">
           <div class="section-head">
             <div>
               <h3>Уведомления</h3>
@@ -349,9 +350,9 @@
               <dd v-else>Не создано</dd>
             </div>
           </dl>
-        </section>
+          </section>
 
-        <section v-if="canManageSelectedOrderRma" class="section-block">
+          <section v-if="canManageSelectedOrderRma" class="section-block">
           <div class="section-head">
             <div>
               <h3>RMA</h3>
@@ -410,9 +411,9 @@
             </article>
           </div>
           <div v-else class="empty-inline">RMA запросов по заказу нет.</div>
-        </section>
+          </section>
 
-        <section class="section-block">
+          <section class="section-block">
           <div class="section-head">
             <div>
               <h3>Состав</h3>
@@ -431,9 +432,9 @@
               </div>
             </article>
           </div>
-        </section>
+          </section>
 
-        <section class="section-block">
+          <section class="section-block">
           <div class="section-head">
             <div>
               <h3>История статусов</h3>
@@ -453,7 +454,8 @@
             </article>
           </div>
           <div v-else class="empty-inline">История пока пуста.</div>
-        </section>
+          </section>
+        </div>
       </section>
     </template>
   </StorefrontOpsTabShell>
