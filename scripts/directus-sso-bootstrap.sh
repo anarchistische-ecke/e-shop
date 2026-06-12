@@ -448,4 +448,7 @@ VALUES
 SQL
 done < <(normalize_csv "$DIRECTUS_CMS_PUBLIC_COLLECTIONS")
 
+KEYCLOAK_DIRECTUS_CLIENT_ID="$DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID" \
+  "$ROOT_DIR/scripts/keycloak-directus-session-policy.sh"
+
 echo "Directus Keycloak SSO and governance bootstrap completed."

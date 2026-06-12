@@ -478,6 +478,8 @@ DIRECTUS_AUTH_KEYCLOAK_CLIENT_ID=directus
 DIRECTUS_AUTH_KEYCLOAK_CLIENT_SECRET=replace-me-directus-keycloak-client-secret
 DIRECTUS_AUTH_KEYCLOAK_ISSUER_URL=https://auth.yug-postel.ru/realms/yug-postel/.well-known/openid-configuration
 DIRECTUS_AUTH_KEYCLOAK_ISSUER_DISCOVERY_MUST_SUCCEED=false
+DIRECTUS_SESSION_COOKIE_TTL=12h
+DIRECTUS_REFRESH_TOKEN_TTL=7d
 
 DIRECTUS_BRIDGE_TOKEN=replace-me-directus-bridge-token
 DIRECTUS_STOREFRONT_OPS_BACKEND_URL=http://api:8080
@@ -718,7 +720,19 @@ Also ensure these existing values are present and correct:
 - `DIRECTUS_BRIDGE_TOKEN`
 - `DIRECTUS_SCHEMA_ADMIN_TOKEN`
 
-If `DIRECTUS_AUTH_KEYCLOAK_ISSUER_DISCOVERY_MUST_SUCCEED` is present, set it to `false`.
+If `DIRECTUS_AUTH_KEYCLOAK_ISSUER_DISCOVERY_MUST_SUCCEED` is present, set it to `false`. Do not set `DIRECTUS_AUTH_KEYCLOAK_PARAMS_PROMPT`; Directus must not force `prompt=login` for the Keycloak provider, otherwise remembered Keycloak sessions still require password and OTP on Directus reload/reopen.
+
+After Keycloak is reachable and you have valid Keycloak admin credentials in the environment, apply the Directus CMS remembered-session policy:
+
+```bash
+cd /home/dingus/eshop
+KEYCLOAK_BASE_URL=http://127.0.0.1:8081 \
+KEYCLOAK_REALM=yug-postel \
+KEYCLOAK_DIRECTUS_CLIENT_ID=directus \
+KEYCLOAK_ADMIN_USERNAME=<admin-user> \
+KEYCLOAK_ADMIN_PASSWORD=<admin-password> \
+./scripts/keycloak-directus-session-policy.sh
+```
 
 ## GitHub Environment Configuration
 

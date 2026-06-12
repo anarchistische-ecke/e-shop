@@ -79,6 +79,8 @@ These are used only by the local Directus stack:
 | `DIRECTUS_AUTH_KEYCLOAK_REQUIRE_VERIFIED_EMAIL` | `true` | Rejects SSO users whose Keycloak email is not verified. |
 | `DIRECTUS_AUTH_KEYCLOAK_SYNC_USER_INFO` | `true` | Syncs first name, last name, and email from Keycloak on each login. |
 | `DIRECTUS_AUTH_KEYCLOAK_GROUP_CLAIM_NAME` | `groups` | Claim used for Directus role mapping. |
+| `DIRECTUS_SESSION_COOKIE_TTL` | `12h` | Directus Studio app-session lifetime. Keep this short; month-scale remembered login persistence belongs to Keycloak SSO. |
+| `DIRECTUS_REFRESH_TOKEN_TTL` | `7d` | Directus refresh-token lifetime. Must stay greater than `DIRECTUS_SESSION_COOKIE_TTL`. |
 | `DIRECTUS_ROLE_CMS_ADMIN_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f10001` | Stable local Directus role id for CMS Administrator. |
 | `DIRECTUS_ROLE_CMS_EDITOR_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f10002` | Stable local Directus role id for CMS Editor. |
 | `DIRECTUS_ROLE_CMS_PUBLISHER_ID` | `4c4cc8d0-9b7f-4d56-84d2-1d64f5f10003` | Stable local Directus role id for CMS Publisher/Reviewer. |
@@ -248,6 +250,16 @@ Use the same Directus auth model in production, but with production hostnames, a
 | `AUTH_KEYCLOAK_LABEL` | `Войти через Keycloak` | Russian login button label shown in Directus Studio. |
 | `AUTH_KEYCLOAK_ROLE_MAPPING` | `json:{"admin":"<cms-admin-role-id>","manager":"<cms-editor-role-id>","publisher":"<cms-publisher-role-id>","catalogue_operator":"<catalogue-operator-role-id>","inventory_operator":"<inventory-operator-role-id>"}` | Include operator-role mappings when the Directus storefront bridge module is enabled. |
 | `AUTH_KEYCLOAK_REDIRECT_ALLOW_LIST` | deployment-specific | Optional. Add external post-login redirect targets outside the Directus domain if you need them later. |
+
+Do not set `AUTH_KEYCLOAK_PARAMS__PROMPT` or `DIRECTUS_AUTH_KEYCLOAK_PARAMS_PROMPT` for the Directus Keycloak provider. In particular, `prompt=login` forces Keycloak to ask for password and OTP even when a valid remembered SSO session exists.
+
+Apply the Keycloak realm-side remembered-session policy with:
+
+```bash
+KEYCLOAK_ENV_FILE=/path/to/keycloak/.env ./scripts/keycloak-directus-session-policy.sh
+```
+
+The default policy enables Remember Me, keeps normal SSO sessions workday-scale, sets remembered SSO idle to 30 days, sets remembered SSO max to 90 days, and removes shorter Directus client-session overrides.
 
 For production, Directus should keep a separate break-glass local admin email/password from the Keycloak editor/admin identities, just like the local setup does.
 
