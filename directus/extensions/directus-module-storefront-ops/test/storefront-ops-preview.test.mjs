@@ -144,8 +144,10 @@ test('module action buttons are exposed by the workspace composable', () => {
   const moduleSource = fs.readFileSync(path.join(sourceRoot, 'module.vue'), 'utf8');
   const workspaceSource = fs.readFileSync(path.join(sourceRoot, 'composables/useStorefrontOpsWorkspace.js'), 'utf8');
   const moduleHandlers = extractVueEventHandlerNames(moduleSource);
+  const localHandlers = extractLocalScriptSetupFunctions(moduleSource);
   const composableReturn = extractComposableReturnKeys(workspaceSource);
   const missing = [...moduleHandlers]
+    .filter((handler) => !localHandlers.has(handler))
     .filter((handler) => !composableReturn.has(handler))
     .map((handler) => `module.vue: ${handler} missing from useStorefrontOpsWorkspace return`);
 

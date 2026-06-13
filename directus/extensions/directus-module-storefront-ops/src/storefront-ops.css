@@ -38,6 +38,13 @@
   max-inline-size: 100%;
 }
 
+body.storefront-ops-view .pane-tabs-carousel,
+body.storefront-ops-view .pane-tabs-carousel *,
+body.storefront-ops-view .pane-tabs-carousel *::before,
+body.storefront-ops-view .pane-tabs-carousel *::after {
+  box-sizing: border-box;
+}
+
 .storefront-ops.workspace {
   block-size: 100%;
   display: flex;
@@ -113,21 +120,133 @@
   border-radius: 16px;
 }
 
-.storefront-ops .pane-tabs {
+body.storefront-ops-view .pane-tabs-carousel,
+.storefront-ops .pane-tabs-carousel {
+  align-items: center;
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-block-size: 58px;
+  min-inline-size: 0;
+  overflow: hidden;
+  position: relative;
 }
 
-.storefront-ops .pane-tabs-navigation {
-  grid-template-columns: 1fr;
+body.storefront-ops-view .pane-tabs-carousel-navigation,
+.storefront-ops .pane-tabs-carousel-navigation {
   padding: 12px 10px;
 }
 
-.storefront-ops .pane-tabs-inline {
-  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+body.storefront-ops-view .pane-tabs-carousel::before,
+body.storefront-ops-view .pane-tabs-carousel::after,
+.storefront-ops .pane-tabs-carousel::before,
+.storefront-ops .pane-tabs-carousel::after {
+  block-size: calc(100% - 8px);
+  content: '';
+  inline-size: 24px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  inset-block-start: 4px;
+  transition: opacity 120ms ease;
+  z-index: 1;
 }
 
+body.storefront-ops-view .pane-tabs-carousel::before,
+.storefront-ops .pane-tabs-carousel::before {
+  background: linear-gradient(90deg, var(--theme--background) 0%, transparent 100%);
+  inset-inline-start: 46px;
+}
+
+body.storefront-ops-view .pane-tabs-carousel::after,
+.storefront-ops .pane-tabs-carousel::after {
+  background: linear-gradient(270deg, var(--theme--background) 0%, transparent 100%);
+  inset-inline-end: 46px;
+}
+
+body.storefront-ops-view .pane-tabs-carousel.can-scroll-left::before,
+.storefront-ops .pane-tabs-carousel.can-scroll-left::before,
+body.storefront-ops-view .pane-tabs-carousel.can-scroll-right::after,
+.storefront-ops .pane-tabs-carousel.can-scroll-right::after {
+  opacity: 1;
+}
+
+body.storefront-ops-view .pane-tabs,
+.storefront-ops .pane-tabs {
+  display: flex;
+  gap: 8px;
+  grid-column: 2;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-block-size: 58px;
+  min-inline-size: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding-block: 4px;
+  scroll-padding-inline: 8px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+}
+
+body.storefront-ops-view .pane-tabs-arrow,
+.storefront-ops .pane-tabs-arrow {
+  align-items: center;
+  appearance: none;
+  background: var(--theme--background);
+  border: 1px solid var(--theme--border-color);
+  border-radius: 14px;
+  color: var(--theme--foreground);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 28px;
+  font-weight: 700;
+  block-size: 50px;
+  inline-size: 38px;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  position: relative;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
+  z-index: 2;
+}
+
+body.storefront-ops-view .pane-tabs-arrow-left,
+.storefront-ops .pane-tabs-arrow-left {
+  grid-column: 1;
+}
+
+body.storefront-ops-view .pane-tabs-arrow-right,
+.storefront-ops .pane-tabs-arrow-right {
+  grid-column: 3;
+}
+
+body.storefront-ops-view .pane-tabs-carousel:not(.is-scrollable) .pane-tabs-arrow,
+.storefront-ops .pane-tabs-carousel:not(.is-scrollable) .pane-tabs-arrow {
+  display: none;
+}
+
+body.storefront-ops-view .pane-tabs-arrow:not(:disabled):hover,
+body.storefront-ops-view .pane-tabs-arrow:not(:disabled):focus-visible,
+.storefront-ops .pane-tabs-arrow:not(:disabled):hover,
+.storefront-ops .pane-tabs-arrow:not(:disabled):focus-visible {
+  background: color-mix(in srgb, var(--theme--primary) 10%, var(--theme--background));
+  border-color: color-mix(in srgb, var(--theme--primary) 44%, var(--theme--border-color));
+}
+
+body.storefront-ops-view .pane-tabs-arrow:disabled,
+.storefront-ops .pane-tabs-arrow:disabled {
+  cursor: default;
+  opacity: 0.34;
+}
+
+body.storefront-ops-view .pane-tab,
 .storefront-ops .pane-tab {
   align-items: center;
   background: var(--theme--background);
@@ -135,22 +254,32 @@
   border-radius: 14px;
   color: inherit;
   display: flex;
+  flex: 0 0 clamp(132px, 9.5vw, 176px);
   gap: 10px;
   justify-content: space-between;
   min-height: 50px;
+  min-inline-size: 132px;
   padding: 10px 12px;
+  scroll-snap-align: start;
   text-align: left;
 }
 
+body.storefront-ops-view .pane-tab span,
 .storefront-ops .pane-tab span {
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+body.storefront-ops-view .pane-tab small,
 .storefront-ops .pane-tab small {
   color: var(--theme--foreground-subdued);
+  flex: 0 0 auto;
   font-size: 12px;
 }
 
+body.storefront-ops-view .pane-tab.active,
 .storefront-ops .pane-tab.active {
   border-color: var(--theme--primary);
   box-shadow: 0 0 0 1px var(--theme--primary);
@@ -1045,21 +1174,12 @@
     padding-inline: 8px;
   }
 
-  .storefront-ops .pane-tabs,
-  .storefront-ops .pane-tabs-inline,
-  .storefront-ops .pane-tabs-navigation {
-    display: flex;
-    gap: 8px;
-    grid-template-columns: none;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    padding-block: 8px;
-    scroll-padding-inline: 8px;
-    scroll-snap-type: x proximity;
-    scrollbar-width: thin;
+  .storefront-ops .pane-tabs-carousel {
+    gap: 6px;
+    min-block-size: 52px;
   }
 
-  .storefront-ops .pane-tabs-inline {
+  .storefront-ops .pane-tabs-carousel-inline {
     background: var(--theme--background);
     border-bottom: 1px solid var(--theme--border-color-subdued);
     position: sticky;
@@ -1067,11 +1187,29 @@
     z-index: 4;
   }
 
+  .storefront-ops .pane-tabs {
+    min-block-size: 52px;
+    padding-block: 6px;
+  }
+
+  .storefront-ops .pane-tabs-arrow {
+    block-size: 44px;
+    border-radius: 12px;
+    font-size: 24px;
+    inline-size: 34px;
+  }
+
+  .storefront-ops .pane-tabs-carousel::before {
+    inset-inline-start: 40px;
+  }
+
+  .storefront-ops .pane-tabs-carousel::after {
+    inset-inline-end: 40px;
+  }
+
   .storefront-ops .pane-tab {
-    flex: 0 0 auto;
+    flex-basis: 132px;
     min-height: 44px;
-    min-inline-size: 132px;
-    scroll-snap-align: start;
   }
 
   .storefront-ops .workspace-shell {
@@ -1265,9 +1403,11 @@ body.storefront-ops-view #dialog-outlet > .container.right {
     -webkit-overflow-scrolling: touch;
   }
 
-  body.storefront-ops-view .storefront-ops .pane-tabs,
-  body.storefront-ops-view .storefront-ops .pane-tabs-inline,
-  body.storefront-ops-view .storefront-ops .pane-tabs-navigation {
+  body.storefront-ops-view .storefront-ops .pane-tabs-carousel {
+    max-block-size: max-content;
+  }
+
+  body.storefront-ops-view .storefront-ops .pane-tabs {
     max-block-size: max-content;
     overflow-x: auto;
     overflow-y: hidden;
@@ -1276,7 +1416,7 @@ body.storefront-ops-view #dialog-outlet > .container.right {
     touch-action: pan-x;
   }
 
-  body.storefront-ops-view .storefront-ops .pane-tabs-inline {
+  body.storefront-ops-view .storefront-ops .pane-tabs-carousel-inline {
     flex: 0 0 auto;
     inset-block-start: 0;
     position: sticky;
@@ -1379,9 +1519,12 @@ body.storefront-ops-view #dialog-outlet > .container.right {
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  body.storefront-ops-view .storefront-ops .pane-tabs,
-  body.storefront-ops-view .storefront-ops .pane-tabs-inline,
-  body.storefront-ops-view .storefront-ops .pane-tabs-navigation {
+  body.storefront-ops-view .storefront-ops .pane-tabs-carousel {
+    max-block-size: max-content;
+    max-inline-size: 100%;
+  }
+
+  body.storefront-ops-view .storefront-ops .pane-tabs {
     max-block-size: max-content;
     max-inline-size: 100%;
     overflow-x: auto;
