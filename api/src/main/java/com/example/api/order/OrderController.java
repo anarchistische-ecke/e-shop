@@ -1,6 +1,7 @@
 package com.example.api.order;
 
 import com.example.api.admincms.DirectusAdminService;
+import com.example.api.metrika.MetrikaOutboxService;
 import com.example.api.notification.EmailService;
 import com.example.api.notification.NotificationOrchestrator;
 import com.example.customer.domain.Customer;
@@ -9,6 +10,8 @@ import com.example.order.domain.Order;
 import com.example.order.service.OrderService;
 import com.example.payment.domain.Payment;
 import com.example.payment.service.PaymentService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -33,14 +36,20 @@ import org.springframework.web.bind.annotation.RestController;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.StringJoiner;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/orders")
 public class OrderController {
+    private static final Pattern EMAIL_LIKE_VALUE = Pattern.compile("[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PHONE_LIKE_VALUE = Pattern.compile("(?:\\+?\\d[\\s().-]*){8,}");
 
     private final OrderService orderService;
     private final CustomerService customerService;
@@ -48,6 +57,8 @@ public class OrderController {
     private final EmailService emailService;
     private final DirectusAdminService directusAdminService;
     private final NotificationOrchestrator notificationOrchestrator;
+    private final MetrikaOutboxService metrikaOutboxService;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.public-base-url:}")
     private String publicBaseUrl;
@@ -55,19 +66,41 @@ public class OrderController {
     @Value("${payment.public.confirmation-mode:REDIRECT}")
     private String defaultPaymentConfirmationMode;
 
-    @Autowired
     public OrderController(OrderService orderService,
                            CustomerService customerService,
                            PaymentService paymentService,
                            EmailService emailService,
                            DirectusAdminService directusAdminService,
                            NotificationOrchestrator notificationOrchestrator) {
+        this(
+                orderService,
+                customerService,
+                paymentService,
+                emailService,
+                directusAdminService,
+                notificationOrchestrator,
+                null,
+                new ObjectMapper()
+        );
+    }
+
+    @Autowired
+    public OrderController(OrderService orderService,
+                           CustomerService customerService,
+                           PaymentService paymentService,
+                           EmailService emailService,
+                           DirectusAdminService directusAdminService,
+                           NotificationOrchestrator notificationOrchestrator,
+                           MetrikaOutboxService metrikaOutboxService,
+                           ObjectMapper objectMapper) {
         this.orderService = orderService;
         this.customerService = customerService;
         this.paymentService = paymentService;
         this.emailService = emailService;
         this.directusAdminService = directusAdminService;
         this.notificationOrchestrator = notificationOrchestrator;
+        this.metrikaOutboxService = metrikaOutboxService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
@@ -123,9 +156,11 @@ public class OrderController {
                     customerId,
                     request.receiptEmail,
                     null,
-                    new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
+                    new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress),
+                    toOrderAnalyticsAttribution(request.analyticsAttribution)
             );
             checkoutAttemptBound = true;
+            recordOrderCreated(order);
 
             String returnUrl = resolveReturnUrl(request.returnUrl, request.orderPageUrl, order);
             if (!StringUtils.hasText(returnUrl)) {
@@ -167,6 +202,7 @@ public class OrderController {
                 null,
                 new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
         );
+        recordOrderCreated(order);
         emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new OrderLinkResponse(order.getId(), order.getPublicToken()));
@@ -188,6 +224,7 @@ public class OrderController {
                 managerSubject,
                 new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
         );
+        recordOrderCreated(order);
         boolean shouldSend = request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail);
         if (shouldSend) {
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
@@ -204,6 +241,7 @@ public class OrderController {
         String previousStatus = beforeUpdate.getStatus();
         Order updated = orderService.updateOrderStatus(id, status);
         notificationOrchestrator.orderStatusChanged(updated, previousStatus);
+        recordStatusConversion(updated);
         return ResponseEntity.noContent().build();
     }
 
@@ -234,6 +272,10 @@ public class OrderController {
     public ResponseEntity<PaymentResponse> payByToken(@PathVariable String token,
                                                       @Valid @RequestBody PublicPayRequest request) {
         Order order = orderService.findByPublicToken(token);
+        OrderService.AnalyticsAttribution attribution = toOrderAnalyticsAttribution(request.analyticsAttribution);
+        if (attribution != null) {
+            order = orderService.updateAnalyticsAttribution(order.getId(), attribution);
+        }
         String returnUrl = resolveReturnUrl(request.returnUrl, null, order);
         if (returnUrl == null || returnUrl.isBlank()) {
             return ResponseEntity.badRequest().build();
@@ -259,6 +301,7 @@ public class OrderController {
         Order updated = orderService.findByPublicToken(token);
         if (result.completedNow()) {
             notificationOrchestrator.orderPaid(updated, result.payment());
+            recordOrderPaid(updated);
         }
         return ResponseEntity.ok(attachPaymentSummary(updated));
     }
@@ -320,6 +363,93 @@ public class OrderController {
         throw new IllegalArgumentException("Manager subject is required");
     }
 
+    private OrderService.AnalyticsAttribution toOrderAnalyticsAttribution(AnalyticsAttributionRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Map<String, String> utm = request.utm == null ? Map.of() : request.utm;
+        return new OrderService.AnalyticsAttribution(
+                safeAnalyticsValue(request.metrikaClientId),
+                safeAnalyticsValue(request.metrikaUserId),
+                safeAnalyticsValue(request.yclid),
+                safeAnalyticsValue(utm.get("utm_source")),
+                safeAnalyticsValue(utm.get("utm_medium")),
+                safeAnalyticsValue(utm.get("utm_campaign")),
+                safeAnalyticsValue(utm.get("utm_content")),
+                safeAnalyticsValue(utm.get("utm_term")),
+                safeAnalyticsValue(utm.get("utm_id")),
+                safeAnalyticsValue(request.landingPage),
+                safeAnalyticsValue(request.currentPath),
+                safeAnalyticsValue(request.referrer),
+                request.sessionStartedAt,
+                safeAnalyticsValue(request.purchaseId),
+                serializeAnalyticsAttribution(request)
+        );
+    }
+
+    private String safeAnalyticsValue(String value) {
+        String normalized = normalizeValue(value);
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+        if (EMAIL_LIKE_VALUE.matcher(normalized).find() || PHONE_LIKE_VALUE.matcher(normalized).matches()) {
+            return "";
+        }
+        return normalized;
+    }
+
+    private String serializeAnalyticsAttribution(AnalyticsAttributionRequest request) {
+        Map<String, String> utm = request.utm == null ? Map.of() : request.utm;
+        Map<String, Object> safePayload = new LinkedHashMap<>();
+        safePayload.put("metrikaClientId", safeAnalyticsValue(request.metrikaClientId));
+        safePayload.put("metrikaUserId", safeAnalyticsValue(request.metrikaUserId));
+        safePayload.put("yclid", safeAnalyticsValue(request.yclid));
+        safePayload.put("utm", Map.of(
+                "utm_source", safeAnalyticsValue(utm.get("utm_source")),
+                "utm_medium", safeAnalyticsValue(utm.get("utm_medium")),
+                "utm_campaign", safeAnalyticsValue(utm.get("utm_campaign")),
+                "utm_content", safeAnalyticsValue(utm.get("utm_content")),
+                "utm_term", safeAnalyticsValue(utm.get("utm_term")),
+                "utm_id", safeAnalyticsValue(utm.get("utm_id"))
+        ));
+        safePayload.put("landingPage", safeAnalyticsValue(request.landingPage));
+        safePayload.put("currentPath", safeAnalyticsValue(request.currentPath));
+        safePayload.put("referrer", safeAnalyticsValue(request.referrer));
+        safePayload.put("sessionStartedAt", request.sessionStartedAt);
+        safePayload.put("purchaseId", safeAnalyticsValue(request.purchaseId));
+        safePayload.put("deviceType", safeAnalyticsValue(request.deviceType));
+        safePayload.put("browserFamily", safeAnalyticsValue(request.browserFamily));
+        safePayload.put("firstVisit", request.firstVisit);
+        try {
+            return objectMapper.writeValueAsString(safePayload);
+        } catch (JsonProcessingException ex) {
+            return "{}";
+        }
+    }
+
+    private void recordOrderCreated(Order order) {
+        if (metrikaOutboxService != null) {
+            metrikaOutboxService.recordOrderCreated(order);
+        }
+    }
+
+    private void recordOrderPaid(Order order) {
+        if (metrikaOutboxService != null) {
+            metrikaOutboxService.recordOrderPaid(order);
+        }
+    }
+
+    private void recordStatusConversion(Order order) {
+        if (metrikaOutboxService == null || order == null || !StringUtils.hasText(order.getStatus())) {
+            return;
+        }
+        if ("CANCELLED".equalsIgnoreCase(order.getStatus())) {
+            metrikaOutboxService.recordOrderCancelled(order);
+        } else if ("REFUNDED".equalsIgnoreCase(order.getStatus())) {
+            metrikaOutboxService.recordOrderRefunded(order);
+        }
+    }
+
     public record CheckoutRequest(
             @NotNull UUID cartId,
             @Email @NotBlank String receiptEmail,
@@ -330,6 +460,7 @@ public class OrderController {
             String orderPageUrl,
             String confirmationMode,
             Boolean savePaymentMethod,
+            AnalyticsAttributionRequest analyticsAttribution,
             String idempotencyKey
     ) {}
 
@@ -355,7 +486,23 @@ public class OrderController {
     public record PublicPayRequest(
             @Email @NotBlank String receiptEmail,
             String returnUrl,
-            String confirmationMode
+            String confirmationMode,
+            AnalyticsAttributionRequest analyticsAttribution
+    ) {}
+
+    public record AnalyticsAttributionRequest(
+            String metrikaClientId,
+            String metrikaUserId,
+            String yclid,
+            Map<String, String> utm,
+            String landingPage,
+            String currentPath,
+            String referrer,
+            OffsetDateTime sessionStartedAt,
+            String purchaseId,
+            String deviceType,
+            String browserFamily,
+            Boolean firstVisit
     ) {}
 
     public record OrderLinkResponse(UUID orderId, String publicToken) {}
@@ -467,6 +614,7 @@ public class OrderController {
         }
         Order updated = orderService.findById(payment.getOrderId());
         notificationOrchestrator.orderPaid(updated, payment);
+        recordOrderPaid(updated);
     }
 
     private String applyTokenTemplate(String value, Order order) {

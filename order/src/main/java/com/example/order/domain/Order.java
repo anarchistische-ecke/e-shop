@@ -2,6 +2,7 @@ package com.example.order.domain;
 
 import com.example.common.domain.BaseEntity;
 import com.example.common.domain.Money;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
@@ -184,6 +185,66 @@ public class Order extends BaseEntity {
 
     @Column(name = "archive_reason")
     private String archiveReason;
+
+    @Column(name = "metrika_client_id", length = 128)
+    @JsonIgnore
+    private String metrikaClientId;
+
+    @Column(name = "metrika_user_id", length = 128)
+    @JsonIgnore
+    private String metrikaUserId;
+
+    @Column(name = "yclid", length = 256)
+    @JsonIgnore
+    private String yclid;
+
+    @Column(name = "utm_source")
+    @JsonIgnore
+    private String utmSource;
+
+    @Column(name = "utm_medium")
+    @JsonIgnore
+    private String utmMedium;
+
+    @Column(name = "utm_campaign")
+    @JsonIgnore
+    private String utmCampaign;
+
+    @Column(name = "utm_content")
+    @JsonIgnore
+    private String utmContent;
+
+    @Column(name = "utm_term")
+    @JsonIgnore
+    private String utmTerm;
+
+    @Column(name = "utm_id")
+    @JsonIgnore
+    private String utmId;
+
+    @Column(name = "analytics_landing_page", length = 1024)
+    @JsonIgnore
+    private String analyticsLandingPage;
+
+    @Column(name = "analytics_current_path", length = 1024)
+    @JsonIgnore
+    private String analyticsCurrentPath;
+
+    @Column(name = "analytics_referrer", length = 1024)
+    @JsonIgnore
+    private String analyticsReferrer;
+
+    @Column(name = "analytics_session_started_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    @JsonIgnore
+    private OffsetDateTime analyticsSessionStartedAt;
+
+    @Column(name = "analytics_purchase_id", length = 128)
+    @JsonIgnore
+    private String analyticsPurchaseId;
+
+    @Column(name = "analytics_payload_json", columnDefinition = "TEXT")
+    @JsonIgnore
+    private String analyticsPayloadJson;
 
     @OneToMany(mappedBy = "order", cascade = jakarta.persistence.CascadeType.ALL,
             orphanRemoval = true, fetch = FetchType.LAZY)
@@ -528,6 +589,126 @@ public class Order extends BaseEntity {
 
     public void setArchiveReason(String archiveReason) {
         this.archiveReason = archiveReason;
+    }
+
+    public String getMetrikaClientId() {
+        return metrikaClientId;
+    }
+
+    public void setMetrikaClientId(String metrikaClientId) {
+        this.metrikaClientId = metrikaClientId;
+    }
+
+    public String getMetrikaUserId() {
+        return metrikaUserId;
+    }
+
+    public void setMetrikaUserId(String metrikaUserId) {
+        this.metrikaUserId = metrikaUserId;
+    }
+
+    public String getYclid() {
+        return yclid;
+    }
+
+    public void setYclid(String yclid) {
+        this.yclid = yclid;
+    }
+
+    public String getUtmSource() {
+        return utmSource;
+    }
+
+    public void setUtmSource(String utmSource) {
+        this.utmSource = utmSource;
+    }
+
+    public String getUtmMedium() {
+        return utmMedium;
+    }
+
+    public void setUtmMedium(String utmMedium) {
+        this.utmMedium = utmMedium;
+    }
+
+    public String getUtmCampaign() {
+        return utmCampaign;
+    }
+
+    public void setUtmCampaign(String utmCampaign) {
+        this.utmCampaign = utmCampaign;
+    }
+
+    public String getUtmContent() {
+        return utmContent;
+    }
+
+    public void setUtmContent(String utmContent) {
+        this.utmContent = utmContent;
+    }
+
+    public String getUtmTerm() {
+        return utmTerm;
+    }
+
+    public void setUtmTerm(String utmTerm) {
+        this.utmTerm = utmTerm;
+    }
+
+    public String getUtmId() {
+        return utmId;
+    }
+
+    public void setUtmId(String utmId) {
+        this.utmId = utmId;
+    }
+
+    public String getAnalyticsLandingPage() {
+        return analyticsLandingPage;
+    }
+
+    public void setAnalyticsLandingPage(String analyticsLandingPage) {
+        this.analyticsLandingPage = analyticsLandingPage;
+    }
+
+    public String getAnalyticsCurrentPath() {
+        return analyticsCurrentPath;
+    }
+
+    public void setAnalyticsCurrentPath(String analyticsCurrentPath) {
+        this.analyticsCurrentPath = analyticsCurrentPath;
+    }
+
+    public String getAnalyticsReferrer() {
+        return analyticsReferrer;
+    }
+
+    public void setAnalyticsReferrer(String analyticsReferrer) {
+        this.analyticsReferrer = analyticsReferrer;
+    }
+
+    public OffsetDateTime getAnalyticsSessionStartedAt() {
+        return analyticsSessionStartedAt;
+    }
+
+    public void setAnalyticsSessionStartedAt(OffsetDateTime analyticsSessionStartedAt) {
+        this.analyticsSessionStartedAt = analyticsSessionStartedAt;
+    }
+
+    public String getAnalyticsPurchaseId() {
+        return analyticsPurchaseId;
+    }
+
+    public void setAnalyticsPurchaseId(String analyticsPurchaseId) {
+        this.analyticsPurchaseId = analyticsPurchaseId;
+    }
+
+    public String getAnalyticsPayloadJson() {
+        return analyticsPayloadJson;
+    }
+
+    public void setAnalyticsPayloadJson(String analyticsPayloadJson) {
+        this.analyticsPayloadJson = analyticsPayloadJson;
     }
 
     public Object getPaymentSummary() {

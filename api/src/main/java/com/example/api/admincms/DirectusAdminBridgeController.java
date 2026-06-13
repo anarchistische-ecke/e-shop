@@ -7,6 +7,7 @@ import com.example.api.admincms.DirectusAdminModels.ImportJobView;
 import com.example.api.admincms.DirectusAdminModels.ImportMapping;
 import com.example.api.admincms.DirectusAdminModels.LowStockAlertResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
+import com.example.api.admincms.DirectusAdminModels.MetrikaAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
 import com.example.api.admincms.DirectusAdminModels.OrderArchiveRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
@@ -26,6 +27,9 @@ import com.example.api.admincms.DirectusAdminModels.TaxConfigurationRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.api.catalog.DirectusBridgeSecurity;
 import com.example.api.content.DirectusContentCacheService;
+import com.example.api.metrika.MetrikaOutboxRepository;
+import com.example.api.metrika.MetrikaOutboxStatus;
+import com.example.api.metrika.MetrikaProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +68,8 @@ public class DirectusAdminBridgeController {
     private final AdminActivityService adminActivityService;
     private final ObjectMapper objectMapper;
     private DirectusContentCacheService contentCacheService;
+    private MetrikaOutboxRepository metrikaOutboxRepository;
+    private MetrikaProperties metrikaProperties;
 
     public DirectusAdminBridgeController(
             DirectusAdminService adminService,
@@ -82,6 +88,16 @@ public class DirectusAdminBridgeController {
     @Autowired
     public void setContentCacheService(DirectusContentCacheService contentCacheService) {
         this.contentCacheService = contentCacheService;
+    }
+
+    @Autowired(required = false)
+    public void setMetrikaOutboxRepository(MetrikaOutboxRepository metrikaOutboxRepository) {
+        this.metrikaOutboxRepository = metrikaOutboxRepository;
+    }
+
+    @Autowired(required = false)
+    public void setMetrikaProperties(MetrikaProperties metrikaProperties) {
+        this.metrikaProperties = metrikaProperties;
     }
 
     @GetMapping("/orders")
@@ -495,6 +511,35 @@ public class DirectusAdminBridgeController {
         var principal = authorize(request);
         roleGuard.requireAnalytics(principal);
         return ResponseEntity.ok(adminService.paymentLinkAnalytics(from, to, analyticsManagerFilter(principal, manager)));
+    }
+
+    @GetMapping("/analytics/metrika")
+    public ResponseEntity<MetrikaAnalyticsResponse> metrikaAnalytics(HttpServletRequest request) {
+        var principal = authorize(request);
+        roleGuard.requireAnalytics(principal);
+        boolean enabled = metrikaProperties != null && metrikaProperties.isEnabled();
+        boolean offlineEnabled = metrikaProperties != null && metrikaProperties.getOfflineImport().isEnabled();
+        boolean counterConfigured = metrikaProperties != null && StringUtils.hasText(metrikaProperties.getCounterId());
+        if (metrikaOutboxRepository == null) {
+            return ResponseEntity.ok(new MetrikaAnalyticsResponse(
+                    enabled,
+                    offlineEnabled,
+                    counterConfigured,
+                    0,
+                    0,
+                    0,
+                    0
+            ));
+        }
+        return ResponseEntity.ok(new MetrikaAnalyticsResponse(
+                enabled,
+                offlineEnabled,
+                counterConfigured,
+                metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.PENDING),
+                metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.SENT),
+                metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.FAILED),
+                metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.SKIPPED)
+        ));
     }
 
     @GetMapping("/alerts/low-stock")

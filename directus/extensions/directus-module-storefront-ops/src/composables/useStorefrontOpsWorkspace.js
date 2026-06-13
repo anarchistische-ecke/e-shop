@@ -430,6 +430,15 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     manager: '',
     managerRows: [],
     paymentLinks: { sent: 0, paid: 0, conversionRate: 0, rows: [] },
+    metrika: {
+      enabled: false,
+      offlineImportEnabled: false,
+      counterConfigured: false,
+      pending: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+    },
   });
 
   const alertState = reactive({
@@ -2609,12 +2618,14 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         to: toIsoDateTime(analyticsState.to),
         manager: isManagerRole.value ? '' : analyticsState.manager,
       });
-      const [managerResponse, paymentLinkResponse] = await Promise.all([
+      const [managerResponse, paymentLinkResponse, metrikaResponse] = await Promise.all([
         bridgeRequest('/admin/analytics/managers', { params }),
         bridgeRequest('/admin/analytics/payment-links', { params }),
+        bridgeRequest('/admin/analytics/metrika', { params }),
       ]);
       analyticsState.managerRows = managerResponse.rows || [];
       analyticsState.paymentLinks = paymentLinkResponse || { sent: 0, paid: 0, conversionRate: 0, rows: [] };
+      analyticsState.metrika = metrikaResponse || analyticsState.metrika;
       analyticsState.loaded = true;
       navigationCounts.analytics = analyticsState.managerRows.length;
       if (notify) {

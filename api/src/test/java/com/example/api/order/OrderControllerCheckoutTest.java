@@ -66,7 +66,8 @@ class OrderControllerCheckoutTest {
                 eq(customerId),
                 eq("customer@example.test"),
                 isNull(),
-                any(OrderService.ContactSpec.class)
+                any(OrderService.ContactSpec.class),
+                isNull()
         )).thenReturn(order);
         when(paymentService.createYooKassaPayment(
                 eq(orderId),
@@ -89,6 +90,7 @@ class OrderControllerCheckoutTest {
                         "https://yug-postel.ru/order/{token}",
                         "REDIRECT",
                         false,
+                        null,
                         "body-key-1"
                 ),
                 null,
@@ -134,7 +136,8 @@ class OrderControllerCheckoutTest {
                 eq(customerId),
                 eq("customer@example.test"),
                 isNull(),
-                any(OrderService.ContactSpec.class)
+                any(OrderService.ContactSpec.class),
+                isNull()
         )).thenReturn(order);
         when(paymentService.createYooKassaPayment(
                 eq(orderId),
@@ -157,6 +160,7 @@ class OrderControllerCheckoutTest {
                         "https://yug-postel.ru/order/{token}",
                         "REDIRECT",
                         false,
+                        null,
                         "body-key-1"
                 ),
                 null,
@@ -217,6 +221,7 @@ class OrderControllerCheckoutTest {
                         "https://yug-postel.ru/order/{token}",
                         "REDIRECT",
                         false,
+                        null,
                         "body-key-1"
                 ),
                 null,
@@ -232,6 +237,7 @@ class OrderControllerCheckoutTest {
                 any(),
                 any(),
                 anyString(),
+                any(),
                 any(),
                 any()
         );

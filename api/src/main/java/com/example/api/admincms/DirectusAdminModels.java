@@ -362,6 +362,17 @@ public final class DirectusAdminModels {
     ) {
     }
 
+    public record MetrikaAnalyticsResponse(
+            boolean enabled,
+            boolean offlineImportEnabled,
+            boolean counterConfigured,
+            long pending,
+            long sent,
+            long failed,
+            long skipped
+    ) {
+    }
+
     public record PaymentLinkAnalyticsRow(
             UUID id,
             UUID orderId,

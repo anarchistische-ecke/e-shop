@@ -27,6 +27,7 @@ class OrderControllerValidationTest {
                 "https://example.test/order/{token}",
                 "EMBEDDED",
                 false,
+                null,
                 null
         );
 
