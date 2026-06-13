@@ -10,35 +10,85 @@
     </template>
 
     <teleport v-if="navigationTarget" :to="navigationTarget">
-      <nav class="pane-tabs pane-tabs-navigation" aria-label="Разделы управления витриной">
+      <div class="pane-tabs-carousel pane-tabs-carousel-navigation" :class="tabCarouselClasses">
         <button
-          v-for="tab in visibleTabs"
-          :key="tab.id"
+          class="pane-tabs-arrow pane-tabs-arrow-left"
           type="button"
-          class="pane-tab"
-          :class="{ active: activeTab === tab.id }"
-          @click="setActiveTab(tab.id)"
+          aria-label="Прокрутить разделы влево"
+          :disabled="!canScrollTabsLeft"
+          @click="scrollTabs('left')"
         >
-          <span>{{ tab.label }}</span>
-          <small>{{ tabCount(tab.id) }}</small>
+          ‹
         </button>
-      </nav>
+        <nav
+          ref="tabRail"
+          class="pane-tabs pane-tabs-navigation"
+          aria-label="Разделы управления витриной"
+          @scroll.passive="handleTabRailScroll"
+        >
+          <button
+            v-for="tab in visibleTabs"
+            :key="tab.id"
+            type="button"
+            class="pane-tab"
+            :class="{ active: activeTab === tab.id }"
+            @click="setActiveTab(tab.id)"
+          >
+            <span>{{ tab.label }}</span>
+            <small>{{ tabCount(tab.id) }}</small>
+          </button>
+        </nav>
+        <button
+          class="pane-tabs-arrow pane-tabs-arrow-right"
+          type="button"
+          aria-label="Прокрутить разделы вправо"
+          :disabled="!canScrollTabsRight"
+          @click="scrollTabs('right')"
+        >
+          ›
+        </button>
+      </div>
     </teleport>
 
     <div class="workspace storefront-ops">
-      <nav v-if="!navigationTarget" class="pane-tabs pane-tabs-inline" aria-label="Разделы управления витриной">
+      <div v-if="!navigationTarget" class="pane-tabs-carousel pane-tabs-carousel-inline" :class="tabCarouselClasses">
         <button
-          v-for="tab in visibleTabs"
-          :key="tab.id"
+          class="pane-tabs-arrow pane-tabs-arrow-left"
           type="button"
-          class="pane-tab"
-          :class="{ active: activeTab === tab.id }"
-          @click="setActiveTab(tab.id)"
+          aria-label="Прокрутить разделы влево"
+          :disabled="!canScrollTabsLeft"
+          @click="scrollTabs('left')"
         >
-          <span>{{ tab.label }}</span>
-          <small>{{ tabCount(tab.id) }}</small>
+          ‹
         </button>
-      </nav>
+        <nav
+          ref="tabRail"
+          class="pane-tabs pane-tabs-inline"
+          aria-label="Разделы управления витриной"
+          @scroll.passive="handleTabRailScroll"
+        >
+          <button
+            v-for="tab in visibleTabs"
+            :key="tab.id"
+            type="button"
+            class="pane-tab"
+            :class="{ active: activeTab === tab.id }"
+            @click="setActiveTab(tab.id)"
+          >
+            <span>{{ tab.label }}</span>
+            <small>{{ tabCount(tab.id) }}</small>
+          </button>
+        </nav>
+        <button
+          class="pane-tabs-arrow pane-tabs-arrow-right"
+          type="button"
+          aria-label="Прокрутить разделы вправо"
+          :disabled="!canScrollTabsRight"
+          @click="scrollTabs('right')"
+        >
+          ›
+        </button>
+      </div>
 
       <div v-if="accessState.loaded" class="access-context">
         <strong>{{ accessRoleLabel }}</strong>
@@ -83,6 +133,7 @@
 </template>
 
 <script setup>
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import './storefront-ops.css';
 import StorefrontOpsActiveTab from './components/StorefrontOpsActiveTab.js';
 import AlertsTab from './components/tabs/AlertsTab.vue';
@@ -130,4 +181,107 @@ const {
   activeTabComponent,
   storefrontOpsViewProps,
 } = useStorefrontOpsWorkspace(tabComponents);
+
+const tabRail = ref(null);
+const isTabRailScrollable = ref(false);
+const canScrollTabsLeft = ref(false);
+const canScrollTabsRight = ref(false);
+let tabRailResizeObserver = null;
+
+const tabCarouselClasses = computed(() => ({
+  'is-scrollable': isTabRailScrollable.value,
+  'can-scroll-left': canScrollTabsLeft.value,
+  'can-scroll-right': canScrollTabsRight.value,
+}));
+
+function updateTabRailScrollState() {
+  const rail = tabRail.value;
+
+  if (!rail) {
+    isTabRailScrollable.value = false;
+    canScrollTabsLeft.value = false;
+    canScrollTabsRight.value = false;
+    return;
+  }
+
+  const maxScrollLeft = Math.max(0, rail.scrollWidth - rail.clientWidth);
+  const scrollLeft = Math.max(0, rail.scrollLeft);
+
+  isTabRailScrollable.value = maxScrollLeft > 2;
+  canScrollTabsLeft.value = scrollLeft > 2;
+  canScrollTabsRight.value = scrollLeft < maxScrollLeft - 2;
+}
+
+function handleTabRailScroll() {
+  updateTabRailScrollState();
+}
+
+function scrollTabs(direction) {
+  const rail = tabRail.value;
+
+  if (!rail) {
+    return;
+  }
+
+  const distance = Math.max(rail.clientWidth * 0.72, 180);
+  rail.scrollBy({
+    left: direction === 'left' ? -distance : distance,
+    behavior: 'smooth',
+  });
+}
+
+async function scrollActiveTabIntoView() {
+  await nextTick();
+  const activeButton = tabRail.value?.querySelector('.pane-tab.active');
+
+  activeButton?.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest',
+    behavior: 'smooth',
+  });
+  updateTabRailScrollState();
+}
+
+function disconnectTabRailObserver() {
+  tabRailResizeObserver?.disconnect();
+  tabRailResizeObserver = null;
+}
+
+async function syncTabRailObserver() {
+  await nextTick();
+  disconnectTabRailObserver();
+
+  const rail = tabRail.value;
+
+  if (!rail) {
+    updateTabRailScrollState();
+    return;
+  }
+
+  if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
+    tabRailResizeObserver = new window.ResizeObserver(() => {
+      updateTabRailScrollState();
+    });
+    tabRailResizeObserver.observe(rail);
+  }
+
+  updateTabRailScrollState();
+  scrollActiveTabIntoView();
+}
+
+onMounted(() => {
+  syncTabRailObserver();
+});
+
+watch([visibleTabs, navigationTarget], () => {
+  syncTabRailObserver();
+});
+
+watch(activeTab, () => {
+  scrollActiveTabIntoView();
+});
+
+onBeforeUnmount(() => {
+  disconnectTabRailObserver();
+});
 </script>

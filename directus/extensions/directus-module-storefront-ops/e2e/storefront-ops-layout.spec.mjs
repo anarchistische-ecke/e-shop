@@ -277,6 +277,12 @@ for (const viewport of VIEWPORTS) {
       await page.evaluate(() => localStorage.removeItem('storefront-ops.workspace-state')).catch(() => null);
     });
 
+    test('section menu stays in one scrollable carousel row', async ({ page }) => {
+      await openStorefrontOps(page, 'tab=home');
+      await expectSectionTabCarousel(page);
+      await expectNoHorizontalOverflow(page);
+    });
+
     test('home detail scrolls without overflow or action overlap', async ({ page }) => {
       await openStorefrontOps(page, 'tab=home');
       await expect(page.locator('.detail-header h2', { hasText: 'Контент главной страницы' })).toBeVisible();
@@ -365,6 +371,40 @@ async function expectScrollContainer(page, selector) {
   });
   const after = await locator.evaluate((element) => element.scrollTop);
   expect(after, `${selector} should accept vertical scroll`).toBeGreaterThan(before.scrollTop);
+}
+
+async function expectSectionTabCarousel(page) {
+  const carousel = page.locator('.pane-tabs-carousel').first();
+  const rail = page.locator('.pane-tabs').first();
+  const leftArrow = page.getByRole('button', { name: 'Прокрутить разделы влево' });
+  const rightArrow = page.getByRole('button', { name: 'Прокрутить разделы вправо' });
+
+  await expect(carousel).toBeVisible();
+  await expect(rail.locator('.pane-tab')).toHaveCount(11);
+  await expect(rightArrow).toBeVisible();
+  await expect(rightArrow).toBeEnabled();
+  await expect(leftArrow).toBeDisabled();
+
+  const metrics = await rail.evaluate((element) => {
+    const buttons = Array.from(element.querySelectorAll('.pane-tab'));
+    const rects = buttons.map((button) => button.getBoundingClientRect());
+    const tops = rects.map((rect) => rect.top);
+    const minTop = Math.min(...tops);
+    const maxTop = Math.max(...tops);
+    return {
+      buttonCount: buttons.length,
+      scrollOverflow: Math.round(element.scrollWidth - element.clientWidth),
+      topDelta: Math.round(maxTop - minTop),
+    };
+  });
+
+  expect(metrics.buttonCount).toBe(11);
+  expect(metrics.topDelta, JSON.stringify(metrics)).toBeLessThanOrEqual(1);
+  expect(metrics.scrollOverflow, JSON.stringify(metrics)).toBeGreaterThan(8);
+
+  await rightArrow.click();
+  await page.waitForFunction(() => (document.querySelector('.pane-tabs')?.scrollLeft || 0) > 8);
+  await expect(leftArrow).toBeEnabled();
 }
 
 async function expectNoHorizontalOverflow(page) {

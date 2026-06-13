@@ -183,35 +183,54 @@ jobs:
           fi
           cd "${YC_VM_DEPLOY_PATH}"
           git fetch origin "${DEPLOY_REF}"
-          reconcile_tracked_prod_compose() {
-            local path="docker-compose.prod.yml"
-            if git diff --quiet -- "$path"; then
-              return 0
-            fi
-
+          reconcile_deploy_worktree_path() {
+            local path="$1"
             mkdir -p .deploy-state
-            local stamp patch target_file
+            local stamp safe_name target_file
             stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-            patch=".deploy-state/docker-compose-prod-dirty-${stamp}.patch"
-            git diff -- "$path" > "$patch"
+            safe_name="${path//\//-}"
             target_file="$(mktemp)"
             if ! git show "FETCH_HEAD:$path" > "$target_file"; then
               rm -f "$target_file"
-              echo "::error::Could not read $path from fetched deploy ref; saved local patch at $patch."
-              exit 1
+              return 0
             fi
-            if cmp -s "$path" "$target_file"; then
-              git checkout -- "$path"
-              echo "Cleared local $path because it already matches the fetched deploy ref; saved patch at $patch."
-            else
-              echo "::error::Local $path differs from the fetched deploy ref; saved patch at $patch."
-              git --no-pager diff --no-index -- "$target_file" "$path" || true
-              rm -f "$target_file"
-              exit 1
+
+            if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+              if git diff --quiet -- "$path"; then
+                rm -f "$target_file"
+                return 0
+              fi
+
+              local patch=".deploy-state/${safe_name}-dirty-${stamp}.patch"
+              git diff -- "$path" > "$patch"
+              if cmp -s "$path" "$target_file"; then
+                git checkout -- "$path"
+                echo "Cleared local $path because it already matches the fetched deploy ref; saved patch at $patch."
+              else
+                echo "::error::Local $path differs from the fetched deploy ref; saved patch at $patch."
+                git --no-pager diff --no-index -- "$target_file" "$path" || true
+                rm -f "$target_file"
+                exit 1
+              fi
+            elif [ -e "$path" ]; then
+              local copy=".deploy-state/${safe_name}-untracked-${stamp}"
+              cp -a "$path" "$copy"
+              if cmp -s "$path" "$target_file"; then
+                rm -f "$path"
+                echo "Removed untracked $path because it already matches the fetched deploy ref; saved copy at $copy."
+              else
+                echo "::error::Untracked $path differs from the fetched deploy ref; saved copy at $copy."
+                git --no-pager diff --no-index -- "$target_file" "$path" || true
+                rm -f "$target_file"
+                exit 1
+              fi
             fi
             rm -f "$target_file"
           }
-          reconcile_tracked_prod_compose
+          reconcile_deploy_worktree_path "docker-compose.prod.yml"
+          reconcile_deploy_worktree_path "directus/docker-compose.yml"
+          reconcile_deploy_worktree_path "docker-compose.runtime-slot.yml"
+          reconcile_deploy_worktree_path "scripts/keycloak-directus-session-policy.sh"
           git checkout "${DEPLOY_REF}" || git checkout -B "${DEPLOY_REF}" "origin/${DEPLOY_REF}"
           git pull --ff-only origin "${DEPLOY_REF}"
           if [ "${DEPLOY_CLASSIFICATION}" = "destructive" ]; then
