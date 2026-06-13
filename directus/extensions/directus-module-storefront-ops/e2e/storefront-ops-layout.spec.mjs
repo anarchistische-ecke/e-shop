@@ -405,6 +405,25 @@ async function expectSectionTabCarousel(page) {
   await rightArrow.click();
   await page.waitForFunction(() => (document.querySelector('.pane-tabs')?.scrollLeft || 0) > 8);
   await expect(leftArrow).toBeEnabled();
+
+  const clicked = await rail.evaluate((element) => {
+    const railRect = element.getBoundingClientRect();
+    const buttons = Array.from(element.querySelectorAll('.pane-tab'));
+    const button = buttons.find((candidate) => {
+      const rect = candidate.getBoundingClientRect();
+      return !candidate.classList.contains('active') && rect.left >= railRect.left - 1 && rect.right <= railRect.right + 1;
+    });
+    const before = element.scrollLeft;
+    button?.click();
+    return {
+      before,
+      label: button?.querySelector('span')?.textContent?.trim() || '',
+    };
+  });
+  expect(clicked.label).toBeTruthy();
+  await expect(rail.locator('.pane-tab.active span')).toHaveText(clicked.label);
+  const afterTabClickScrollLeft = await rail.evaluate((element) => element.scrollLeft);
+  expect(Math.abs(afterTabClickScrollLeft - clicked.before)).toBeLessThanOrEqual(2);
 }
 
 async function expectNoHorizontalOverflow(page) {
