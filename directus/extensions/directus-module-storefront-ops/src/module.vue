@@ -230,18 +230,6 @@ function scrollTabs(direction) {
   });
 }
 
-async function scrollActiveTabIntoView() {
-  await nextTick();
-  const activeButton = tabRail.value?.querySelector('.pane-tab.active');
-
-  activeButton?.scrollIntoView({
-    block: 'nearest',
-    inline: 'nearest',
-    behavior: 'smooth',
-  });
-  updateTabRailScrollState();
-}
-
 function disconnectTabRailObserver() {
   tabRailResizeObserver?.disconnect();
   tabRailResizeObserver = null;
@@ -266,7 +254,6 @@ async function syncTabRailObserver() {
   }
 
   updateTabRailScrollState();
-  scrollActiveTabIntoView();
 }
 
 onMounted(() => {
@@ -275,10 +262,6 @@ onMounted(() => {
 
 watch([visibleTabs, navigationTarget], () => {
   syncTabRailObserver();
-});
-
-watch(activeTab, () => {
-  scrollActiveTabIntoView();
 });
 
 onBeforeUnmount(() => {
