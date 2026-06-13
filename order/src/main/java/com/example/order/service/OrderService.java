@@ -20,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -72,6 +73,15 @@ public class OrderService {
                                      String receiptEmail,
                                      String managerSubject,
                                      ContactSpec contactSpec) {
+        return createOrderFromCart(cartId, customerIdOverride, receiptEmail, managerSubject, contactSpec, null);
+    }
+
+    public Order createOrderFromCart(UUID cartId,
+                                     UUID customerIdOverride,
+                                     String receiptEmail,
+                                     String managerSubject,
+                                     ContactSpec contactSpec,
+                                     AnalyticsAttribution analyticsAttribution) {
         Cart cart = cartService.getCartById(cartId);
         if (cart.getItems() == null || cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
@@ -97,6 +107,7 @@ public class OrderService {
         }
         order.setPublicToken(generatePublicToken());
         order.setManagerSubject(managerSubject);
+        applyAnalyticsAttribution(order, analyticsAttribution);
 
         Map<UUID, CartPricingSummary.CartPricingLine> pricingLines = pricing.items().stream()
                 .collect(Collectors.toMap(
@@ -133,6 +144,45 @@ public class OrderService {
         order = orderRepository.save(order);
         cartService.clearCart(cartId);
         return order;
+    }
+
+    private void applyAnalyticsAttribution(Order order, AnalyticsAttribution attribution) {
+        if (order == null || attribution == null) {
+            return;
+        }
+        order.setMetrikaClientId(truncate(attribution.metrikaClientId(), 128));
+        order.setMetrikaUserId(truncate(attribution.metrikaUserId(), 128));
+        order.setYclid(truncate(attribution.yclid(), 256));
+        order.setUtmSource(truncate(attribution.utmSource(), 255));
+        order.setUtmMedium(truncate(attribution.utmMedium(), 255));
+        order.setUtmCampaign(truncate(attribution.utmCampaign(), 255));
+        order.setUtmContent(truncate(attribution.utmContent(), 255));
+        order.setUtmTerm(truncate(attribution.utmTerm(), 255));
+        order.setUtmId(truncate(attribution.utmId(), 255));
+        order.setAnalyticsLandingPage(truncate(attribution.landingPage(), 1024));
+        order.setAnalyticsCurrentPath(truncate(attribution.currentPath(), 1024));
+        order.setAnalyticsReferrer(truncate(attribution.referrer(), 1024));
+        order.setAnalyticsSessionStartedAt(attribution.sessionStartedAt());
+        order.setAnalyticsPurchaseId(truncate(attribution.purchaseId(), 128));
+        order.setAnalyticsPayloadJson(truncate(attribution.payloadJson(), 8192));
+    }
+
+    public Order updateAnalyticsAttribution(UUID orderId, AnalyticsAttribution analyticsAttribution) {
+        if (orderId == null || analyticsAttribution == null) {
+            return orderId == null ? null : findById(orderId);
+        }
+        Order order = orderRepository.findWithItemsById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found: " + orderId));
+        applyAnalyticsAttribution(order, analyticsAttribution);
+        return orderRepository.save(order);
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.length() > maxLength ? normalized.substring(0, maxLength) : normalized;
     }
 
     private void applyPricingSummary(Order order, CartPricingSummary pricing) {
@@ -294,6 +344,26 @@ public class OrderService {
                                                                String receiptEmail,
                                                                String managerSubject,
                                                                ContactSpec contactSpec) {
+        return createOrderFromCartAndCompleteCheckoutAttempt(
+                keyValue,
+                requestHash,
+                cartId,
+                customerIdOverride,
+                receiptEmail,
+                managerSubject,
+                contactSpec,
+                null
+        );
+    }
+
+    public Order createOrderFromCartAndCompleteCheckoutAttempt(String keyValue,
+                                                               String requestHash,
+                                                               UUID cartId,
+                                                               UUID customerIdOverride,
+                                                               String receiptEmail,
+                                                               String managerSubject,
+                                                               ContactSpec contactSpec,
+                                                               AnalyticsAttribution analyticsAttribution) {
         validateCheckoutAttemptInput(keyValue, requestHash);
         OrderCheckoutAttempt attempt = checkoutAttemptRepository.findByKeyValue(keyValue)
                 .orElseThrow(() -> new IllegalStateException("Checkout idempotency key is not reserved"));
@@ -302,7 +372,7 @@ public class OrderService {
             return findById(attempt.getOrderId());
         }
 
-        Order order = createOrderFromCart(cartId, customerIdOverride, receiptEmail, managerSubject, contactSpec);
+        Order order = createOrderFromCart(cartId, customerIdOverride, receiptEmail, managerSubject, contactSpec, analyticsAttribution);
         attempt.setOrderId(order.getId());
         checkoutAttemptRepository.save(attempt);
         return order;
@@ -356,6 +426,24 @@ public class OrderService {
     }
 
     public record ContactSpec(String customerName, String phone, String homeAddress) {}
+
+    public record AnalyticsAttribution(
+            String metrikaClientId,
+            String metrikaUserId,
+            String yclid,
+            String utmSource,
+            String utmMedium,
+            String utmCampaign,
+            String utmContent,
+            String utmTerm,
+            String utmId,
+            String landingPage,
+            String currentPath,
+            String referrer,
+            OffsetDateTime sessionStartedAt,
+            String purchaseId,
+            String payloadJson
+    ) {}
 
     public record CheckoutAttemptState(CheckoutAttemptStatus status, UUID orderId) {
         public static CheckoutAttemptState reserved() {

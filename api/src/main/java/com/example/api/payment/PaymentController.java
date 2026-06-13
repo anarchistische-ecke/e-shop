@@ -2,6 +2,7 @@ package com.example.api.payment;
 
 import com.example.api.admincms.DirectusAdminService;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
+import com.example.api.metrika.MetrikaOutboxService;
 import com.example.payment.domain.Payment;
 import com.example.payment.service.PaymentService;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -32,6 +33,7 @@ public class PaymentController {
     private final NotificationOrchestrator notificationOrchestrator;
     private final YooKassaWebhookVerifier webhookVerifier;
     private final DirectusAdminService directusAdminService;
+    private final MetrikaOutboxService metrikaOutboxService;
 
     @Value("${yookassa.enabled:false}")
     private boolean yooKassaEnabled;
@@ -57,7 +59,6 @@ public class PaymentController {
     @Value("${payment.public.widget-script-url:https://yookassa.ru/checkout-widget/v1/checkout-widget.js}")
     private String publicWidgetScriptUrl;
 
-    @Autowired
     public PaymentController(PaymentService paymentService,
                              OrderService orderService,
                              NotificationOrchestrator notificationOrchestrator,
@@ -68,6 +69,22 @@ public class PaymentController {
         this.notificationOrchestrator = notificationOrchestrator;
         this.webhookVerifier = webhookVerifier;
         this.directusAdminService = directusAdminServiceProvider.getIfAvailable();
+        this.metrikaOutboxService = null;
+    }
+
+    @Autowired
+    public PaymentController(PaymentService paymentService,
+                             OrderService orderService,
+                             NotificationOrchestrator notificationOrchestrator,
+                             YooKassaWebhookVerifier webhookVerifier,
+                             ObjectProvider<DirectusAdminService> directusAdminServiceProvider,
+                             ObjectProvider<MetrikaOutboxService> metrikaOutboxServiceProvider) {
+        this.paymentService = paymentService;
+        this.orderService = orderService;
+        this.notificationOrchestrator = notificationOrchestrator;
+        this.webhookVerifier = webhookVerifier;
+        this.directusAdminService = directusAdminServiceProvider.getIfAvailable();
+        this.metrikaOutboxService = metrikaOutboxServiceProvider.getIfAvailable();
     }
 
     @GetMapping("/public-config")
@@ -101,12 +118,14 @@ public class PaymentController {
     @PostMapping("/yookassa/refund")
     public ResponseEntity<Payment> refundYooKassaPayment(@Valid @RequestBody RefundRequest request) {
         Payment payment = paymentService.refundYooKassaPayment(request.getOrderId(), request.toPaymentRefundLines());
+        recordRefunded(request.getOrderId());
         return ResponseEntity.ok(payment);
     }
 
     @PostMapping("/yookassa/cancel")
     public ResponseEntity<Payment> cancelYooKassaPayment(@Valid @RequestBody CancelRequest request) {
         Payment payment = paymentService.cancelYooKassaPayment(request.getOrderId());
+        recordCancelled(request.getOrderId());
         return ResponseEntity.ok(payment);
     }
 
@@ -193,10 +212,11 @@ public class PaymentController {
                 return ResponseEntity.ok().build();
             }
             if (event.startsWith("refund")) {
-                paymentService.handleYooKassaRefundWebhook(
+                Payment payment = paymentService.handleYooKassaRefundWebhook(
                         notification.object.id,
                         notification.object.paymentId
                 );
+                recordRefunded(payment.getOrderId());
                 return ResponseEntity.ok().build();
             }
             if (event.startsWith("payment")) {
@@ -206,6 +226,7 @@ public class PaymentController {
                 Order order = orderService.findById(payment.getOrderId());
                 if (result.completedNow()) {
                     notificationOrchestrator.orderPaid(order, payment);
+                    recordPaid(order);
                 }
                 return ResponseEntity.ok().build();
             }
@@ -217,6 +238,24 @@ public class PaymentController {
 
     private String safeValue(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
+    private void recordPaid(Order order) {
+        if (metrikaOutboxService != null) {
+            metrikaOutboxService.recordOrderPaid(order);
+        }
+    }
+
+    private void recordRefunded(UUID orderId) {
+        if (metrikaOutboxService != null && orderId != null) {
+            metrikaOutboxService.recordOrderRefunded(orderService.findById(orderId));
+        }
+    }
+
+    private void recordCancelled(UUID orderId) {
+        if (metrikaOutboxService != null && orderId != null) {
+            metrikaOutboxService.recordOrderCancelled(orderService.findById(orderId));
+        }
     }
 
     private String resolveConfirmationMode(String confirmationMode) {

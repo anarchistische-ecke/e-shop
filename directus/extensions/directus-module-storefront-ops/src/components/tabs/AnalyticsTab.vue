@@ -96,6 +96,40 @@
         <section class="section-block">
           <div class="section-head">
             <div>
+              <h3>Yandex Metrica</h3>
+              <p>
+                {{ analyticsState.metrika?.enabled ? 'Включена' : 'Выключена' }}
+                · {{ analyticsState.metrika?.offlineImportEnabled ? 'offline import on' : 'offline import off' }}
+              </p>
+            </div>
+          </div>
+          <div class="metrics-row">
+            <article class="metric-card">
+              <span>Counter</span>
+              <strong>{{ analyticsState.metrika?.counterConfigured ? 'OK' : 'Нет' }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Pending</span>
+              <strong>{{ analyticsState.metrika?.pending || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Sent</span>
+              <strong>{{ analyticsState.metrika?.sent || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Failed</span>
+              <strong>{{ analyticsState.metrika?.failed || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Skipped</span>
+              <strong>{{ analyticsState.metrika?.skipped || 0 }}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-head">
+            <div>
               <h3>Менеджеры</h3>
               <p>{{ analyticsState.managerRows.length }} строк</p>
             </div>

@@ -32,6 +32,20 @@ notifications:
     pochta: ${NOTIFICATIONS_TRACKING_URL_POCHTA:https://www.pochta.ru/tracking#{trackingNumber}}
     boxberry: ${NOTIFICATIONS_TRACKING_URL_BOXBERRY:https://boxberry.ru/tracking-page?id={trackingNumber}}
 
+metrika:
+  enabled: ${YANDEX_METRIKA_ENABLED:false}
+  counter-id: ${YANDEX_METRIKA_COUNTER_ID:}
+  oauth-token: ${YANDEX_METRIKA_OAUTH_TOKEN:}
+  batch-size: ${YANDEX_METRIKA_BATCH_SIZE:20}
+  max-attempts: ${YANDEX_METRIKA_MAX_ATTEMPTS:6}
+  retry-delay: ${YANDEX_METRIKA_RETRY_DELAY:10m}
+  offline-import:
+    enabled: ${YANDEX_METRIKA_OFFLINE_IMPORT_ENABLED:false}
+    url: ${YANDEX_METRIKA_OFFLINE_IMPORT_URL:}
+  dispatcher:
+    enabled: ${YANDEX_METRIKA_DISPATCHER_ENABLED:true}
+    fixed-delay-ms: ${YANDEX_METRIKA_DISPATCHER_FIXED_DELAY_MS:60000}
+
 app:
   security:
     directus-bridge-token: ${DIRECTUS_BRIDGE_TOKEN:}

@@ -32,6 +32,7 @@ import com.example.api.admincms.DirectusAdminModels.StockAlertSettingsRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.api.catalog.DirectusBridgeSecurity;
+import com.example.api.metrika.MetrikaOutboxService;
 import com.example.api.notification.NotificationOrchestrator;
 import com.example.catalog.domain.Brand;
 import com.example.catalog.domain.Product;
@@ -131,6 +132,7 @@ public class DirectusAdminService {
     private final NotificationOrchestrator notificationOrchestrator;
     private final ShipmentRepository shipmentRepository;
     private final PaymentService paymentService;
+    private MetrikaOutboxService metrikaOutboxService;
 
     public DirectusAdminService(
             OrderRepository orderRepository,
@@ -264,6 +266,11 @@ public class DirectusAdminService {
         this.paymentService = paymentService;
     }
 
+    @Autowired(required = false)
+    public void setMetrikaOutboxService(MetrikaOutboxService metrikaOutboxService) {
+        this.metrikaOutboxService = metrikaOutboxService;
+    }
+
     public OrderSearchResponse searchOrders(String status,
                                             String manager,
                                             OffsetDateTime from,
@@ -321,6 +328,7 @@ public class DirectusAdminService {
         if (notificationOrchestrator != null) {
             notificationOrchestrator.orderStatusChanged(updated, before.getStatus());
         }
+        recordStatusConversion(updated);
         return toOrderDetail(updated);
     }
 
@@ -457,6 +465,7 @@ public class DirectusAdminService {
                     .toList()
                 : List.of();
         paymentService.refundYooKassaPayment(orderId, lines);
+        recordRefunded(orderId);
 
         OrderStatusHistory event = new OrderStatusHistory();
         event.setOrderId(orderId);
@@ -467,6 +476,23 @@ public class DirectusAdminService {
         event.setNote("payment-refund");
         orderStatusHistoryRepository.save(event);
         return toOrderDetail(orderService.findById(orderId));
+    }
+
+    private void recordStatusConversion(Order order) {
+        if (metrikaOutboxService == null || order == null || !StringUtils.hasText(order.getStatus())) {
+            return;
+        }
+        if ("CANCELLED".equalsIgnoreCase(order.getStatus())) {
+            metrikaOutboxService.recordOrderCancelled(order);
+        } else if ("REFUNDED".equalsIgnoreCase(order.getStatus())) {
+            metrikaOutboxService.recordOrderRefunded(order);
+        }
+    }
+
+    private void recordRefunded(UUID orderId) {
+        if (metrikaOutboxService != null && orderId != null) {
+            metrikaOutboxService.recordOrderRefunded(orderService.findById(orderId));
+        }
     }
 
     private OrderDetail toOrderDetail(Order order) {
