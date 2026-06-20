@@ -17,6 +17,8 @@ import com.example.payment.repository.PaymentRefundRepository;
 import com.example.payment.repository.PaymentRepository;
 import com.example.payment.repository.SavedPaymentMethodRepository;
 import jakarta.transaction.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class PaymentService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(PaymentService.class);
+
     private final PaymentRepository paymentRepository;
     private final PaymentRefundRepository paymentRefundRepository;
     private final PaymentRefundItemRepository paymentRefundItemRepository;
@@ -214,6 +218,15 @@ public class PaymentService {
             throw new IllegalStateException("YooKassa integration is disabled (set yookassa.enabled=true to enable).");
         }
         return refreshYooKassaPaymentInternal(providerPaymentId);
+    }
+
+    public PaymentUpdateResult reconcileYooKassaPayment(String providerPaymentId) {
+        try {
+            return refreshYooKassaPaymentWithResult(providerPaymentId);
+        } catch (RuntimeException ex) {
+            LOGGER.warn("Could not reconcile YooKassa payment {}: {}", providerPaymentId, ex.getMessage());
+            return null;
+        }
     }
 
     private PaymentUpdateResult refreshYooKassaPaymentInternal(String providerPaymentId) {
