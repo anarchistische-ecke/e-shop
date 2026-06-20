@@ -3,6 +3,8 @@ package com.example.api.admincms;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundLineRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.catalog.DirectusBridgeSecurity;
+import com.example.api.metrika.MetrikaOutboxService;
+import com.example.api.notification.NotificationOrchestrator;
 import com.example.catalog.repository.ProductRepository;
 import com.example.catalog.repository.ProductVariantRepository;
 import com.example.catalog.service.CatalogService;
@@ -11,7 +13,10 @@ import com.example.common.domain.Money;
 import com.example.order.domain.Order;
 import com.example.order.repository.OrderRepository;
 import com.example.order.service.OrderService;
+import com.example.payment.domain.Payment;
+import com.example.payment.domain.PaymentStatus;
 import com.example.payment.service.PaymentService;
+import com.example.payment.service.PaymentSummary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,6 +71,10 @@ class DirectusAdminServiceRefundTest {
     private InventoryService inventoryService;
     @Mock
     private PaymentService paymentService;
+    @Mock
+    private NotificationOrchestrator notificationOrchestrator;
+    @Mock
+    private MetrikaOutboxService metrikaOutboxService;
 
     private DirectusAdminService service;
 
@@ -89,10 +98,11 @@ class DirectusAdminServiceRefundTest {
                 inventoryService,
                 new ObjectMapper(),
                 null,
-                null,
+                notificationOrchestrator,
                 null,
                 paymentService
         );
+        service.setMetrikaOutboxService(metrikaOutboxService);
     }
 
     @Test
@@ -136,6 +146,70 @@ class DirectusAdminServiceRefundTest {
         verify(orderStatusHistoryRepository).save(eventCaptor.capture());
         assertThat(eventCaptor.getValue().getNote()).isEqualTo("payment-refund");
         assertThat(eventCaptor.getValue().getActor()).isEqualTo("admin@example.test");
+    }
+
+    @Test
+    void getOrderReconcilesPendingYooKassaPaymentAndRunsPaidHooks() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = principal("admin");
+        Order order = new Order(customerId, "PENDING", Money.of(420000, "RUB"));
+        order.setId(orderId);
+        Order paidOrder = new Order(customerId, "PAID", Money.of(420000, "RUB"));
+        paidOrder.setId(orderId);
+        Payment completedPayment = new Payment(orderId, Money.of(420000, "RUB"), "YOOKASSA", PaymentStatus.COMPLETED);
+        completedPayment.setProviderPaymentId("yookassa-payment-1");
+        PaymentSummary pendingSummary = paymentSummary(PaymentStatus.PENDING);
+        PaymentSummary completedSummary = paymentSummary(PaymentStatus.COMPLETED);
+
+        when(roleGuard.isAdmin(principal)).thenReturn(true);
+        when(orderService.findById(orderId)).thenReturn(order, paidOrder, paidOrder);
+        when(paymentService.getPaymentSummary(orderId)).thenReturn(pendingSummary, completedSummary);
+        when(paymentService.reconcileYooKassaPayment("yookassa-payment-1"))
+                .thenReturn(new PaymentService.PaymentUpdateResult(completedPayment, true));
+        when(orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of());
+
+        var detail = service.getOrder(orderId, principal);
+
+        assertThat(detail.order().getStatus()).isEqualTo("PAID");
+        assertThat(((PaymentSummary) detail.order().getPaymentSummary()).status()).isEqualTo(PaymentStatus.COMPLETED);
+        verify(notificationOrchestrator).orderPaid(paidOrder, completedPayment);
+        verify(metrikaOutboxService).recordOrderPaid(paidOrder);
+    }
+
+    @Test
+    void getOrderFallsBackToStoredPaymentSummaryWhenYooKassaIsUnavailable() {
+        UUID orderId = UUID.randomUUID();
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = principal("admin");
+        Order order = new Order(UUID.randomUUID(), "PENDING", Money.of(420000, "RUB"));
+        order.setId(orderId);
+        PaymentSummary pendingSummary = paymentSummary(PaymentStatus.PENDING);
+
+        when(roleGuard.isAdmin(principal)).thenReturn(true);
+        when(orderService.findById(orderId)).thenReturn(order);
+        when(paymentService.getPaymentSummary(orderId)).thenReturn(pendingSummary);
+        when(paymentService.reconcileYooKassaPayment("yookassa-payment-1")).thenReturn(null);
+        when(orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of());
+
+        var detail = service.getOrder(orderId, principal);
+
+        assertThat(((PaymentSummary) detail.order().getPaymentSummary()).status()).isEqualTo(PaymentStatus.PENDING);
+        verify(notificationOrchestrator, never()).orderPaid(any(), any());
+    }
+
+    private PaymentSummary paymentSummary(PaymentStatus status) {
+        return new PaymentSummary(
+                UUID.randomUUID(),
+                "yookassa-payment-1",
+                "YOOKASSA",
+                status,
+                Money.of(420000, "RUB"),
+                null,
+                null,
+                Money.of(0, "RUB"),
+                Money.of(420000, "RUB"),
+                List.of()
+        );
     }
 
     private DirectusBridgeSecurity.DirectusBridgePrincipal principal(String role) {

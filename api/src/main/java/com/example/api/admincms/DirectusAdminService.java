@@ -48,7 +48,9 @@ import com.example.order.domain.RmaStatus;
 import com.example.order.repository.OrderRepository;
 import com.example.order.repository.RmaRequestRepository;
 import com.example.order.service.OrderService;
+import com.example.payment.domain.PaymentStatus;
 import com.example.payment.service.PaymentService;
+import com.example.payment.service.PaymentSummary;
 import com.example.shipment.repository.ShipmentRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -302,7 +304,32 @@ public class DirectusAdminService {
     public OrderDetail getOrder(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order order = orderService.findById(orderId);
         requireCanReadOrder(order, principal);
+        reconcilePendingPayment(order);
+        order = orderService.findById(orderId);
         return toOrderDetail(order);
+    }
+
+    private void reconcilePendingPayment(Order order) {
+        if (paymentService == null || order == null || order.getId() == null) {
+            return;
+        }
+        PaymentSummary summary = paymentService.getPaymentSummary(order.getId());
+        if (summary == null
+                || summary.status() != PaymentStatus.PENDING
+                || !StringUtils.hasText(summary.providerPaymentId())) {
+            return;
+        }
+        PaymentService.PaymentUpdateResult result =
+                paymentService.reconcileYooKassaPayment(summary.providerPaymentId());
+        if (result != null && result.completedNow()) {
+            Order paidOrder = orderService.findById(order.getId());
+            if (notificationOrchestrator != null) {
+                notificationOrchestrator.orderPaid(paidOrder, result.payment());
+            }
+            if (metrikaOutboxService != null) {
+                metrikaOutboxService.recordOrderPaid(paidOrder);
+            }
+        }
     }
 
     public OrderDetail updateOrderStatus(UUID orderId,
