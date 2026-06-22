@@ -132,6 +132,8 @@ class DirectusContentCacheServiceTest {
                 "cms:content:page:delivery:stale"
         );
         assertThat(result.deletedKeys()).isEqualTo(2);
+        assertThat(result.successful()).isTrue();
+        assertThat(result.error()).isNull();
         assertThat(result.selectors()).containsExactlyInAnyOrder(
                 "cms:content:page:delivery",
                 "cms:content:page:delivery:stale"
@@ -159,7 +161,7 @@ class DirectusContentCacheServiceTest {
     }
 
     @Test
-    void invalidatePage_returnsZeroDeletedKeysWhenRedisDeleteFails() {
+    void invalidatePage_reportsFailureWhenRedisDeleteFails() {
         store.put("cms:content:page:delivery", "{\"title\":\"Delivery\"}");
         doThrow(new DataAccessResourceFailureException("redis down"))
                 .when(redisTemplate).delete(anyList());
@@ -167,6 +169,8 @@ class DirectusContentCacheServiceTest {
         DirectusContentCacheService.CacheInvalidationResult result = service.invalidatePage("delivery");
 
         assertThat(result.deletedKeys()).isZero();
+        assertThat(result.successful()).isFalse();
+        assertThat(result.error()).isEqualTo("Redis delete failed");
         assertThat(result.selectors()).containsExactlyInAnyOrder(
                 "cms:content:page:delivery",
                 "cms:content:page:delivery:stale"

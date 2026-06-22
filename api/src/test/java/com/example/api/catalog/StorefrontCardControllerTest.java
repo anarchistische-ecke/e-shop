@@ -86,7 +86,7 @@ class StorefrontCardControllerTest {
                         .queryParam("productKeys", "linen-duvet")
                         .queryParam("categoryKeys", "bedroom"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "max-age=60, public, stale-while-revalidate=300"))
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.compact").value(true))
                 .andExpect(jsonPath("$.products[0].slug").value("linen-duvet"))
                 .andExpect(jsonPath("$.products[0].stock").value(7))

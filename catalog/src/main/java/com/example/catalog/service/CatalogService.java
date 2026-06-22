@@ -47,7 +47,9 @@ public class CatalogService {
     }
 
     public Product createProduct(String name, String description, String slug) {
-        Product product = new Product(name, description, slug);
+        String normalizedSlug = ProductSlugNormalizer.normalize(slug);
+        ensureProductSlugAvailable(normalizedSlug, null);
+        Product product = new Product(name, description, normalizedSlug);
         return productRepository.save(product);
     }
 
@@ -291,6 +293,13 @@ public class CatalogService {
         return product;
     }
 
+    @Transactional
+    public Optional<Product> getProductBySlugIgnoreCase(String slug) {
+        Optional<Product> product = productRepository.findBySlugIgnoreCase(slug);
+        product.ifPresent(this::hydrateProduct);
+        return product;
+    }
+
     public List<Product> getProductsBySlugs(List<String> slugs) {
         if (slugs == null || slugs.isEmpty()) {
             return List.of();
@@ -311,7 +320,12 @@ public class CatalogService {
         return productRepository.findById(id).map(p -> {
             p.setName(updates.getName());
             p.setDescription(updates.getDescription());
-            p.setSlug(updates.getSlug());
+            String requestedSlug = updates.getSlug();
+            if (!Objects.equals(requestedSlug, p.getSlug())) {
+                String normalizedSlug = ProductSlugNormalizer.normalize(requestedSlug);
+                ensureProductSlugAvailable(normalizedSlug, id);
+                p.setSlug(normalizedSlug);
+            }
             if (updates.getSpecifications() != null) {
                 p.setSpecifications(updates.getSpecifications());
             }
@@ -331,6 +345,14 @@ public class CatalogService {
             hydrateProduct(saved);
             return saved;
         }).orElseThrow(() -> new IllegalArgumentException("Product not found: " + id));
+    }
+
+    private void ensureProductSlugAvailable(String slug, UUID currentProductId) {
+        productRepository.findBySlugIgnoreCase(slug)
+                .filter(existing -> currentProductId == null || !existing.getId().equals(currentProductId))
+                .ifPresent(existing -> {
+                    throw new IllegalArgumentException("Product slug already exists: " + slug);
+                });
     }
 
     @Transactional

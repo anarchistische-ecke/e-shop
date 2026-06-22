@@ -39,3 +39,15 @@ test('admin-only order actions do not allow manager bridge roles', () => {
   assert.equal(hasAnyAllowedRole({ user: 'user-1', role: 'admin-role' }, allowed), true);
   assert.equal(hasAnyAllowedRole({ user: 'user-1', role: 'manager-role' }, allowed), false);
 });
+
+test('publication checks allow content roles but reject unrelated roles', () => {
+  const roleSets = buildRoleSets({
+    STOREFRONT_OPS_ADMIN_ROLE_IDS: 'admin-role',
+    STOREFRONT_OPS_CONTENT_ROLE_IDS: 'content-role',
+    STOREFRONT_OPS_MANAGER_ROLE_IDS: 'manager-role',
+  });
+  const allowed = resolveAdminRoleSets('/admin/content/publish-check', roleSets, 'POST');
+
+  assert.equal(hasAnyAllowedRole({ user: 'user-1', role: 'content-role' }, allowed), true);
+  assert.equal(hasAnyAllowedRole({ user: 'user-1', role: 'manager-role' }, allowed), false);
+});

@@ -201,9 +201,7 @@ public class CatalogController {
                 ))
                 .collect(Collectors.toList());
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, CacheControl.maxAge(Duration.ofSeconds(30)).cachePublic()
-                        .staleWhileRevalidate(Duration.ofMinutes(2))
-                        .getHeaderValue())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .header("X-Page", String.valueOf(source.getNumber()))
                 .header("X-Page-Size", String.valueOf(source.getSize()))
                 .header("X-Total-Count", String.valueOf(source.getTotalElements()))

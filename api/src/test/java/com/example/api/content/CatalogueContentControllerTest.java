@@ -59,7 +59,7 @@ class CatalogueContentControllerTest {
     }
 
     @Test
-    void getCollection_returnsPublicCacheHeaders() throws Exception {
+    void getCollection_disablesCachingForImmediatePublication() throws Exception {
         when(presentationService.getPublishedStorefrontCollection("spring-drop")).thenReturn(
                 new CatalogueContentModels.StorefrontCollection(
                         "spring-drop",
@@ -84,7 +84,7 @@ class CatalogueContentControllerTest {
 
         mockMvc.perform(get("/content/collections/spring-drop"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "public, max-age=60, stale-while-revalidate=300, stale-if-error=3600"))
+                .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.key").value("spring-drop"))
                 .andExpect(jsonPath("$.mode").value("hybrid"));
 

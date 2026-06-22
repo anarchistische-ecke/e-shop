@@ -13,6 +13,8 @@
         :presets="HOME_SECTION_PRESETS"
         :loading="isTabLoading('home')"
         :is-submitting="isSubmitting"
+        :dirty="homeDirty"
+        :save-label="homeSaveLabel"
         :status-label="homeStatusLabel"
         :section-label="homeSectionLabel"
         :section-type-label="homeSectionTypeLabel"
@@ -34,8 +36,8 @@
             <p class="detail-subtitle">Hero, категории, подборки и повторяемые карточки редактируются здесь без сырых ключей Directus.</p>
           </div>
           <div class="detail-header-actions">
-            <button class="button button-primary" type="button" :disabled="isSubmitting || loading.home" @click="saveHomeContent">
-              Сохранить главную
+            <button class="button button-primary" type="button" :disabled="isSubmitting || loading.home || !homeDirty" @click="saveHomeContent">
+              {{ homeSaveLabel }}
             </button>
           </div>
         </header>
@@ -739,8 +741,8 @@
           </section>
         </form>
         <div v-if="!isTabLoading('home')" class="sticky-actions detail-footer-actions">
-          <button class="button button-primary" type="submit" form="storefront-ops-home-form" :disabled="isSubmitting">
-            Сохранить главную
+          <button class="button button-primary" type="submit" form="storefront-ops-home-form" :disabled="isSubmitting || !homeDirty">
+            {{ homeSaveLabel }}
           </button>
         </div>
       </section>
