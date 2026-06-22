@@ -289,15 +289,16 @@ public class CatalogService {
     @Transactional
     public Optional<Product> getProductBySlug(String slug) {
         Optional<Product> product = productRepository.findBySlug(slug);
+        if (product.isEmpty() && slug != null && !slug.isBlank()) {
+            product = productRepository.findByNormalizedSlug(slug).stream().findFirst();
+        }
         product.ifPresent(this::hydrateProduct);
         return product;
     }
 
     @Transactional
     public Optional<Product> getProductBySlugIgnoreCase(String slug) {
-        Optional<Product> product = productRepository.findBySlugIgnoreCase(slug);
-        product.ifPresent(this::hydrateProduct);
-        return product;
+        return getProductBySlug(slug);
     }
 
     public List<Product> getProductsBySlugs(List<String> slugs) {
@@ -348,11 +349,11 @@ public class CatalogService {
     }
 
     private void ensureProductSlugAvailable(String slug, UUID currentProductId) {
-        productRepository.findBySlugIgnoreCase(slug)
-                .filter(existing -> currentProductId == null || !existing.getId().equals(currentProductId))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Product slug already exists: " + slug);
-                });
+        boolean duplicate = productRepository.findByNormalizedSlug(slug).stream()
+                .anyMatch(existing -> currentProductId == null || !existing.getId().equals(currentProductId));
+        if (duplicate) {
+            throw new IllegalArgumentException("Product slug already exists: " + slug);
+        }
     }
 
     @Transactional
@@ -474,7 +475,11 @@ public class CatalogService {
     }
 
     public Optional<Category> getBySlug(String slug) {
-        return categoryRepository.findBySlug(slug);
+        Optional<Category> category = categoryRepository.findBySlug(slug);
+        if (category.isEmpty() && slug != null && !slug.isBlank()) {
+            category = categoryRepository.findByNormalizedSlug(slug).stream().findFirst();
+        }
+        return category;
     }
 
     public Optional<Category> getByCategoryId(UUID id) {
@@ -556,7 +561,7 @@ public class CatalogService {
         if (reference == null || reference.isBlank()) {
             return Optional.empty();
         }
-        Optional<Category> bySlug = categoryRepository.findBySlug(reference);
+        Optional<Category> bySlug = getBySlug(reference);
         if (bySlug.isPresent()) {
             return bySlug;
         }
