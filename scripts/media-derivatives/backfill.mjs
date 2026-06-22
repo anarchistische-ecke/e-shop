@@ -16,6 +16,7 @@ function readEnv(name, fallback = '') {
 
 const apiBase = readEnv('API_BASE', 'http://localhost:8080').replace(/\/+$/, '');
 const apiToken = readEnv('API_TOKEN');
+const productId = readEnv('PRODUCT_ID').trim();
 const bucket = readEnv('MEDIA_DERIVATIVES_BUCKET', readEnv('YANDEX_STORAGE_BUCKET', ''));
 const endpoint = readEnv('YANDEX_STORAGE_ENDPOINT', 'https://storage.yandexcloud.net');
 const accessKeyId = readEnv('YANDEX_STORAGE_KEY');
@@ -152,11 +153,11 @@ async function processImage(image) {
     throw new Error(`Failed to download ${originalUrl}: ${response.status}`);
   }
   const input = Buffer.from(await response.arrayBuffer());
-  const metadata = await sharp(input).metadata();
-  const maxWidth = metadata.width || WIDTHS[WIDTHS.length - 1];
-  const widths = WIDTHS.filter((width) => width <= Math.max(maxWidth, WIDTHS[0]));
+  await sharp(input).metadata();
 
-  for (const width of widths) {
+  // The API advertises every configured width. Keep every key present even when
+  // withoutEnlargement leaves a small source at its original pixel dimensions.
+  for (const width of WIDTHS) {
     for (const [format, config] of Object.entries(FORMATS)) {
       const pipeline = sharp(input).rotate().resize({ width, withoutEnlargement: true });
       const body = await pipeline[format]({ quality: config.quality }).toBuffer();
@@ -190,10 +191,12 @@ function collectImages({ products, categories }) {
   return Array.from(images.values());
 }
 
-const [products, categories] = await Promise.all([
-  fetchJson('/products?includeInactive=true'),
-  fetchJson('/categories'),
-]);
+const [products, categories] = productId
+  ? [[await fetchJson(`/products/${encodeURIComponent(productId)}`)], []]
+  : await Promise.all([
+      fetchJson('/products?includeInactive=true'),
+      fetchJson('/categories'),
+    ]);
 const images = collectImages({ products, categories });
 console.log(`processing ${images.length} source images`);
 
