@@ -18,6 +18,7 @@ await assertNoStore('/');
 await assertNoStore('/catalog');
 await assertNoStore('/catalog?search=publication-smoke');
 await assertNoStore('/sitemap.xml');
+await assertStaticAssetCaching();
 
 if (productId) {
   await validateProduct(productId);
@@ -124,6 +125,18 @@ async function assertNoStore(path) {
   const response = await fetchRequired(`${storefrontBase}${path}`);
   const cacheControl = response.headers.get('cache-control') || '';
   assert(/(?:^|,)\s*no-store(?:\s*(?:,|$))/.test(cacheControl), `${path} is missing Cache-Control: no-store (${cacheControl || 'empty'})`);
+}
+
+async function assertStaticAssetCaching() {
+  const html = await fetchText(`${storefrontBase}/`);
+  const assetPath = html.match(/(?:src|href)=["']([^"']*\/assets\/[^"']+)["']/)?.[1];
+  assert(assetPath, 'Storefront HTML does not reference a built static asset');
+  const assetUrl = new URL(assetPath, `${storefrontBase}/`).toString();
+  const response = await fetchRequired(assetUrl);
+  const cacheControl = response.headers.get('cache-control') || '';
+  assert(/(?:^|,)\s*public(?:\s*(?:,|$))/.test(cacheControl), `Static asset is not public-cacheable (${cacheControl || 'empty'})`);
+  assert(/max-age=31536000/.test(cacheControl), `Static asset is missing a one-year max-age (${cacheControl || 'empty'})`);
+  assert(/immutable/.test(cacheControl), `Static asset is missing immutable caching (${cacheControl || 'empty'})`);
 }
 
 async function fetchJson(url) {

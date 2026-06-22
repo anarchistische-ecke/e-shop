@@ -202,6 +202,39 @@ verify_runtime_state() {
   echo "[ok] Runtime state matches nginx upstream includes."
 }
 
+run_storefront_consistency_check() {
+  local directus_container api_base storefront_base
+
+  if [[ -z "${CURRENT_LIVE_PROJECT:-}" ]]; then
+    echo "[skip] Storefront consistency check requires live runtime state."
+    return 0
+  fi
+  if [[ ! -f "$ROOT_DIR/scripts/storefront-content-consistency-check.mjs" ]]; then
+    echo "[fail] Storefront consistency script is missing." >&2
+    return 1
+  fi
+
+  directus_container="$(docker ps \
+    --filter "label=com.docker.compose.project=${CURRENT_LIVE_PROJECT}" \
+    --filter "label=com.docker.compose.service=directus" \
+    --format '{{.Names}}' \
+    | head -n 1)"
+  if [[ -z "$directus_container" ]]; then
+    echo "[fail] Live Directus container was not found for ${CURRENT_LIVE_PROJECT}." >&2
+    return 1
+  fi
+
+  api_base="${REACT_APP_API_BASE:-https://api.yug-postel.ru}"
+  storefront_base="${STOREFRONT_PUBLIC_URL:-${REACT_APP_SITE_URL:-https://yug-postel.ru}}"
+  docker exec -i \
+    -e "API_BASE=${api_base}" \
+    -e "STOREFRONT_BASE=${storefront_base}" \
+    -e "PRODUCT_ID=${STOREFRONT_SMOKE_PRODUCT_ID:-}" \
+    "$directus_container" \
+    node --input-type=module < "$ROOT_DIR/scripts/storefront-content-consistency-check.mjs"
+  echo "[ok] Storefront catalogue, CMS references, and cache headers are consistent."
+}
+
 if [[ -n "${CURRENT_LIVE_API_PORT:-}" && -n "${CURRENT_LIVE_DIRECTUS_PORT:-}" && -n "${CURRENT_LIVE_STOREFRONT_PORT:-}" ]]; then
   API_URL="${API_URL:-$(runtime_internal_api_url "$CURRENT_LIVE_API_PORT")}"
   DIRECTUS_URL="${DIRECTUS_URL:-$(runtime_internal_directus_url "$CURRENT_LIVE_DIRECTUS_PORT")}"
@@ -267,6 +300,8 @@ if [[ "$SKIP_PUBLIC" != "true" ]]; then
   else
     echo "[skip] Public CMS facade health URL is not configured."
   fi
+
+  run_storefront_consistency_check
 fi
 
 echo "Stack health checks passed."
