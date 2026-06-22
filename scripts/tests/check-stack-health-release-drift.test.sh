@@ -18,6 +18,7 @@ mkdir -p \
   "$FIXTURE_DIR/state"
 
 cp "$ROOT_DIR/scripts/check-stack-health.sh" "$FIXTURE_DIR/scripts/check-stack-health.sh"
+cp "$ROOT_DIR/scripts/storefront-content-consistency-check.mjs" "$FIXTURE_DIR/scripts/storefront-content-consistency-check.mjs"
 cp "$ROOT_DIR/scripts/lib/env-file.sh" "$FIXTURE_DIR/scripts/lib/env-file.sh"
 cp "$ROOT_DIR/scripts/lib/runtime-release.sh" "$FIXTURE_DIR/scripts/lib/runtime-release.sh"
 
