@@ -54,6 +54,8 @@ export const STOREFRONT_OPS_TAB_PROP_KEYS = [
   "variantDirty",
   "categoryDirty",
   "brandDirty",
+  "homeDirty",
+  "homeSaveLabel",
   "selectedOrder",
   "selectedOrderRmaRequests",
   "canClaimSelectedOrder",

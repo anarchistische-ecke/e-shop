@@ -23,6 +23,12 @@ public class WebConfig implements WebMvcConfigurer {
             "Content-Type",
             "Idempotency-Key"
     };
+    private static final String[] EXPOSED_RESPONSE_HEADERS = {
+            "X-Page",
+            "X-Page-Size",
+            "X-Total-Count",
+            "X-Total-Pages"
+    };
 
     @Value("${cors.allowed-origins:*}")
     private String allowedOrigins;
@@ -38,7 +44,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(splitAndTrim(allowedOrigins))
                 .allowedMethods(splitAndTrim(allowedMethods))
-                .allowedHeaders(resolveAllowedHeaders());
+                .allowedHeaders(resolveAllowedHeaders())
+                .exposedHeaders(EXPOSED_RESPONSE_HEADERS);
     }
 
     @Bean
@@ -47,6 +54,7 @@ public class WebConfig implements WebMvcConfigurer {
         configuration.setAllowedOrigins(Arrays.asList(splitAndTrim(allowedOrigins)));
         configuration.setAllowedMethods(Arrays.asList(splitAndTrim(allowedMethods)));
         configuration.setAllowedHeaders(Arrays.asList(resolveAllowedHeaders()));
+        configuration.setExposedHeaders(Arrays.asList(EXPOSED_RESPONSE_HEADERS));
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

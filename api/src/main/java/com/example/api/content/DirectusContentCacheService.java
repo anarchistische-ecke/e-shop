@@ -105,8 +105,16 @@ public class DirectusContentCacheService {
             String scope,
             String keyPrefix,
             List<String> selectors,
-            long deletedKeys
+            long deletedKeys,
+            boolean successful,
+            String error
     ) {
+    }
+
+    private record DeleteOutcome(long deletedKeys, boolean successful, String error) {
+    }
+
+    private record ScanOutcome(Set<String> keys, boolean successful, String error) {
     }
 
     private String read(String cacheKey, String redisKey) {
@@ -137,23 +145,44 @@ public class DirectusContentCacheService {
                 .distinct()
                 .toList();
 
-        long deletedKeys = safeDelete(selectors);
-        observabilityService.recordCacheInvalidation(scope, deletedKeys);
-        return new CacheInvalidationResult(scope, keyPrefix(), selectors, deletedKeys);
+        DeleteOutcome outcome = safeDelete(selectors);
+        observabilityService.recordCacheInvalidation(scope, outcome.deletedKeys());
+        return new CacheInvalidationResult(
+                scope,
+                keyPrefix(),
+                selectors,
+                outcome.deletedKeys(),
+                outcome.successful(),
+                outcome.error()
+        );
     }
 
     private CacheInvalidationResult invalidateByPatterns(String scope, List<String> rawPatterns) {
         Set<String> keysToDelete = new LinkedHashSet<>();
+        String scanError = null;
         for (String rawPattern : rawPatterns) {
-            keysToDelete.addAll(scanKeys(rawPattern));
+            ScanOutcome scanOutcome = scanKeys(rawPattern);
+            keysToDelete.addAll(scanOutcome.keys());
+            if (!scanOutcome.successful()) {
+                scanError = scanOutcome.error();
+            }
         }
 
-        long deletedKeys = safeDelete(keysToDelete.stream().toList());
-        observabilityService.recordCacheInvalidation(scope, deletedKeys);
-        return new CacheInvalidationResult(scope, keyPrefix(), rawPatterns, deletedKeys);
+        DeleteOutcome deleteOutcome = safeDelete(keysToDelete.stream().toList());
+        boolean successful = scanError == null && deleteOutcome.successful();
+        String error = scanError != null ? scanError : deleteOutcome.error();
+        observabilityService.recordCacheInvalidation(scope, deleteOutcome.deletedKeys());
+        return new CacheInvalidationResult(
+                scope,
+                keyPrefix(),
+                rawPatterns,
+                deleteOutcome.deletedKeys(),
+                successful,
+                error
+        );
     }
 
-    private Set<String> scanKeys(String rawPattern) {
+    private ScanOutcome scanKeys(String rawPattern) {
         ScanOptions options = ScanOptions.scanOptions()
                 .match(namespaced(rawPattern))
                 .count(100)
@@ -169,23 +198,24 @@ public class DirectusContentCacheService {
                 }
                 return null;
             });
+            return new ScanOutcome(keys, true, null);
         } catch (DataAccessException ex) {
             log.warn("Failed to scan CMS cache keys for pattern {}", rawPattern, ex);
+            return new ScanOutcome(keys, false, "Redis scan failed");
         }
-        return keys;
     }
 
-    private long safeDelete(List<String> keys) {
+    private DeleteOutcome safeDelete(List<String> keys) {
         if (keys == null || keys.isEmpty()) {
-            return 0;
+            return new DeleteOutcome(0, true, null);
         }
 
         try {
             Long deleted = redisTemplate.delete(keys);
-            return deleted != null ? deleted : 0;
+            return new DeleteOutcome(deleted != null ? deleted : 0, true, null);
         } catch (DataAccessException ex) {
             log.warn("Failed to delete CMS cache keys {}", keys, ex);
-            return 0;
+            return new DeleteOutcome(0, false, "Redis delete failed");
         }
     }
 

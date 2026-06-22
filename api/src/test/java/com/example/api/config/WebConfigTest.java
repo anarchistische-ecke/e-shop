@@ -39,5 +39,11 @@ class WebConfigTest {
 
         assertThat(cors).isNotNull();
         assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type", "Idempotency-Key");
+        assertThat(cors.getExposedHeaders()).containsExactly(
+                "X-Page",
+                "X-Page-Size",
+                "X-Total-Count",
+                "X-Total-Pages"
+        );
     }
 }

@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Duration;
-
 @RestController
 @RequestMapping("/content")
 public class CatalogueContentController {
@@ -19,8 +17,6 @@ public class CatalogueContentController {
     private final CataloguePresentationService presentationService;
     private final CatalogueResponseFactory responseFactory;
     private final CatalogService catalogService;
-    private final DirectusContentProperties properties;
-
     public CatalogueContentController(
             CataloguePresentationService presentationService,
             CatalogueResponseFactory responseFactory,
@@ -30,7 +26,6 @@ public class CatalogueContentController {
         this.presentationService = presentationService;
         this.responseFactory = responseFactory;
         this.catalogService = catalogService;
-        this.properties = properties;
     }
 
     @GetMapping("/collections/{key}")
@@ -68,28 +63,6 @@ public class CatalogueContentController {
     }
 
     private String buildPublicCacheControl() {
-        long maxAgeSeconds = toCacheSeconds(properties.getResponseCacheMaxAge());
-        StringBuilder value = new StringBuilder("public, max-age=").append(maxAgeSeconds);
-
-        appendDirective(value, "stale-while-revalidate", properties.getResponseCacheStaleWhileRevalidate());
-        appendDirective(value, "stale-if-error", properties.getResponseCacheStaleIfError());
-        return value.toString();
-    }
-
-    private void appendDirective(StringBuilder value, String directive, Duration duration) {
-        long seconds = toCacheSeconds(duration);
-        if (seconds <= 0) {
-            return;
-        }
-
-        value.append(", ").append(directive).append("=").append(seconds);
-    }
-
-    private long toCacheSeconds(Duration duration) {
-        if (duration == null || duration.isNegative()) {
-            return 0;
-        }
-
-        return duration.getSeconds();
+        return "no-store";
     }
 }

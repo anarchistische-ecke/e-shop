@@ -287,7 +287,7 @@ for (const viewport of VIEWPORTS) {
       await openStorefrontOps(page, 'tab=home');
       await expect(page.locator('.detail-header h2', { hasText: 'Контент главной страницы' })).toBeVisible();
       await expectScrollContainer(page, scrollOwnerSelector(viewport, '.detail-card > .editor-form'));
-      await expect(page.locator('.detail-footer-actions button', { hasText: 'Сохранить главную' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Сохранить и опубликовать' }).first()).toBeDisabled();
       await expectNoHorizontalOverflow(page);
       await expectNoActionOverlap(page);
     });
@@ -312,6 +312,49 @@ for (const viewport of VIEWPORTS) {
     });
   });
 }
+
+test.describe('Storefront Ops homepage publication workflow', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test.beforeEach(async ({ page }) => {
+    await login(page);
+    await page.evaluate(() => localStorage.removeItem('storefront-ops.workspace-state')).catch(() => null);
+  });
+
+  test('persists a published edit, reads it back, invalidates caches, and verifies publication', async ({ page }) => {
+    const mock = await installStorefrontOpsMocks(page);
+    await openStorefrontOps(page, 'tab=home');
+
+    const title = page.getByLabel('Заголовок страницы');
+    await expect(title).toHaveValue(homePage.title);
+    await title.fill('Обновлённая главная для проверки публикации');
+    await expect(page.locator('.pane-header', { hasText: 'есть несохранённые изменения' })).toBeVisible();
+
+    const saveButton = page.locator('.detail-header-actions').getByRole('button', { name: 'Сохранить и опубликовать' });
+    await expect(saveButton).toBeEnabled();
+    await saveButton.click();
+
+    await expect(page.getByText('Главная сохранена, опубликована и проверена на витрине.')).toBeVisible();
+    await expect(title).toHaveValue('Обновлённая главная для проверки публикации');
+    await expect(saveButton).toBeDisabled();
+
+    expect(mock.requests.some((request) => request.method === 'PATCH' && request.path === '/items/page/page-home')).toBe(true);
+    expect(mock.requests.filter((request) => request.path === '/admin/content/cache/invalidate')).toHaveLength(2);
+    expect(mock.requests.some((request) => request.path === '/admin/content/publish-check')).toBe(true);
+  });
+
+  test('does not report publication success when cache invalidation fails', async ({ page }) => {
+    const mock = await installStorefrontOpsMocks(page, { invalidationSuccessful: false });
+    await openStorefrontOps(page, 'tab=home');
+
+    await page.getByLabel('Заголовок страницы').fill('Изменение с ошибкой Redis');
+    await page.locator('.detail-header-actions').getByRole('button', { name: 'Сохранить и опубликовать' }).click();
+
+    await expect(page.locator('.status-banner-error')).toContainText('Redis недоступен');
+    await expect(page.getByText('Главная сохранена, опубликована и проверена на витрине.')).toHaveCount(0);
+    expect(mock.requests.some((request) => request.path === '/admin/content/publish-check')).toBe(false);
+  });
+});
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -504,10 +547,32 @@ async function expectNoActionOverlap(page) {
   expect(overlaps, JSON.stringify(overlaps)).toEqual([]);
 }
 
-async function installStorefrontOpsMocks(page) {
+async function installStorefrontOpsMocks(page, { invalidationSuccessful = true } = {}) {
+  const state = {
+    page: structuredClone(homePage),
+    sections: structuredClone(homeSections),
+    items: structuredClone(homeItems),
+    siteSettings: {
+      announcement_banner: {
+        id: 'banner-main',
+        status: 'published',
+        internal_name: 'Баннер в шапке',
+        short_text: 'Новые условия доставки опубликованы',
+      },
+    },
+    collections: [],
+    collectionItems: [],
+  };
+  const requests = [];
+
   await page.route('**/storefront-ops-bridge/**', async (route) => {
     const url = new URL(route.request().url());
     const bridgePath = url.pathname.split('/storefront-ops-bridge')[1] || '';
+    requests.push({
+      method: route.request().method(),
+      path: bridgePath,
+      data: route.request().postDataJSON?.() || null,
+    });
 
     if (bridgePath === '/access-profile') {
       return json(route, {
@@ -562,6 +627,20 @@ async function installStorefrontOpsMocks(page) {
     if (bridgePath === '/admin/promotions/active') {
       return json(route, []);
     }
+    if (bridgePath === '/admin/content/cache/invalidate') {
+      return json(route, invalidationSuccessful
+        ? { successful: true, deletedKeys: 1 }
+        : { successful: false, deletedKeys: 0, error: 'Redis недоступен' });
+    }
+    if (bridgePath === '/admin/content/publish-check') {
+      return json(route, {
+        successful: true,
+        published: true,
+        issues: [],
+        sectionCount: state.sections.length,
+        referenceCount: state.items.length,
+      });
+    }
     if (bridgePath.startsWith('/admin/')) {
       return json(route, { items: [] });
     }
@@ -571,32 +650,70 @@ async function installStorefrontOpsMocks(page) {
   await page.route('**/items/**', async (route) => {
     const url = new URL(route.request().url());
     const pathname = url.pathname;
+    const method = route.request().method();
+    const data = route.request().postDataJSON?.() || {};
+    requests.push({ method, path: pathname, data });
+
+    if (method === 'PATCH' && pathname.endsWith(`/items/page/${state.page.id}`)) {
+      Object.assign(state.page, data);
+      return json(route, { data: state.page });
+    }
+    if (method === 'PATCH' && pathname.endsWith('/items/site_settings')) {
+      Object.assign(state.siteSettings, data);
+      return json(route, { data: state.siteSettings });
+    }
+    if (method === 'PATCH' && pathname.includes('/items/banner/')) {
+      Object.assign(state.siteSettings.announcement_banner, data);
+      return json(route, { data: state.siteSettings.announcement_banner });
+    }
+    if (method === 'POST' && pathname.endsWith('/items/banner')) {
+      state.siteSettings.announcement_banner = { id: 'banner-created', ...data };
+      return json(route, { data: state.siteSettings.announcement_banner });
+    }
+    if (method === 'PATCH' && pathname.includes('/items/page_sections/')) {
+      const id = pathname.split('/').pop();
+      const record = state.sections.find((section) => section.id === id);
+      Object.assign(record, data);
+      return json(route, { data: record });
+    }
+    if (method === 'POST' && pathname.endsWith('/items/page_sections')) {
+      const record = { id: `section-${state.sections.length + 1}`, ...data };
+      state.sections.push(record);
+      return json(route, { data: record });
+    }
+    if (method === 'PATCH' && pathname.includes('/items/page_section_items/')) {
+      const id = pathname.split('/').pop();
+      const record = state.items.find((item) => item.id === id);
+      Object.assign(record, data);
+      return json(route, { data: record });
+    }
+    if (method === 'POST' && pathname.endsWith('/items/page_section_items')) {
+      const record = { id: `item-${state.items.length + 1}`, ...data };
+      state.items.push(record);
+      return json(route, { data: record });
+    }
     if (pathname.endsWith('/items/page')) {
-      return json(route, { data: [homePage] });
+      return json(route, { data: [state.page] });
     }
     if (pathname.endsWith('/items/page_sections')) {
-      return json(route, { data: homeSections });
+      return json(route, { data: state.sections });
     }
     if (pathname.endsWith('/items/page_section_items')) {
-      return json(route, { data: homeItems });
+      return json(route, { data: state.items });
     }
     if (pathname.endsWith('/items/site_settings')) {
-      return json(route, {
-        data: {
-          announcement_banner: {
-            id: 'banner-main',
-            status: 'published',
-            internal_name: 'Баннер в шапке',
-            short_text: 'Новые условия доставки опубликованы',
-          },
-        },
-      });
+      return json(route, { data: state.siteSettings });
     }
-    if (pathname.endsWith('/items/storefront_collection') || pathname.endsWith('/items/storefront_collection_item')) {
-      return json(route, { data: [] });
+    if (pathname.endsWith('/items/storefront_collection')) {
+      return json(route, { data: state.collections });
+    }
+    if (pathname.endsWith('/items/storefront_collection_item')) {
+      return json(route, { data: state.collectionItems });
     }
     return route.fallback();
   });
+
+  return { state, requests };
 }
 
 async function json(route, payload) {

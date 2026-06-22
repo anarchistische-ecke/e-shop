@@ -24,22 +24,30 @@ media/products/<product-id>/<image-id>/w640.webp
 
 - `img.yug-postel.ru/media/*`: cache by full path, ignore cookies, `public, max-age=31536000, immutable`.
 - `yug-postel.ru/assets/*`: cache by full path, ignore cookies, `public, max-age=31536000, immutable`.
-- SSR HTML: preserve origin `public, max-age=0, s-maxage=60, stale-while-revalidate=300`.
-- `/content/*`: preserve backend `public, max-age=60, stale-while-revalidate=300, stale-if-error=3600`.
+- Dynamic homepage, catalogue, category, search, product and sitemap responses: preserve origin `no-store`.
+- Published `/content/*` responses: preserve backend `no-store` so a verified CMS publication is immediately visible.
+- Query strings must participate in the CDN cache key. Do not enable `ignore query string`.
 
 Do not apply a blanket CDN `max-age=600` rule to all storefront responses; it weakens immutable asset caching and hides HTML/content TTL intent.
 
 ## HTML And Content Purge
 
-`scripts/deploy-storefront-image.sh` runs an optional post-verify CDN purge hook. Configure it in the deploy environment:
+Apply the storefront CDN policy and purge dynamic paths with:
 
 ```bash
-STOREFRONT_CDN_PURGE_ORIGIN=https://yug-postel.ru
-STOREFRONT_CDN_PURGE_PATHS="/,/content/*"
-STOREFRONT_CDN_PURGE_COMMAND='<provider-specific purge command>'
+STOREFRONT_CDN_RESOURCE_ID=<resource-id> \
+YC_BIN="$HOME/yandex-cloud/bin/yc" \
+./scripts/configure-storefront-cdn-cache.sh
 ```
 
-The command receives `STOREFRONT_CDN_PURGE_ORIGIN` and `STOREFRONT_CDN_PURGE_PATHS` in its environment. Keep derivative image URLs immutable and content-addressed so image derivatives do not need purging.
+This preserves origin cache headers, removes the browser TTL override, restores query-string-aware cache keys, and purges the known dynamic routes. Keep derivative image URLs immutable and content-addressed so image derivatives do not need purging.
+
+After deployment, run the consistency smoke check:
+
+```bash
+PRODUCT_ID=363d1e3a-e0c8-4996-ad7c-d966849ec986 \
+node scripts/storefront-content-consistency-check.mjs
+```
 
 ## Backfill
 

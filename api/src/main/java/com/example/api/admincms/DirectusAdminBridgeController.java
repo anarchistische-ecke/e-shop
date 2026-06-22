@@ -27,6 +27,7 @@ import com.example.api.admincms.DirectusAdminModels.TaxConfigurationRequest;
 import com.example.api.admincms.DirectusAdminModels.TaxConfigurationView;
 import com.example.api.catalog.DirectusBridgeSecurity;
 import com.example.api.content.DirectusContentCacheService;
+import com.example.api.content.ContentPublicationVerifier;
 import com.example.api.metrika.MetrikaOutboxRepository;
 import com.example.api.metrika.MetrikaOutboxStatus;
 import com.example.api.metrika.MetrikaProperties;
@@ -68,6 +69,7 @@ public class DirectusAdminBridgeController {
     private final AdminActivityService adminActivityService;
     private final ObjectMapper objectMapper;
     private DirectusContentCacheService contentCacheService;
+    private ContentPublicationVerifier contentPublicationVerifier;
     private MetrikaOutboxRepository metrikaOutboxRepository;
     private MetrikaProperties metrikaProperties;
 
@@ -88,6 +90,11 @@ public class DirectusAdminBridgeController {
     @Autowired
     public void setContentCacheService(DirectusContentCacheService contentCacheService) {
         this.contentCacheService = contentCacheService;
+    }
+
+    @Autowired
+    public void setContentPublicationVerifier(ContentPublicationVerifier contentPublicationVerifier) {
+        this.contentPublicationVerifier = contentPublicationVerifier;
     }
 
     @Autowired(required = false)
@@ -333,6 +340,28 @@ public class DirectusAdminBridgeController {
         audit(principal, "admin.content.cache.invalidate", Map.of(
                 "scope", response.scope(),
                 "deletedKeys", response.deletedKeys()
+        ));
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/content/publish-check")
+    public ResponseEntity<ContentPublicationVerifier.PublicationCheckResult> checkPublishedContent(
+            @RequestBody ContentPublicationCheckRequest requestBody,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireContent(principal);
+        if (contentPublicationVerifier == null) {
+            throw new IllegalStateException("Content publication verifier is not configured.");
+        }
+        ContentPublicationVerifier.PublicationCheckResult response = contentPublicationVerifier.verifyPage(
+                requestBody != null ? requestBody.slug() : null,
+                requestBody != null ? requestBody.expectedReferences() : List.of()
+        );
+        audit(principal, "admin.content.publish.check", Map.of(
+                "slug", requestBody != null ? String.valueOf(requestBody.slug()) : "",
+                "successful", response.successful(),
+                "issues", response.issues().size()
         ));
         return ResponseEntity.ok(response);
     }
@@ -619,5 +648,11 @@ public class DirectusAdminBridgeController {
     }
 
     public record ContentCacheInvalidationRequest(String scope, String placement, String slug, String key) {
+    }
+
+    public record ContentPublicationCheckRequest(
+            String slug,
+            List<ContentPublicationVerifier.ExpectedReference> expectedReferences
+    ) {
     }
 }

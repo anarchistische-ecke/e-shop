@@ -180,6 +180,7 @@ export function resolveAdminRoleSets(path, roleSets, method = 'GET') {
   }
   if (
     path.startsWith('/admin/content/cache') ||
+    path.startsWith('/admin/content/publish-check') ||
     path.startsWith('/admin/imports') ||
     path.startsWith('/admin/promotions') ||
     path.startsWith('/admin/promo-codes') ||

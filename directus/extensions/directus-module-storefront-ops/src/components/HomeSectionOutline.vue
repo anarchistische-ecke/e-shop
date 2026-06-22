@@ -2,14 +2,14 @@
   <div class="pane-header">
     <div>
       <h2>Главная</h2>
-      <p>{{ sections.length }} секций</p>
+      <p>{{ sections.length }} секций · {{ dirty ? 'есть несохранённые изменения' : 'всё сохранено' }}</p>
     </div>
     <div class="pane-header-actions">
       <button class="button button-secondary" type="button" :disabled="!canPreview" @click="$emit('preview')">
         Предпросмотр
       </button>
-      <button class="button button-primary" type="button" :disabled="isSubmitting || loading" @click="$emit('save')">
-        Сохранить
+      <button class="button button-primary" type="button" :disabled="isSubmitting || loading || !dirty" @click="$emit('save')">
+        {{ saveLabel }}
       </button>
     </div>
   </div>
@@ -96,6 +96,14 @@ const props = defineProps({
   isSubmitting: {
     type: Boolean,
     default: false,
+  },
+  dirty: {
+    type: Boolean,
+    default: false,
+  },
+  saveLabel: {
+    type: String,
+    default: 'Сохранить',
   },
   canPreview: {
     type: Boolean,

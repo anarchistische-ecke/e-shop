@@ -6,7 +6,6 @@ import com.example.catalog.domain.ProductImage;
 import com.example.catalog.domain.ProductVariant;
 import com.example.catalog.service.CatalogService;
 import com.example.common.domain.Money;
-import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.StringUtils;
@@ -15,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -55,9 +53,7 @@ public class StorefrontCardController {
         List<Category> categories = resolveCategories(parseKeys(categoryKeys), clampLimit(categoryLimit));
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, CacheControl.maxAge(Duration.ofMinutes(1)).cachePublic()
-                        .staleWhileRevalidate(Duration.ofMinutes(5))
-                        .getHeaderValue())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(new StorefrontCardsResponse(
                         products.stream().map(this::toProductCard).toList(),
                         categories.stream().map(this::toCategoryCard).toList(),

@@ -215,6 +215,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     },
     sections: [],
   });
+  const homeSnapshot = ref('');
+  const homeCollectionSnapshot = ref('');
 
   const productState = reactive({
     loaded: false,
@@ -578,6 +580,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   const filteredHomeCategoryOptions = computed(() => {
     const query = homeState.categoryQuery.trim().toLowerCase();
     return (homeState.categoryOptions || [])
+      .filter((category) => category.isActive !== false)
       .filter((category) => !homeSelectedCategoryKeys.value.has(normalizeHomeKey(category.slug)))
       .filter((category) => {
         if (!query) {
@@ -594,7 +597,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         .filter((item) => normalizeHomeReferenceKind(item.referenceKind) === 'storefront_collection' && item.referenceKey)
         .map((item) => normalizeHomeKey(item.referenceKey))
     );
-    return (homeState.collectionOptions || []).filter((collection) => !selectedKeys.has(normalizeHomeKey(collection.key)));
+    return (homeState.collectionOptions || [])
+      .filter((collection) => homeForm.page.status !== 'published' || collection.status === 'published')
+      .filter((collection) => !selectedKeys.has(normalizeHomeKey(collection.key)));
   });
   const filteredCollectionProductOptions = computed(() => {
     const selectedKeys = new Set(
@@ -604,6 +609,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     );
     const query = homeState.collectionProductQuery.trim().toLowerCase();
     return (homeState.productOptions || [])
+      .filter((product) => product.isActive !== false)
       .filter((product) => !selectedKeys.has(normalizeHomeKey(product.slug)))
       .filter((product) => {
         if (!query) return true;
@@ -620,6 +626,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     );
     const query = homeState.collectionCategoryQuery.trim().toLowerCase();
     return (homeState.categoryOptions || [])
+      .filter((category) => category.isActive !== false)
       .filter((category) => !selectedKeys.has(normalizeHomeKey(category.slug)))
       .filter((category) => {
         if (!query) return true;
@@ -677,7 +684,17 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   const variantDirty = computed(() => variantSnapshot.value !== serializeVariantForm());
   const categoryDirty = computed(() => categorySnapshot.value !== serializeCategoryForm());
   const brandDirty = computed(() => brandSnapshot.value !== serializeBrandForm());
+  const homeDirty = computed(() => (
+    homeSnapshot.value !== serializeHomeForm() ||
+    homeCollectionSnapshot.value !== serializeHomeCollectionDraft()
+  ));
+  const homeSaveLabel = computed(() => (
+    homeForm.page.status === 'published' ? 'Сохранить и опубликовать' : 'Сохранить черновик'
+  ));
   const hasUnsavedChanges = computed(() => {
+    if (activeTab.value === 'home') {
+      return homeDirty.value;
+    }
     if (activeTab.value === 'products') {
       return productDirty.value || variantDirty.value;
     }
@@ -777,6 +794,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     variantDirty: variantDirty.value,
     categoryDirty: categoryDirty.value,
     brandDirty: brandDirty.value,
+    homeDirty: homeDirty.value,
+    homeSaveLabel: homeSaveLabel.value,
     selectedOrder: selectedOrder.value,
     selectedOrderRmaRequests: selectedOrderRmaRequests.value,
     canClaimSelectedOrder: canClaimSelectedOrder.value,
@@ -1361,6 +1380,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       homeState.sections = sections;
       homeState.loaded = true;
       resetHomeForm(page, sections, itemsBySection, siteSettings);
+      homeSnapshot.value = serializeHomeForm();
+      homeCollectionSnapshot.value = serializeHomeCollectionDraft();
       navigationCounts.home = homeForm.sections.length;
     } catch (error) {
       setError(error);
@@ -1447,6 +1468,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     const selectedKeys = homeSelectedProductKeys(section);
     const query = String(section?.productQuery || '').trim().toLowerCase();
     return (homeState.productOptions || [])
+      .filter((product) => product.isActive !== false)
       .filter((product) => !selectedKeys.has(normalizeHomeKey(product.slug)))
       .filter((product) => {
         if (!query) {
@@ -1473,6 +1495,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     const currentKey = normalizeHomeKey(section?.featuredProductKey);
     const query = String(section?.featuredProductQuery || '').trim().toLowerCase();
     return (homeState.productOptions || [])
+      .filter((product) => product.isActive !== false)
       .filter((product) => normalizeHomeKey(product.slug) !== currentKey)
       .filter((product) => {
         if (!query) {
@@ -1641,13 +1664,13 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     duplicate.id = '';
     duplicate.migrationKey = `home:${section.sectionType || 'section'}:${Date.now()}`;
     duplicate.internalName = `${homeSectionLabel(section)} — копия`;
-    duplicate.status = section.status === 'published' ? 'draft' : section.status;
+    duplicate.status = section.status || homeForm.page.status || 'draft';
     duplicate.items = (duplicate.items || []).map((item, index) => ({
       ...item,
       clientId: nextHomeClientId('item'),
       id: '',
       migrationKey: `${duplicate.migrationKey}:item:${index + 1}`,
-      status: item.status === 'published' ? 'draft' : item.status,
+      status: item.status || duplicate.status,
     }));
     homeForm.sections.splice(homeState.selectedSectionIndex + 1, 0, duplicate);
     homeState.selectedSectionIndex += 1;
@@ -1821,7 +1844,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       ...createHomeCollectionForm({
         key: `home-${Date.now()}`,
         title: 'Новая подборка',
-        status: 'draft',
+        status: homeForm.page.status || 'draft',
         mode: 'hybrid',
         limit: 12,
         sort_mode: 'default',
@@ -1829,6 +1852,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       rules: [],
       originalRuleIds: [],
     };
+    homeCollectionSnapshot.value = '';
     setInfo('Создан черновик подборки. Заполните поля и сохраните подборку.');
   }
 
@@ -1844,6 +1868,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       rules,
       originalRuleIds: rules.map((rule) => rule.id).filter(Boolean),
     };
+    homeCollectionSnapshot.value = serializeHomeCollectionDraft();
     setInfo(`Открыта подборка «${collection.title || collection.key}».`);
   }
 
@@ -1852,7 +1877,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       setInfo('Черновик подборки уже закрыт.');
       return;
     }
+    if (homeCollectionSnapshot.value !== serializeHomeCollectionDraft() && !window.confirm('Есть несохранённые изменения подборки. Закрыть без сохранения?')) {
+      setInfo('Редактирование подборки продолжается.');
+      return;
+    }
     homeState.collectionDraft = null;
+    homeCollectionSnapshot.value = '';
     homeState.collectionProductToAdd = '';
     homeState.collectionCategoryToAdd = '';
     setInfo('Редактирование подборки закрыто.');
@@ -2019,10 +2049,11 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         });
       }
 
-      await bridgeRequest('/admin/content/cache/invalidate', {
+      const collectionInvalidation = await bridgeRequest('/admin/content/cache/invalidate', {
         method: 'POST',
         data: { scope: 'collection', key: collection.key },
       });
+      requireSuccessfulInvalidation(collectionInvalidation, `подборка ${collection.key}`);
       await loadHomeCollections();
       editHomeCollection(collection.key);
       setSuccess('Подборка сохранена.');
@@ -2108,7 +2139,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     return {
       id: section.featuredProductItemId || '',
       migrationKey: section.featuredProductMigrationKey || `home:hero:featured-product:${section.id || section.clientId}`,
-      status: section.status || section.featuredProductStatus || homeForm.page.status || 'draft',
+      status: section.featuredProductStatus || section.status || homeForm.page.status || 'draft',
       title: '',
       description: '',
       label: 'Выбор недели',
@@ -2131,6 +2162,73 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       internal_name: normalizeNullableText(homeForm.announcementBanner.internalName) || 'Баннер в шапке',
       short_text: normalizeNullableText(homeForm.announcementBanner.shortText),
     };
+  }
+
+  function collectPublishedHomeReferences() {
+    if (homeForm.page.status !== 'published') return [];
+    const references = new Map();
+    for (const section of homeForm.sections || []) {
+      if (section.status !== 'published') continue;
+      for (const item of homeItemsForSave(section)) {
+        if ((item.status || section.status) !== 'published') continue;
+        const kind = normalizeHomeReferenceKind(item.referenceKind);
+        const normalizedKind = kind === 'product'
+          ? 'product_slug'
+          : kind === 'category'
+          ? 'category_slug'
+          : ['collection', 'cms_collection', 'collection_key'].includes(kind)
+          ? 'storefront_collection'
+          : kind;
+        if (!['product_slug', 'product_id', 'category_slug', 'category_id', 'storefront_collection'].includes(normalizedKind)) {
+          continue;
+        }
+        const key = String(item.referenceKey || '').trim();
+        references.set(`${normalizedKind}:${normalizeHomeKey(key)}`, { kind: normalizedKind, key });
+      }
+    }
+    return Array.from(references.values());
+  }
+
+  function validatePublishedHomeReferences() {
+    if (homeCollectionSnapshot.value !== serializeHomeCollectionDraft()) {
+      return 'Сначала сохраните или закройте изменения подборки.';
+    }
+    if (homeForm.page.status !== 'published') return null;
+
+    for (const reference of collectPublishedHomeReferences()) {
+      if (!reference.key) {
+        return 'В опубликованной секции есть карточка без выбранной ссылки.';
+      }
+      if (reference.kind === 'product_slug') {
+        const product = homeProductBySlug(reference.key);
+        if (!product) return `Товар «${reference.key}» не найден в backend-каталоге.`;
+        if (product.isActive === false) return `Товар «${product.name || reference.key}» скрыт с витрины.`;
+      }
+      if (reference.kind === 'category_slug') {
+        const category = (homeState.categoryOptions || []).find(
+          (candidate) => normalizeHomeKey(candidate.slug) === normalizeHomeKey(reference.key)
+        );
+        if (!category) return `Категория «${reference.key}» не найдена в backend-каталоге.`;
+        if (category.isActive === false) return `Категория «${category.name || reference.key}» скрыта с витрины.`;
+      }
+      if (reference.kind === 'storefront_collection') {
+        const collection = homeCollectionByKey(reference.key);
+        if (!collection) return `Подборка «${reference.key}» не найдена в Directus.`;
+        if (collection.status !== 'published') return `Подборка «${collection.title || reference.key}» не опубликована.`;
+      }
+    }
+    return null;
+  }
+
+  function requireSuccessfulInvalidation(result, label) {
+    if (result?.successful === true) return;
+    throw new Error(result?.error || `Не удалось очистить кеш: ${label}.`);
+  }
+
+  function publicationIssueMessage(result) {
+    const issue = Array.isArray(result?.issues) ? result.issues[0] : null;
+    if (!issue) return 'Опубликованная версия главной не совпала с сохранённой.';
+    return `Проверка публикации не пройдена: ${issue.kind} «${issue.key}» (${issue.reason}).`;
   }
 
   async function saveHomeAnnouncementBanner() {
@@ -2170,6 +2268,11 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   async function saveHomeContent() {
     if (!homeForm.page.id) {
       pageError.value = 'Страница home не загружена.';
+      return;
+    }
+    const validationError = validatePublishedHomeReferences();
+    if (validationError) {
+      pageError.value = validationError;
       return;
     }
     isSubmitting.value = true;
@@ -2228,16 +2331,35 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         });
       }
 
-      await bridgeRequest('/admin/content/cache/invalidate', {
+      const pageInvalidation = await bridgeRequest('/admin/content/cache/invalidate', {
         method: 'POST',
         data: { scope: 'page', slug: HOME_PAGE_SLUG },
       });
-      await bridgeRequest('/admin/content/cache/invalidate', {
+      requireSuccessfulInvalidation(pageInvalidation, 'главная');
+      const siteSettingsInvalidation = await bridgeRequest('/admin/content/cache/invalidate', {
         method: 'POST',
         data: { scope: 'site_settings' },
       });
+      requireSuccessfulInvalidation(siteSettingsInvalidation, 'настройки сайта');
+
+      if (homeForm.page.status === 'published') {
+        const publicationCheck = await bridgeRequest('/admin/content/publish-check', {
+          method: 'POST',
+          data: {
+            slug: HOME_PAGE_SLUG,
+            expectedReferences: collectPublishedHomeReferences(),
+          },
+        });
+        if (publicationCheck?.successful !== true) {
+          throw new Error(publicationIssueMessage(publicationCheck));
+        }
+      }
       await loadHomeContent();
-      setSuccess('Главная обновлена. Если изменения в статусе draft или in_review, они появятся после публикации.');
+      setSuccess(
+        homeForm.page.status === 'published'
+          ? 'Главная сохранена, опубликована и проверена на витрине.'
+          : 'Черновик главной сохранён. На витрине он появится после публикации.'
+      );
     } catch (error) {
       setError(error);
     } finally {
@@ -3115,6 +3237,86 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     });
   }
 
+  function serializeHomeForm() {
+    return JSON.stringify({
+      page: {
+        id: homeForm.page.id || '',
+        status: homeForm.page.status || 'draft',
+        title: (homeForm.page.title || '').trim(),
+        summary: (homeForm.page.summary || '').trim(),
+        seoTitle: (homeForm.page.seoTitle || '').trim(),
+        seoDescription: (homeForm.page.seoDescription || '').trim(),
+      },
+      announcementBanner: {
+        id: homeForm.announcementBanner.id || '',
+        status: homeForm.announcementBanner.status || 'draft',
+        internalName: (homeForm.announcementBanner.internalName || '').trim(),
+        shortText: (homeForm.announcementBanner.shortText || '').trim(),
+      },
+      sections: (homeForm.sections || []).map((section) => ({
+        id: section.id || '',
+        migrationKey: section.migrationKey || '',
+        status: section.status || 'draft',
+        internalName: (section.internalName || '').trim(),
+        sectionType: section.sectionType || '',
+        sort: Number(section.sort || 0),
+        anchorId: (section.anchorId || '').trim(),
+        eyebrow: (section.eyebrow || '').trim(),
+        title: (section.title || '').trim(),
+        accent: (section.accent || '').trim(),
+        body: (section.body || '').trim(),
+        primaryCtaLabel: (section.primaryCtaLabel || '').trim(),
+        primaryCtaUrl: (section.primaryCtaUrl || '').trim(),
+        secondaryCtaLabel: (section.secondaryCtaLabel || '').trim(),
+        secondaryCtaUrl: (section.secondaryCtaUrl || '').trim(),
+        styleVariant: section.styleVariant || 'default',
+        layoutVariant: section.layoutVariant || 'contained',
+        featuredProductKey: (section.featuredProductKey || '').trim(),
+        featuredProductStatus: section.featuredProductStatus || section.status || 'draft',
+        items: (section.items || []).map((item) => ({
+          id: item.id || '',
+          migrationKey: item.migrationKey || '',
+          status: item.status || section.status || 'draft',
+          title: (item.title || '').trim(),
+          description: (item.description || '').trim(),
+          label: (item.label || '').trim(),
+          url: (item.url || '').trim(),
+          referenceKind: normalizeHomeReferenceKind(item.referenceKind || 'none'),
+          referenceKey: (item.referenceKey || '').trim(),
+          sort: Number(item.sort || 0),
+        })),
+      })),
+    });
+  }
+
+  function serializeHomeCollectionDraft() {
+    const collection = homeState.collectionDraft;
+    if (!collection) return '';
+    return JSON.stringify({
+      id: collection.id || '',
+      key: (collection.key || '').trim(),
+      status: collection.status || 'draft',
+      title: (collection.title || '').trim(),
+      description: (collection.description || '').trim(),
+      mode: collection.mode || 'hybrid',
+      ruleType: collection.ruleType || '',
+      categoryKey: collection.categoryKey || '',
+      brandKey: collection.brandKey || '',
+      limit: Number(collection.limit || 12),
+      sortMode: collection.sortMode || 'default',
+      primaryCtaLabel: (collection.primaryCtaLabel || '').trim(),
+      primaryCtaUrl: (collection.primaryCtaUrl || '').trim(),
+      rules: (collection.rules || []).map((rule) => ({
+        id: rule.id || '',
+        status: rule.status || collection.status || 'draft',
+        entityKind: rule.entityKind || 'product',
+        entityKey: (rule.entityKey || '').trim(),
+        behavior: rule.behavior || 'pin',
+        sort: Number(rule.sort || 0),
+      })),
+    });
+  }
+
   function serializeVariantForm() {
     return JSON.stringify({
       id: variantForm.id || '',
@@ -3152,6 +3354,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   function syncEditorSnapshots() {
+    homeSnapshot.value = serializeHomeForm();
+    homeCollectionSnapshot.value = serializeHomeCollectionDraft();
     productSnapshot.value = serializeProductForm();
     variantSnapshot.value = serializeVariantForm();
     categorySnapshot.value = serializeCategoryForm();
