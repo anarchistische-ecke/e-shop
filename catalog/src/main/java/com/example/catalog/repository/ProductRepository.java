@@ -4,6 +4,8 @@ import com.example.catalog.domain.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
@@ -14,7 +16,8 @@ import java.util.UUID;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findBySlug(String slug);
-    Optional<Product> findBySlugIgnoreCase(String slug);
+    @Query("select p from Product p where lower(trim(p.slug)) = lower(trim(:slug))")
+    List<Product> findByNormalizedSlug(@Param("slug") String slug);
     List<Product> findBySlugIn(Collection<String> slugs);
     List<Product> findByBrand_Slug(String brandSlug);
     List<Product> findDistinctByCategories_FullPathStartingWith(String fullPathPrefix);
