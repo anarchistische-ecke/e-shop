@@ -80,4 +80,17 @@ MEDIA_DERIVATIVES_BUCKET=<bucket> \
 npm run backfill
 ```
 
+To repair derivatives for one product without scanning the complete catalogue, set
+`PRODUCT_ID`:
+
+```bash
+PRODUCT_ID=<product-uuid> \
+API_BASE=https://api.yug-postel.ru \
+YANDEX_STORAGE_BUCKET=<bucket> \
+YANDEX_STORAGE_KEY=<key> \
+YANDEX_STORAGE_SECRET=<secret> \
+MEDIA_DERIVATIVES_BUCKET=<bucket> \
+npm run backfill
+```
+
 The script skips existing derivative objects, so it is safe to rerun after interrupted uploads.
