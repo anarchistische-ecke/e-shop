@@ -15,6 +15,7 @@ For the non-destructive backup-restore rehearsal, use [directus-restore-drill.md
 Primary health endpoints:
 
 - backend: `GET /health/redis`
+- catalogue media pipeline: `GET /health/media`
 - Directus: `GET /server/health`
 
 Operational health script:
@@ -95,6 +96,21 @@ SMTP smoke test:
 
 4. If Directus is down but PostgreSQL is healthy, restart Directus first.
 5. If Directus is healthy but CMS pages still fail, check backend logs and the `/content/*` facade.
+
+For catalogue image upload incidents, run:
+
+```bash
+cd <deploy-path>
+./scripts/media-upload-preflight.sh \
+  --env-file .env \
+  --api-url https://api.yug-postel.ru
+./scripts/set-media-upload-feature.sh false
+```
+
+Disabling the feature stops new upload batches without interrupting queued or
+active optimization. Use
+[catalogue-media-upload-runbook.md](./catalogue-media-upload-runbook.md) for
+status inspection, retry, storage configuration, and rollback details.
 
 ## Restart Procedure
 

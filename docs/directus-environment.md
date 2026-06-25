@@ -20,6 +20,7 @@ The rollback scope and frontend flag contract are documented in [directus-rollba
 The production go-live sequence is documented in [directus-production-cutover.md](./directus-production-cutover.md).
 The metrics, alerts, dashboards, and log-search contract are documented in [directus-observability.md](./directus-observability.md).
 The custom Directus back-office module contract is documented in [directus-storefront-ops-module.md](./directus-storefront-ops-module.md).
+The catalogue image upload and optimization contract is documented in [catalogue-media-upload-runbook.md](./catalogue-media-upload-runbook.md).
 
 ## Planned Environment Variables
 
@@ -29,6 +30,13 @@ The custom Directus back-office module contract is documented in [directus-store
 | `DIRECTUS_PUBLIC_URL` | backend + Directus | `https://cms.example.com` | Browser-reachable Directus origin used when backend CMS payloads emit `/assets/{id}` media URLs. If `DIRECTUS_BASE_URL` is private/internal, this must still be public. |
 | `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Effectively required for preview/draft reads and for published media metadata enrichment (`/files` width/height/type lookup) unless you intentionally expose Directus file metadata publicly. Keep it in local/prod env only. Never commit it. |
 | `DIRECTUS_BRIDGE_TOKEN` | backend + Directus | unset in repo | Shared secret used by the Directus operator extensions when they call `/internal/directus/catalogue/**`. Keep it in env/secret storage only. |
+| `CATALOGUE_MEDIA_UPLOAD_ENABLED` | backend | `false` | Environment default for creating new direct-to-storage upload batches. Keep false during deployment; the Redis feature override can enable it after smoke checks. |
+| `CATALOGUE_MEDIA_PROCESSOR_ENABLED` | backend | `true` | Keeps queued optimization work running even when creation of new uploads is disabled. |
+| `CATALOGUE_MEDIA_MAX_FILE_SIZE` | backend | `100MB` | Maximum accepted original size. |
+| `CATALOGUE_MEDIA_MAX_PIXELS` | backend | `100000000` | Decoded pixel safety limit enforced by Sharp/libvips. |
+| `MEDIA_DERIVATIVES_BUCKET` | backend | `yug-postel-image-derivative` | Private write target for optimized derivatives. Must differ from the originals bucket. |
+| `MEDIA_DERIVATIVES_PUBLIC_BASE_URL` | backend | `https://img.yug-postel.ru` | Public CDN origin emitted in storefront media responses. |
+| `CONTENT_SECURITY_POLICY_DIRECTIVES__CONNECT_SRC` | Directus | deployment-specific | Must allow the signed Object Storage PUT origin in addition to the existing API/WebSocket origins. |
 | `DIRECTUS_CACHE_TTL` | backend | `PT5M` | Optional Redis TTL for CMS facade responses. Defaults to 5 minutes. Set `PT0S` to disable the cache. |
 | `DIRECTUS_CACHE_STALE_TTL` | backend | `PT1H` | Optional stale published-content fallback TTL. If the active cache entry expires and Directus is unavailable, the backend can still serve the last good payload until this window expires. Set `PT0S` to disable the stale tier. |
 | `DIRECTUS_CACHE_KEY_PREFIX` | backend | `cms:content` | Redis key prefix for backend CMS cache entries. |

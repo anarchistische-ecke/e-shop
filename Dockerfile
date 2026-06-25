@@ -19,9 +19,19 @@ RUN ./mvnw -B -ntp -pl api -am dependency:go-offline
 COPY . .
 RUN ./mvnw -B -ntp -pl api -am package -DskipTests
 
+FROM node:22-bookworm-slim AS media
+WORKDIR /media
+COPY scripts/media-derivatives/package.json scripts/media-derivatives/package-lock.json ./
+RUN npm ci --omit=dev
+COPY scripts/media-derivatives/config.mjs scripts/media-derivatives/process-image.mjs ./
+COPY api/src/main/resources/media-derivatives.json ./media-derivatives.json
+
 FROM eclipse-temurin:21-jre
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/api/target/api-*.jar /app/app.jar
+COPY --from=media /usr/local/bin/node /usr/local/bin/node
+COPY --from=media /media /app/media
+ENV MEDIA_DERIVATIVES_CONFIG=/app/media/media-derivatives.json
 EXPOSE 8080
 ENTRYPOINT ["java","-XX:+UseContainerSupport","-jar","/app/app.jar"]

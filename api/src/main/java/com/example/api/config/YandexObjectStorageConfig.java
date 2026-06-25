@@ -8,6 +8,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.net.URI;
 
@@ -29,6 +30,20 @@ public class YandexObjectStorageConfig {
         }
         AwsBasicCredentials creds = AwsBasicCredentials.create(accessKey, secretKey);
         return S3Client.builder()
+                .region(Region.of("ru-central1"))
+                .endpointOverride(URI.create(endpoint))
+                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+                .credentialsProvider(StaticCredentialsProvider.create(creds))
+                .build();
+    }
+
+    @Bean
+    public S3Presigner yandexS3Presigner() {
+        if (accessKey == null || accessKey.isBlank() || secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException("Yandex Object Storage credentials are not configured. Set YANDEX_STORAGE_KEY and YANDEX_STORAGE_SECRET.");
+        }
+        AwsBasicCredentials creds = AwsBasicCredentials.create(accessKey, secretKey);
+        return S3Presigner.builder()
                 .region(Region.of("ru-central1"))
                 .endpointOverride(URI.create(endpoint))
                 .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
