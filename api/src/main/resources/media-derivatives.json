@@ -1,0 +1,18 @@
+{
+  "widths": [96, 160, 320, 480, 640, 768, 960, 1280, 1600],
+  "formats": {
+    "avif": {
+      "quality": 64,
+      "contentType": "image/avif"
+    },
+    "webp": {
+      "quality": 68,
+      "contentType": "image/webp"
+    },
+    "jpeg": {
+      "quality": 82,
+      "contentType": "image/jpeg"
+    }
+  },
+  "cacheControl": "public, max-age=31536000, immutable"
+}

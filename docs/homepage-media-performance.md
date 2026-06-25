@@ -20,6 +20,22 @@ Example:
 media/products/<product-id>/<image-id>/w640.webp
 ```
 
+The transformation definition is shared by the API worker and the backfill
+script in `api/src/main/resources/media-derivatives.json`. Change widths,
+formats, qualities, or cache policy there rather than maintaining separate
+worker and backfill settings.
+
+## New Catalogue Uploads
+
+Storefront Ops uploads originals directly to Object Storage. Files up to
+16 MiB use one signed PUT; larger files use resumable 8 MiB multipart uploads,
+up to a 100 MiB file limit. The API validates the decoded image, generates all
+27 derivatives, verifies their object keys, and only then attaches the image
+to the product or category.
+
+Operational details and rollback are documented in
+[catalogue-media-upload-runbook.md](./catalogue-media-upload-runbook.md).
+
 ## CDN Rules
 
 - `img.yug-postel.ru/media/*`: cache by full path, ignore cookies, `public, max-age=31536000, immutable`.
@@ -93,4 +109,4 @@ MEDIA_DERIVATIVES_BUCKET=<bucket> \
 npm run backfill
 ```
 
-The script skips existing derivative objects, so it is safe to rerun after interrupted uploads.
+The script skips existing derivative objects, so it is safe to rerun after interrupted uploads. It uses the same committed transformation definition as the runtime processor.

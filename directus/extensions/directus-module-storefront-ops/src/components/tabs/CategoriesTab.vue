@@ -194,6 +194,36 @@
               >
                 Загрузить изображение
               </button>
+              <div v-if="mediaUploadState.targetType === 'CATEGORY' && mediaUploadState.items.length" class="media-upload-list">
+                <article v-for="item in mediaUploadState.items" :key="item.id" class="media-upload-row">
+                  <div class="media-upload-main">
+                    <strong>{{ item.filename }}</strong>
+                    <span>{{ mediaUploadProgressLabel(item) }}</span>
+                    <progress
+                      v-if="item.status === 'UPLOADING'"
+                      :value="Math.round(Number(item.progress || 0) * 100)"
+                      max="100"
+                    />
+                    <small v-if="item.error" class="field-error">{{ item.error }}</small>
+                  </div>
+                  <button
+                    v-if="item.status === 'FAILED'"
+                    class="button button-secondary button-small"
+                    type="button"
+                    @click="retryMediaUpload(item.id)"
+                  >
+                    Повторить
+                  </button>
+                  <button
+                    v-if="['UPLOADING', 'QUEUED', 'FAILED'].includes(item.status)"
+                    class="button button-danger button-small"
+                    type="button"
+                    @click="abortMediaUpload(item.id)"
+                  >
+                    Отменить
+                  </button>
+                </article>
+              </div>
             </section>
 
             <article class="merch-card">

@@ -1,14 +1,9 @@
 import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
 import { Agent, setGlobalDispatcher } from 'undici';
+import { derivativeKey, loadDerivativeConfig } from './config.mjs';
 
-const WIDTHS = [96, 160, 320, 480, 640, 768, 960, 1280, 1600];
-const FORMATS = {
-  avif: { quality: 64, contentType: 'image/avif' },
-  webp: { quality: 68, contentType: 'image/webp' },
-  jpeg: { quality: 82, contentType: 'image/jpeg' },
-};
-const CACHE_CONTROL = 'public, max-age=31536000, immutable';
+const derivativeConfig = loadDerivativeConfig();
 
 function readEnv(name, fallback = '') {
   return process.env[name] || fallback;
@@ -101,16 +96,6 @@ function extractObjectKey(url = '') {
   return '';
 }
 
-function stripExtension(objectKey) {
-  const index = objectKey.lastIndexOf('.');
-  if (index <= objectKey.lastIndexOf('/')) return objectKey;
-  return objectKey.slice(0, index);
-}
-
-function derivativeKey(objectKey, width, format) {
-  return `${pathPrefix}/${stripExtension(objectKey)}/w${width}.${format}`;
-}
-
 async function objectExists(key) {
   try {
     await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
@@ -134,7 +119,7 @@ async function uploadDerivative({ key, body, contentType }) {
     Key: key,
     Body: body,
     ContentType: contentType,
-    CacheControl: CACHE_CONTROL,
+    CacheControl: derivativeConfig.cacheControl,
     ACL: 'public-read',
   }));
   console.log(`uploaded s3://${bucket}/${key}`);
@@ -157,12 +142,12 @@ async function processImage(image) {
 
   // The API advertises every configured width. Keep every key present even when
   // withoutEnlargement leaves a small source at its original pixel dimensions.
-  for (const width of WIDTHS) {
-    for (const [format, config] of Object.entries(FORMATS)) {
+  for (const width of derivativeConfig.widths) {
+    for (const [format, config] of Object.entries(derivativeConfig.formats)) {
       const pipeline = sharp(input).rotate().resize({ width, withoutEnlargement: true });
       const body = await pipeline[format]({ quality: config.quality }).toBuffer();
       await uploadDerivative({
-        key: derivativeKey(objectKey, width, format),
+        key: derivativeKey(pathPrefix, objectKey, width, format),
         body,
         contentType: config.contentType,
       });

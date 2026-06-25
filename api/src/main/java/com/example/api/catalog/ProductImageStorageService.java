@@ -1,12 +1,12 @@
 package com.example.api.catalog;
 
+import com.example.api.catalog.media.MediaObjectStorageService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
@@ -23,14 +23,17 @@ public class ProductImageStorageService {
     private final S3Client s3Client;
     private final String bucketName;
     private final String publicBaseUrl;
+    private final MediaObjectStorageService mediaObjectStorageService;
 
     public ProductImageStorageService(
             S3Client s3Client,
             @Value("${yandex.storage.bucket}") String bucketName,
-            @Value("${yandex.storage.public-base-url:${yandex.storage.endpoint:https://storage.yandexcloud.net}}") String publicBaseUrl) {
+            @Value("${yandex.storage.public-base-url:${yandex.storage.endpoint:https://storage.yandexcloud.net}}") String publicBaseUrl,
+            MediaObjectStorageService mediaObjectStorageService) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
         this.publicBaseUrl = normalizeBaseUrl(publicBaseUrl);
+        this.mediaObjectStorageService = mediaObjectStorageService;
     }
 
     public StoredImage upload(UUID productId, MultipartFile file, int position) {
@@ -78,11 +81,7 @@ public class ProductImageStorageService {
         if (bucketName == null || bucketName.isBlank()) {
             return;
         }
-        DeleteObjectRequest request = DeleteObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectKey)
-                .build();
-        s3Client.deleteObject(request);
+        mediaObjectStorageService.deleteOriginalAndDerivatives(objectKey);
     }
 
     private String extractExtension(String filename) {

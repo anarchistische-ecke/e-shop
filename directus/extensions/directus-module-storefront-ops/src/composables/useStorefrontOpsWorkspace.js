@@ -1,6 +1,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useApi } from '@directus/extensions-sdk';
 import { createStorefrontOpsApi } from './storefrontOpsApi.js';
+import { createMediaUploadClient, validateMediaFiles } from './mediaUploadClient.js';
 import {
   PRODUCT_DETAIL_TABS,
   STOREFRONT_OPS_TABS,
@@ -41,6 +42,7 @@ const STOREFRONT_OPS_ROOT_CLASS = 'storefront-ops-view-root';
 export function useStorefrontOpsWorkspace(tabComponents) {
   const api = useApi();
   const { bridgeRequest, directusRequest } = createStorefrontOpsApi(api);
+  const mediaUploadClient = createMediaUploadClient({ bridgeRequest });
 
   const tabs = STOREFRONT_OPS_TABS;
   const productDetailTabs = PRODUCT_DETAIL_TABS;
@@ -288,6 +290,14 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   const variantSnapshot = ref('');
   const productMediaForm = reactive({ variantId: '' });
   const productMediaFiles = ref([]);
+  const mediaUploadState = reactive({
+    items: [],
+    activeBatchId: '',
+    targetType: '',
+    entityId: '',
+    busy: false,
+  });
+  let mediaPollTimer = null;
 
   const categoryForm = reactive({
     id: '',
@@ -760,6 +770,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     productForm,
     variantForm,
     productMediaForm,
+    mediaUploadState,
     categoryForm,
     brandForm,
     inventoryForm,
@@ -902,6 +913,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     deleteVariant,
     onProductFilesSelected,
     uploadProductImages,
+    retryMediaUpload,
+    abortMediaUpload,
+    mediaUploadStatusLabel,
+    mediaUploadProgressLabel,
     deleteProductImage,
     openOrCreateOverlay,
     formatCategoryLabel,
@@ -2466,6 +2481,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       productState.categoryOptions = response.categoryOptions || productState.categoryOptions;
       productState.overlayReadFailed = Boolean(response.overlayReadFailed);
       hydrateProductEditor(response.item);
+      await loadPendingMediaUploads('PRODUCT', response.item.id);
     } catch (error) {
       setError(error);
     } finally {
@@ -2512,6 +2528,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       categoryState.parentOptions = response.parentOptions || categoryState.parentOptions;
       categoryState.overlayReadFailed = Boolean(response.overlayReadFailed);
       hydrateCategoryEditor(response.item);
+      await loadPendingMediaUploads('CATEGORY', response.item.id);
     } catch (error) {
       setError(error);
     } finally {
@@ -2880,6 +2897,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     });
     categorySnapshot.value = serializeCategoryForm();
     categoryImageFile.value = null;
+    clearMediaUploadState();
   }
 
   function hydrateBrandEditor(item) {
@@ -2937,6 +2955,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   function resetProductMediaEditor() {
     productMediaForm.variantId = '';
     productMediaFiles.value = [];
+    clearMediaUploadState();
   }
 
   function resetCategoryEditor({ silent = false } = {}) {
@@ -2954,6 +2973,7 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     });
     categorySnapshot.value = serializeCategoryForm();
     categoryImageFile.value = null;
+    clearMediaUploadState();
     if (!silent) {
       setInfo('Форма категории сброшена.');
     }
@@ -4372,11 +4392,29 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   function onProductFilesSelected(event) {
-    productMediaFiles.value = Array.from(event?.target?.files || []);
+    const files = Array.from(event?.target?.files || []);
+    try {
+      validateMediaFiles(files);
+      productMediaFiles.value = files;
+      pageError.value = '';
+    } catch (error) {
+      productMediaFiles.value = [];
+      setError(error);
+      if (event?.target) event.target.value = '';
+    }
   }
 
   function onCategoryFileSelected(event) {
-    categoryImageFile.value = event?.target?.files?.[0] || null;
+    const file = event?.target?.files?.[0] || null;
+    try {
+      if (file) validateMediaFiles([file]);
+      categoryImageFile.value = file;
+      pageError.value = '';
+    } catch (error) {
+      categoryImageFile.value = null;
+      setError(error);
+      if (event?.target) event.target.value = '';
+    }
   }
 
   async function uploadProductImages() {
@@ -4389,26 +4427,32 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       return;
     }
 
-    const formData = new FormData();
-    productMediaFiles.value.forEach((file) => formData.append('files', file));
-    if (productMediaForm.variantId) {
-      formData.append('variantId', productMediaForm.variantId);
-    }
-
     isSubmitting.value = true;
+    mediaUploadState.busy = true;
     clearMessages();
     try {
-      await bridgeRequest(`/products/${productForm.id}/images`, {
-        method: 'POST',
-        data: formData,
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const status = await mediaUploadClient.uploadBatch({
+        targetType: 'PRODUCT',
+        entityId: productForm.id,
+        files: productMediaFiles.value.map((file) => ({
+          file,
+          variantId: productMediaForm.variantId || null,
+        })),
+        onState: (items) => updateMediaUploadState('PRODUCT', productForm.id, items),
       });
       await loadProductDetail(productForm.id, { silent: true });
-      resetProductMediaEditor();
-      setSuccess('Изображения загружены.');
+      const failed = status.items.filter((item) => item.status !== 'READY');
+      productMediaFiles.value = [];
+      if (failed.length) {
+        pageError.value = `Готово ${status.items.length - failed.length} из ${status.items.length}. Не удалось обработать: ${failed.map((item) => item.filename).join(', ')}.`;
+      } else {
+        productMediaForm.variantId = '';
+        setSuccess('Изображения загружены и оптимизированы.');
+      }
     } catch (error) {
       setError(error);
     } finally {
+      mediaUploadState.busy = false;
       isSubmitting.value = false;
     }
   }
@@ -4446,26 +4490,135 @@ export function useStorefrontOpsWorkspace(tabComponents) {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', categoryImageFile.value);
-
     isSubmitting.value = true;
+    mediaUploadState.busy = true;
     clearMessages();
     try {
-      await bridgeRequest(`/categories/${categoryForm.id}/image`, {
-        method: 'POST',
-        data: formData,
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const status = await mediaUploadClient.uploadBatch({
+        targetType: 'CATEGORY',
+        entityId: categoryForm.id,
+        files: [{ file: categoryImageFile.value }],
+        onState: (items) => updateMediaUploadState('CATEGORY', categoryForm.id, items),
       });
       await loadCategories({ reloadSelected: false });
       await loadCategoryDetail(categoryForm.id, { silent: true });
       categoryImageFile.value = null;
-      setSuccess('Изображение категории обновлено.');
+      if (status.items[0]?.status === 'READY') {
+        setSuccess('Изображение категории загружено и оптимизировано.');
+      } else {
+        pageError.value = status.items[0]?.error || 'Изображение загружено, но оптимизация завершилась ошибкой.';
+      }
     } catch (error) {
       setError(error);
     } finally {
+      mediaUploadState.busy = false;
       isSubmitting.value = false;
     }
+  }
+
+  async function loadPendingMediaUploads(targetType, entityId) {
+    if (!entityId) {
+      clearMediaUploadState();
+      return;
+    }
+    try {
+      const items = await bridgeRequest('/media/uploads', {
+        params: { targetType, entityId },
+      });
+      updateMediaUploadState(targetType, entityId, items || []);
+      scheduleMediaPolling();
+    } catch (error) {
+      clearMediaUploadState();
+      setError(error);
+    }
+  }
+
+  function updateMediaUploadState(targetType, entityId, items) {
+    mediaUploadState.targetType = targetType;
+    mediaUploadState.entityId = entityId;
+    mediaUploadState.items = (items || []).map((item) => ({
+      ...item,
+      progress: Number(item.progress || (item.status === 'READY' ? 1 : 0)),
+    }));
+    mediaUploadState.activeBatchId = mediaUploadState.items[0]?.batchId || '';
+  }
+
+  function clearMediaUploadState() {
+    if (mediaPollTimer) {
+      window.clearTimeout(mediaPollTimer);
+      mediaPollTimer = null;
+    }
+    mediaUploadState.items = [];
+    mediaUploadState.activeBatchId = '';
+    mediaUploadState.targetType = '';
+    mediaUploadState.entityId = '';
+    mediaUploadState.busy = false;
+  }
+
+  function scheduleMediaPolling() {
+    if (mediaPollTimer) {
+      window.clearTimeout(mediaPollTimer);
+      mediaPollTimer = null;
+    }
+    if (!mediaUploadState.items.some((item) => ['QUEUED', 'PROCESSING'].includes(item.status))) {
+      return;
+    }
+    mediaPollTimer = window.setTimeout(async () => {
+      const { targetType, entityId } = mediaUploadState;
+      if (!targetType || !entityId) return;
+      await loadPendingMediaUploads(targetType, entityId);
+      if (!mediaUploadState.items.length) {
+        if (targetType === 'PRODUCT' && productForm.id === entityId) {
+          await loadProductDetail(entityId, { silent: true });
+        } else if (targetType === 'CATEGORY' && categoryForm.id === entityId) {
+          await loadCategoryDetail(entityId, { silent: true });
+        }
+      }
+    }, 2000);
+  }
+
+  async function retryMediaUpload(uploadId) {
+    clearMessages();
+    try {
+      await bridgeRequest(`/media/uploads/${uploadId}/retry`, { method: 'POST' });
+      await loadPendingMediaUploads(mediaUploadState.targetType, mediaUploadState.entityId);
+      setInfo('Повторная оптимизация поставлена в очередь.');
+    } catch (error) {
+      setError(error);
+    }
+  }
+
+  async function abortMediaUpload(uploadId) {
+    clearMessages();
+    try {
+      await bridgeRequest(`/media/uploads/${uploadId}`, { method: 'DELETE' });
+      await loadPendingMediaUploads(mediaUploadState.targetType, mediaUploadState.entityId);
+      setInfo('Загрузка отменена.');
+    } catch (error) {
+      setError(error);
+    }
+  }
+
+  function mediaUploadStatusLabel(status) {
+    return {
+      UPLOADING: 'Загружается',
+      QUEUED: 'Ожидает оптимизации',
+      PROCESSING: 'Оптимизируется',
+      READY: 'Готово',
+      FAILED: 'Ошибка',
+      ABORTED: 'Отменено',
+      EXPIRED: 'Истекло',
+    }[status] || status;
+  }
+
+  function mediaUploadProgressLabel(item) {
+    if (item.status === 'UPLOADING') {
+      return `${Math.round(Number(item.progress || 0) * 100)}%`;
+    }
+    if (item.status === 'PROCESSING') {
+      return 'Создаём 27 оптимизированных копий';
+    }
+    return mediaUploadStatusLabel(item.status);
   }
 
   async function openOrCreateOverlay(kind) {
@@ -4729,6 +4882,10 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   });
 
   onBeforeUnmount(() => {
+    if (mediaPollTimer) {
+      window.clearTimeout(mediaPollTimer);
+      mediaPollTimer = null;
+    }
     navigationTarget.value = '';
     document.documentElement.classList.remove(STOREFRONT_OPS_ROOT_CLASS);
     document.body.classList.remove(STOREFRONT_OPS_BODY_CLASS);

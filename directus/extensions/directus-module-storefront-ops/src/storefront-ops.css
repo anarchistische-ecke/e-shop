@@ -604,6 +604,38 @@ body.storefront-ops-view .pane-tab.active,
   overflow-wrap: anywhere;
 }
 
+.storefront-ops .media-upload-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.storefront-ops .media-upload-row {
+  align-items: center;
+  background: var(--theme--background-page);
+  border: var(--theme--border-width) solid var(--theme--border-color-subdued);
+  border-radius: var(--theme--border-radius);
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+
+.storefront-ops .media-upload-main {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.storefront-ops .media-upload-main strong,
+.storefront-ops .media-upload-main span {
+  overflow-wrap: anywhere;
+}
+
+.storefront-ops .media-upload-main progress {
+  inline-size: 100%;
+}
+
 .storefront-ops .list-card-meta,
 .storefront-ops .list-card-footer,
 .storefront-ops .variant-card-meta,

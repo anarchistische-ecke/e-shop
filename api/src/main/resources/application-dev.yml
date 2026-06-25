@@ -67,6 +67,13 @@ media:
 
 catalogue:
   product-image-preview-base-url: ${CATALOGUE_PRODUCT_IMAGE_PREVIEW_BASE_URL:http://localhost:8080/products/images}
+  media:
+    upload:
+      enabled: ${CATALOGUE_MEDIA_UPLOAD_ENABLED:true}
+      derivative-bucket: ${MEDIA_DERIVATIVES_BUCKET:${YANDEX_STORAGE_BUCKET:directus}}
+      node-executable: ${MEDIA_IMAGE_NODE_EXECUTABLE:node}
+      processor-script: ${MEDIA_IMAGE_PROCESSOR_SCRIPT:scripts/media-derivatives/process-image.mjs}
+      derivative-config: ${MEDIA_DERIVATIVES_CONFIG:api/src/main/resources/media-derivatives.json}
 
 management:
   endpoints:

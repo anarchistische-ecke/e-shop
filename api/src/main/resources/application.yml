@@ -73,3 +73,25 @@ media:
   derivatives:
     public-base-url: ${MEDIA_DERIVATIVES_PUBLIC_BASE_URL:https://img.yug-postel.ru}
     path-prefix: ${MEDIA_DERIVATIVES_PATH_PREFIX:media}
+
+catalogue:
+  media:
+    upload:
+      enabled: ${CATALOGUE_MEDIA_UPLOAD_ENABLED:false}
+      processor-enabled: ${CATALOGUE_MEDIA_PROCESSOR_ENABLED:true}
+      max-file-size: ${CATALOGUE_MEDIA_MAX_FILE_SIZE:100MB}
+      max-pixels: ${CATALOGUE_MEDIA_MAX_PIXELS:100000000}
+      single-put-threshold: ${CATALOGUE_MEDIA_SINGLE_PUT_THRESHOLD:16MB}
+      multipart-part-size: ${CATALOGUE_MEDIA_MULTIPART_PART_SIZE:8MB}
+      url-ttl: ${CATALOGUE_MEDIA_UPLOAD_URL_TTL:PT1H}
+      session-ttl: ${CATALOGUE_MEDIA_UPLOAD_SESSION_TTL:P7D}
+      record-ttl: ${CATALOGUE_MEDIA_UPLOAD_RECORD_TTL:P30D}
+      lock-ttl: ${CATALOGUE_MEDIA_PROCESSING_LOCK_TTL:PT5M}
+      lock-refresh-interval: ${CATALOGUE_MEDIA_PROCESSING_LOCK_REFRESH_INTERVAL:PT30S}
+      worker-fixed-delay-ms: ${CATALOGUE_MEDIA_WORKER_FIXED_DELAY_MS:2000}
+      pending-prefix: ${CATALOGUE_MEDIA_PENDING_PREFIX:media-upload-pending}
+      derivative-bucket: ${MEDIA_DERIVATIVES_BUCKET:}
+      derivative-path-prefix: ${MEDIA_DERIVATIVES_PATH_PREFIX:media}
+      node-executable: ${MEDIA_IMAGE_NODE_EXECUTABLE:/usr/local/bin/node}
+      processor-script: ${MEDIA_IMAGE_PROCESSOR_SCRIPT:/app/media/process-image.mjs}
+      derivative-config: ${MEDIA_DERIVATIVES_CONFIG:/app/media/media-derivatives.json}
