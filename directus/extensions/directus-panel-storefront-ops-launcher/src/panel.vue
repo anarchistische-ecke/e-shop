@@ -5,9 +5,14 @@
         <p class="launcher-kicker">Резервная точка входа</p>
         <h2>Управление витриной</h2>
       </div>
-      <button class="launcher-primary" type="button" :disabled="!visibleTabs.length" @click="openTab(defaultTab)">
-        Открыть рабочее место
-      </button>
+      <div class="launcher-actions">
+        <button class="launcher-secondary" type="button" :disabled="!paymentLinkBuilderUrl" @click="openPaymentLinkBuilder">
+          Создать ссылку оплаты
+        </button>
+        <button class="launcher-primary" type="button" :disabled="!visibleTabs.length" @click="openTab(defaultTab)">
+          Открыть рабочее место
+        </button>
+      </div>
     </header>
 
     <div class="launcher-grid">
@@ -50,6 +55,7 @@ const accessState = reactive({
   roleId: '',
   roleName: '',
   roleAdminAccess: false,
+  previewBaseUrl: '',
 });
 
 const roleKind = computed(() => resolveRoleKind(accessState));
@@ -59,6 +65,10 @@ const visibleTabs = computed(() => (
     : []
 ));
 const defaultTab = computed(() => visibleTabs.value[0]?.id || 'products');
+const paymentLinkBuilderUrl = computed(() => {
+  const baseUrl = accessState.previewBaseUrl || resolveDefaultStorefrontBaseUrl();
+  return baseUrl ? `${baseUrl.replace(/\/+$/, '')}/manager/payment-link` : '';
+});
 
 function resolveRoleKind(state) {
   return resolveStorefrontOpsRoleKind(state);
@@ -66,7 +76,10 @@ function resolveRoleKind(state) {
 
 async function loadAccessProfile() {
   try {
-    const response = await requestAccessProfile(['role.id', 'role.name']);
+    const response = await api.request({
+      url: '/storefront-ops-bridge/access-profile',
+      method: 'GET',
+    });
     const user = response?.data?.data || response?.data || {};
     applyAccessProfile(user);
   } catch {
@@ -98,10 +111,33 @@ function applyAccessProfile(user) {
   accessState.roleId = roleIsObject ? role.id || '' : role || '';
   accessState.roleName = roleIsObject ? role.name || '' : '';
   accessState.roleAdminAccess = Boolean(roleIsObject && (role.admin_access || role.adminAccess));
+  accessState.previewBaseUrl = user?.preview?.baseUrl || user?.preview?.base_url || user?.storefrontPreviewBaseUrl || '';
 }
 
 function openTab(tabId) {
   window.location.assign(`/admin/storefront-ops?tab=${encodeURIComponent(tabId)}`);
+}
+
+function resolveDefaultStorefrontBaseUrl() {
+  try {
+    const url = new URL(window.location.href);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+      url.port = '3000';
+      url.pathname = '';
+      url.search = '';
+      url.hash = '';
+      return url.origin;
+    }
+  } catch {
+  }
+  return '';
+}
+
+function openPaymentLinkBuilder() {
+  if (!paymentLinkBuilderUrl.value) {
+    return;
+  }
+  window.open(paymentLinkBuilderUrl.value, '_blank', 'noopener,noreferrer');
 }
 
 onMounted(loadAccessProfile);
@@ -136,10 +172,18 @@ onMounted(loadAccessProfile);
 }
 
 .launcher-primary,
+.launcher-secondary,
 .launcher-card {
   appearance: none;
   border-radius: 14px;
   cursor: pointer;
+}
+
+.launcher-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 .launcher-primary {
@@ -148,6 +192,20 @@ onMounted(loadAccessProfile);
   color: var(--theme--primary-inverse);
   min-height: 42px;
   padding: 10px 14px;
+}
+
+.launcher-secondary {
+  background: var(--theme--background);
+  border: 1px solid var(--theme--border-color);
+  color: var(--theme--foreground);
+  min-height: 42px;
+  padding: 10px 14px;
+}
+
+.launcher-secondary:disabled,
+.launcher-primary:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .launcher-grid {

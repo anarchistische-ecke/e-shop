@@ -41,4 +41,29 @@ class OrderControllerValidationTest {
         assertTrue(invalidFields.contains("phone"));
         assertTrue(invalidFields.contains("homeAddress"));
     }
+
+    @Test
+    void managerLinkRequestRequiresContactFieldsAndIdempotencyKey() {
+        OrderController.ManagerLinkRequest request = new OrderController.ManagerLinkRequest(
+                UUID.randomUUID(),
+                "",
+                "",
+                "",
+                "",
+                "https://example.test/order/{token}",
+                true,
+                ""
+        );
+
+        Set<String> invalidFields = validator.validate(request).stream()
+                .map(ConstraintViolation::getPropertyPath)
+                .map(Object::toString)
+                .collect(Collectors.toSet());
+
+        assertTrue(invalidFields.contains("receiptEmail"));
+        assertTrue(invalidFields.contains("customerName"));
+        assertTrue(invalidFields.contains("phone"));
+        assertTrue(invalidFields.contains("homeAddress"));
+        assertTrue(invalidFields.contains("idempotencyKey"));
+    }
 }

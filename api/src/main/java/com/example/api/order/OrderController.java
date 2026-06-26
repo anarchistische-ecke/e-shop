@@ -205,7 +205,7 @@ public class OrderController {
         recordOrderCreated(order);
         emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new OrderLinkResponse(order.getId(), order.getPublicToken()));
+                .body(toOrderLinkResponse(order, request.orderPageUrl, true));
     }
 
     @PostMapping("/manager-link")
@@ -215,23 +215,58 @@ public class OrderController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         String managerSubject = resolveManagerSubject(jwt);
+        String effectiveIdempotencyKey = normalizeValue(request.idempotencyKey);
+        if (!StringUtils.hasText(effectiveIdempotencyKey)) {
+            throw new IllegalArgumentException("Idempotency key is required");
+        }
+        String requestHash = buildManagerLinkRequestHash(request, managerSubject);
+        boolean shouldSend = request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail);
+        OrderService.CheckoutAttemptState attemptState = orderService.acquireCheckoutAttempt(effectiveIdempotencyKey, requestHash);
+        if (attemptState.status() == OrderService.CheckoutAttemptStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Manager link request is already being processed");
+        }
+        if (attemptState.status() == OrderService.CheckoutAttemptStatus.COMPLETED) {
+            Order existingOrder = orderService.findOrderByCheckoutAttempt(effectiveIdempotencyKey, requestHash);
+            boolean alreadySent = directusAdminService.isManagerPaymentLinkSent(existingOrder.getId());
+            boolean emailSent = alreadySent;
+            if (shouldSend && !alreadySent) {
+                emailService.sendOrderCreatedEmail(existingOrder, request.receiptEmail, buildOrderUrl(request.orderPageUrl, existingOrder));
+                emailSent = true;
+            }
+            directusAdminService.recordManagerPaymentLink(existingOrder, managerSubject, jwt.getClaimAsString("email"), emailSent);
+            return ResponseEntity.ok(toOrderLinkResponse(existingOrder, request.orderPageUrl, emailSent));
+        }
+
+        boolean orderBound = false;
         Customer customer = customerService.findOrCreateByEmail(request.receiptEmail, null, null);
         customer = customerService.applyCheckoutContact(customer, request.customerName, request.phone);
-        Order order = orderService.createOrderFromCart(
-                request.cartId,
-                customer.getId(),
-                request.receiptEmail,
-                managerSubject,
-                new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
-        );
-        recordOrderCreated(order);
-        boolean shouldSend = request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail);
-        if (shouldSend) {
-            emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
+        try {
+            Order order = orderService.createOrderFromCartAndCompleteCheckoutAttempt(
+                    effectiveIdempotencyKey,
+                    requestHash,
+                    request.cartId,
+                    customer.getId(),
+                    request.receiptEmail,
+                    managerSubject,
+                    new OrderService.ContactSpec(request.customerName, request.phone, request.homeAddress)
+            );
+            orderBound = true;
+            recordOrderCreated(order);
+            directusAdminService.recordManagerPaymentLink(order, managerSubject, jwt.getClaimAsString("email"), false);
+            boolean emailSent = false;
+            if (shouldSend) {
+                emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
+                emailSent = true;
+                directusAdminService.recordManagerPaymentLink(order, managerSubject, jwt.getClaimAsString("email"), true);
+            }
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(toOrderLinkResponse(order, request.orderPageUrl, emailSent));
+        } catch (RuntimeException ex) {
+            if (!orderBound) {
+                orderService.releaseCheckoutAttemptIfUnbound(effectiveIdempotencyKey, requestHash);
+            }
+            throw ex;
         }
-        directusAdminService.recordManagerPaymentLink(order, managerSubject, jwt.getClaimAsString("email"), shouldSend);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new OrderLinkResponse(order.getId(), order.getPublicToken()));
     }
 
     @PutMapping("/{id}/status")
@@ -301,6 +336,7 @@ public class OrderController {
         Order updated = orderService.findByPublicToken(token);
         if (result.completedNow()) {
             notificationOrchestrator.orderPaid(updated, result.payment());
+            directusAdminService.markManagerPaymentLinkPaid(updated.getId());
             recordOrderPaid(updated);
         }
         return ResponseEntity.ok(attachPaymentSummary(updated));
@@ -480,7 +516,8 @@ public class OrderController {
             @NotBlank String phone,
             @NotBlank String homeAddress,
             String orderPageUrl,
-            Boolean sendEmail
+            Boolean sendEmail,
+            @NotBlank String idempotencyKey
     ) {}
 
     public record PublicPayRequest(
@@ -505,7 +542,7 @@ public class OrderController {
             Boolean firstVisit
     ) {}
 
-    public record OrderLinkResponse(UUID orderId, String publicToken) {}
+    public record OrderLinkResponse(UUID orderId, String publicToken, String orderUrl, boolean emailSent) {}
 
     public record PaymentResponse(
             UUID paymentId,
@@ -529,6 +566,20 @@ public class OrderController {
         joiner.add(normalizeValue(request.phone));
         joiner.add(normalizeValue(request.homeAddress));
 
+        return sha256(joiner.toString());
+    }
+
+    private String buildManagerLinkRequestHash(ManagerLinkRequest request, String managerSubject) {
+        StringJoiner joiner = new StringJoiner("|");
+        joiner.add("manager-link");
+        joiner.add(normalizeValue(managerSubject));
+        joiner.add(request.cartId != null ? request.cartId.toString() : "");
+        joiner.add(normalizeValue(request.receiptEmail));
+        joiner.add(normalizeValue(request.orderPageUrl));
+        joiner.add(request.sendEmail == null || Boolean.TRUE.equals(request.sendEmail) ? "1" : "0");
+        joiner.add(normalizeValue(request.customerName));
+        joiner.add(normalizeValue(request.phone));
+        joiner.add(normalizeValue(request.homeAddress));
         return sha256(joiner.toString());
     }
 
@@ -590,6 +641,15 @@ public class OrderController {
         );
     }
 
+    private OrderLinkResponse toOrderLinkResponse(Order order, String overrideOrderUrl, boolean emailSent) {
+        return new OrderLinkResponse(
+                order.getId(),
+                order.getPublicToken(),
+                buildOrderUrl(overrideOrderUrl, order),
+                emailSent
+        );
+    }
+
     private List<Order> attachPaymentSummaries(List<Order> orders) {
         if (orders == null || orders.isEmpty()) {
             return orders;
@@ -614,6 +674,7 @@ public class OrderController {
         }
         Order updated = orderService.findById(payment.getOrderId());
         notificationOrchestrator.orderPaid(updated, payment);
+        directusAdminService.markManagerPaymentLinkPaid(updated.getId());
         recordOrderPaid(updated);
     }
 

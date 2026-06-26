@@ -226,6 +226,9 @@ public class PaymentController {
                 Order order = orderService.findById(payment.getOrderId());
                 if (result.completedNow()) {
                     notificationOrchestrator.orderPaid(order, payment);
+                    if (directusAdminService != null) {
+                        directusAdminService.markManagerPaymentLinkPaid(order.getId());
+                    }
                     recordPaid(order);
                 }
                 return ResponseEntity.ok().build();
