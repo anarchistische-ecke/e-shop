@@ -103,8 +103,16 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
         if (path.equals("/orders") && method.equals(HttpMethod.POST.name())) {
             return new RatePolicy("checkout", checkoutLimit, checkoutWindowSeconds);
         }
-        if (path.startsWith("/orders/public/")) {
-            return new RatePolicy("order-token", orderTokenLimit, orderTokenWindowSeconds);
+        if (path.startsWith("/orders/public/") && method.equals(HttpMethod.GET.name())) {
+            return new RatePolicy("order-token-read", orderTokenLimit, orderTokenWindowSeconds);
+        }
+        if (path.endsWith("/refresh-payment") && path.startsWith("/orders/public/")
+                && method.equals(HttpMethod.POST.name())) {
+            return new RatePolicy("order-token-refresh", orderTokenLimit, orderTokenWindowSeconds);
+        }
+        if (path.endsWith("/pay") && path.startsWith("/orders/public/")
+                && method.equals(HttpMethod.POST.name())) {
+            return new RatePolicy("order-token-pay", orderTokenLimit, orderTokenWindowSeconds);
         }
         if (path.equals("/payments/yookassa/webhook") && method.equals(HttpMethod.POST.name())) {
             return new RatePolicy("payment-webhook", webhookLimit, webhookWindowSeconds);

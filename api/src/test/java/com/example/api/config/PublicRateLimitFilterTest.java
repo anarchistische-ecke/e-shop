@@ -42,6 +42,42 @@ class PublicRateLimitFilterTest {
         assertThat(response.getHeader("X-RateLimit-Limit")).isNull();
     }
 
+    @Test
+    void publicOrderRefreshDoesNotConsumePublicOrderReadLimit() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("orderTokenLimit", 1, "orderTokenWindowSeconds", 60);
+
+        MockHttpServletRequest refreshRequest = publicOrderRequest("POST", "/orders/public/public-token/refresh-payment");
+        MockHttpServletResponse refreshResponse = new MockHttpServletResponse();
+        filter.doFilter(refreshRequest, refreshResponse, terminalChain());
+
+        MockHttpServletRequest readRequest = publicOrderRequest("GET", "/orders/public/public-token");
+        MockHttpServletResponse readResponse = new MockHttpServletResponse();
+        filter.doFilter(readRequest, readResponse, terminalChain());
+
+        assertThat(refreshResponse.getStatus()).isEqualTo(204);
+        assertThat(refreshResponse.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
+        assertThat(readResponse.getStatus()).isEqualTo(204);
+        assertThat(readResponse.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
+    }
+
+    @Test
+    void publicOrderPayDoesNotConsumePublicOrderReadLimit() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("orderTokenLimit", 1, "orderTokenWindowSeconds", 60);
+
+        MockHttpServletRequest payRequest = publicOrderRequest("POST", "/orders/public/public-token/pay");
+        MockHttpServletResponse payResponse = new MockHttpServletResponse();
+        filter.doFilter(payRequest, payResponse, terminalChain());
+
+        MockHttpServletRequest readRequest = publicOrderRequest("GET", "/orders/public/public-token");
+        MockHttpServletResponse readResponse = new MockHttpServletResponse();
+        filter.doFilter(readRequest, readResponse, terminalChain());
+
+        assertThat(payResponse.getStatus()).isEqualTo(204);
+        assertThat(payResponse.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
+        assertThat(readResponse.getStatus()).isEqualTo(204);
+        assertThat(readResponse.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
+    }
+
     private PublicRateLimitFilter configuredFilter(String limitField,
                                                   int limit,
                                                   String windowField,
@@ -56,6 +92,12 @@ class PublicRateLimitFilterTest {
     private MockHttpServletRequest checkoutRequest(String forwardedFor) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/orders/checkout");
         request.addHeader("X-Forwarded-For", forwardedFor);
+        return request;
+    }
+
+    private MockHttpServletRequest publicOrderRequest(String method, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.addHeader("X-Forwarded-For", "203.0.113.20");
         return request;
     }
 
