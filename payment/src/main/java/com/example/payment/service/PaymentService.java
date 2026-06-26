@@ -272,10 +272,12 @@ public class PaymentService {
     public record PaymentUpdateResult(Payment payment, boolean completedNow) {}
 
     public PaymentUpdateResult refreshLatestYooKassaPaymentForOrder(UUID orderId) {
-        Payment latest = paymentRepository.findTopByOrderIdOrderByPaymentDateDesc(orderId)
-                .orElseThrow(() -> new IllegalArgumentException("Payment not found for order: " + orderId));
+        Payment latest = paymentRepository.findTopByOrderIdOrderByPaymentDateDesc(orderId).orElse(null);
+        if (latest == null) {
+            return new PaymentUpdateResult(null, false);
+        }
         if (latest.getProviderPaymentId() == null || latest.getProviderPaymentId().isBlank()) {
-            throw new IllegalArgumentException("Provider payment id missing for order: " + orderId);
+            return new PaymentUpdateResult(latest, false);
         }
         return refreshYooKassaPaymentWithResult(latest.getProviderPaymentId());
     }

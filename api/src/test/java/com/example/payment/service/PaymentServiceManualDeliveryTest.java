@@ -22,10 +22,55 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PaymentServiceManualDeliveryTest {
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void refreshLatestYooKassaPaymentIsNoopBeforePaymentExists() {
+        PaymentRepository paymentRepository = mock(PaymentRepository.class);
+        PaymentRefundRepository paymentRefundRepository = mock(PaymentRefundRepository.class);
+        SavedPaymentMethodRepository savedPaymentMethodRepository = mock(SavedPaymentMethodRepository.class);
+        OrderRepository orderRepository = mock(OrderRepository.class);
+        YooKassaClient yooKassaClient = mock(YooKassaClient.class);
+        ObjectProvider<com.example.customer.repository.CustomerRepository> customerRepositoryProvider = mock(ObjectProvider.class);
+        ObjectProvider<YooKassaClient> yooKassaClientProvider = mock(ObjectProvider.class);
+        ObjectProvider<OrderService> orderServiceProvider = mock(ObjectProvider.class);
+        ObjectProvider<PaymentRefundItemRepository> paymentRefundItemRepositoryProvider = mock(ObjectProvider.class);
+        ObjectProvider<FiscalConfigurationProvider> fiscalConfigurationProvider = mock(ObjectProvider.class);
+        ObjectProvider<PromoCodeRedemptionRecorder> promoCodeRedemptionRecorderProvider = mock(ObjectProvider.class);
+        UUID orderId = UUID.randomUUID();
+
+        when(customerRepositoryProvider.getIfAvailable()).thenReturn(null);
+        when(yooKassaClientProvider.getIfAvailable()).thenReturn(yooKassaClient);
+        when(orderServiceProvider.getIfAvailable()).thenReturn(null);
+        when(paymentRefundItemRepositoryProvider.getIfAvailable()).thenReturn(null);
+        when(fiscalConfigurationProvider.getIfAvailable()).thenReturn(null);
+        when(promoCodeRedemptionRecorderProvider.getIfAvailable()).thenReturn(null);
+        when(paymentRepository.findTopByOrderIdOrderByPaymentDateDesc(orderId)).thenReturn(Optional.empty());
+
+        PaymentService service = new PaymentService(
+                paymentRepository,
+                paymentRefundRepository,
+                paymentRefundItemRepositoryProvider,
+                savedPaymentMethodRepository,
+                orderRepository,
+                customerRepositoryProvider,
+                yooKassaClientProvider,
+                orderServiceProvider,
+                fiscalConfigurationProvider,
+                promoCodeRedemptionRecorderProvider
+        );
+
+        PaymentService.PaymentUpdateResult result = service.refreshLatestYooKassaPaymentForOrder(orderId);
+
+        assertNull(result.payment());
+        assertEquals(false, result.completedNow());
+        verify(yooKassaClient, never()).getPayment(any());
+    }
 
     @Test
     @SuppressWarnings("unchecked")
