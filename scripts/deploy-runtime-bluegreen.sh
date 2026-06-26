@@ -177,6 +177,32 @@ candidate_compose() {
   fi
 }
 
+retry_candidate_pull() {
+  local service="$1"
+  local attempts="${DEPLOY_IMAGE_PULL_ATTEMPTS:-4}"
+  local delay_seconds="${DEPLOY_IMAGE_PULL_RETRY_DELAY_SECONDS:-8}"
+  local attempt=1
+  local status=0
+
+  while true; do
+    echo "Pulling image for candidate service '${service}' (attempt ${attempt}/${attempts})..."
+    if candidate_compose pull "$service"; then
+      return 0
+    fi
+    status=$?
+
+    if (( attempt >= attempts )); then
+      echo "Failed to pull image for candidate service '${service}' after ${attempts} attempts." >&2
+      return "$status"
+    fi
+
+    echo "Image pull for candidate service '${service}' failed; retrying in ${delay_seconds}s." >&2
+    sleep "$delay_seconds"
+    attempt=$((attempt + 1))
+    delay_seconds=$((delay_seconds * 2))
+  done
+}
+
 ensure_storefront_image_available() {
   local storefront_image
 
@@ -187,7 +213,7 @@ ensure_storefront_image_available() {
     return 0
   fi
 
-  candidate_compose pull storefront
+  retry_candidate_pull storefront
 }
 
 ensure_api_image_available() {
@@ -200,7 +226,7 @@ ensure_api_image_available() {
     return 0
   fi
 
-  candidate_compose pull api
+  retry_candidate_pull api
 }
 
 write_failure_summary() {
@@ -481,7 +507,7 @@ echo "Candidate storefront port: $CANDIDATE_STOREFRONT_PORT"
 CURRENT_PHASE="start-candidate"
 candidate_compose down --remove-orphans >/dev/null 2>&1 || true
 ensure_api_image_available
-candidate_compose pull directus
+retry_candidate_pull directus
 ensure_storefront_image_available
 candidate_compose up -d
 
