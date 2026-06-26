@@ -88,11 +88,11 @@ public class CustomerService {
 
     public Customer findOrCreateByYandex(String yandexId, String email, String firstName, String lastName) {
         if (!StringUtils.hasText(yandexId) && !StringUtils.hasText(email)) {
-            throw new IllegalArgumentException("Yandex ID or email must be provided");
+            throw new IllegalArgumentException("Нужен идентификатор Яндекса или электронная почта");
         }
         String resolvedEmail = StringUtils.hasText(email) ? email : yandexId + "@yandex.local";
-        String safeFirst = defaultIfBlank(firstName, "Yandex");
-        String safeLast = defaultIfBlank(lastName, "User");
+        String safeFirst = defaultIfBlank(firstName, "Пользователь");
+        String safeLast = defaultIfBlank(lastName, "Яндекса");
 
         Optional<Customer> existingById = StringUtils.hasText(yandexId)
                 ? customerRepository.findByYandexId(yandexId)
@@ -116,11 +116,11 @@ public class CustomerService {
 
     public Customer findOrCreateByVk(String vkId, String email, String firstName, String lastName) {
         if (!StringUtils.hasText(vkId) && !StringUtils.hasText(email)) {
-            throw new IllegalArgumentException("VK ID or email must be provided");
+            throw new IllegalArgumentException("Нужен идентификатор ВКонтакте или электронная почта");
         }
         String resolvedEmail = StringUtils.hasText(email) ? email : ("vk-" + vkId + "@vk.local");
-        String safeFirst = defaultIfBlank(firstName, "VK");
-        String safeLast = defaultIfBlank(lastName, "User");
+        String safeFirst = defaultIfBlank(firstName, "Пользователь");
+        String safeLast = defaultIfBlank(lastName, "ВКонтакте");
 
         Optional<Customer> existingById = StringUtils.hasText(vkId)
                 ? customerRepository.findByVkId(vkId)

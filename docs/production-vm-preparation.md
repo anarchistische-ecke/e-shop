@@ -734,6 +734,20 @@ KEYCLOAK_ADMIN_PASSWORD=<admin-password> \
 ./scripts/keycloak-directus-session-policy.sh
 ```
 
+Apply the Yandex social-login first broker policy so returning users with an existing Keycloak account are auto-linked by trusted Yandex email instead of seeing the manual "link Yandex" email confirmation screen:
+
+```bash
+cd /home/dingus/eshop
+KEYCLOAK_BASE_URL=http://127.0.0.1:8081 \
+KEYCLOAK_REALM=yug-postel \
+KEYCLOAK_YANDEX_IDP_ALIAS=yandex \
+KEYCLOAK_ADMIN_USERNAME=<admin-user> \
+KEYCLOAK_ADMIN_PASSWORD=<admin-password> \
+./scripts/keycloak-yandex-seamless-login.sh
+```
+
+This script creates or replaces the dedicated `yandex seamless first broker login` flow with `Create User If Unique` and `Automatically Set Existing User`, then assigns that flow to the Yandex identity provider with `trustEmail=true`.
+
 ## GitHub Environment Configuration
 
 Configure only these GitHub Environments now:

@@ -2,6 +2,11 @@
   "realm": "cozyhome",
   "enabled": true,
   "displayName": "Cozyhome Local",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "ru"
+  ],
+  "defaultLocale": "ru",
   "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,

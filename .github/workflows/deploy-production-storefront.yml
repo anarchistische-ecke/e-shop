@@ -102,6 +102,7 @@ jobs:
           reconcile_deploy_worktree_path "directus/docker-compose.yml"
           reconcile_deploy_worktree_path "docker-compose.runtime-slot.yml"
           reconcile_deploy_worktree_path "scripts/keycloak-directus-session-policy.sh"
+          reconcile_deploy_worktree_path "scripts/keycloak-yandex-seamless-login.sh"
           git checkout "${DEPLOY_REF}" || git checkout -B "${DEPLOY_REF}" "origin/${DEPLOY_REF}"
           git pull --ff-only origin "${DEPLOY_REF}"
           bash ./scripts/deploy-storefront-image.sh \
