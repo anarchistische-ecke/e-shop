@@ -326,6 +326,7 @@ public class DirectusAdminService {
             if (notificationOrchestrator != null) {
                 notificationOrchestrator.orderPaid(paidOrder, result.payment());
             }
+            markManagerPaymentLinkPaid(paidOrder.getId());
             if (metrikaOutboxService != null) {
                 metrikaOutboxService.recordOrderPaid(paidOrder);
             }
@@ -1109,17 +1110,48 @@ public class DirectusAdminService {
         taxConfigurationRepository.deleteById(id);
     }
 
-    public void recordManagerPaymentLink(Order order, String managerSubject, String managerEmail, boolean sent) {
-        ManagerPaymentLink link = new ManagerPaymentLink();
+    public ManagerPaymentLink recordManagerPaymentLink(Order order, String managerSubject, String managerEmail, boolean sent) {
+        if (order == null || order.getId() == null) {
+            throw new IllegalArgumentException("Order is required to record a manager payment link");
+        }
+        ManagerPaymentLink link = managerPaymentLinkRepository.findFirstByOrderIdOrderByCreatedAtDesc(order.getId())
+                .orElseGet(ManagerPaymentLink::new);
         link.setOrderId(order.getId());
         link.setManagerSubject(managerSubject);
         link.setManagerEmail(managerEmail);
         link.setPublicToken(order.getPublicToken());
-        link.setStatus(sent ? "SENT" : "CREATED");
+        if (!equalsIgnoreCase(link.getStatus(), "PAID")) {
+            link.setStatus(sent || link.getSentAt() != null || equalsIgnoreCase(link.getStatus(), "SENT") ? "SENT" : "CREATED");
+        }
         if (sent) {
             link.setSentAt(OffsetDateTime.now());
         }
-        managerPaymentLinkRepository.save(link);
+        return managerPaymentLinkRepository.save(link);
+    }
+
+    public boolean isManagerPaymentLinkSent(UUID orderId) {
+        if (orderId == null) {
+            return false;
+        }
+        return managerPaymentLinkRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId)
+                .map(link -> link.getSentAt() != null
+                        || equalsIgnoreCase(link.getStatus(), "SENT")
+                        || equalsIgnoreCase(link.getStatus(), "PAID"))
+                .orElse(false);
+    }
+
+    public void markManagerPaymentLinkPaid(UUID orderId) {
+        if (orderId == null) {
+            return;
+        }
+        OffsetDateTime paidAt = OffsetDateTime.now();
+        managerPaymentLinkRepository.findByOrderId(orderId).forEach(link -> {
+            if (link.getPaidAt() == null) {
+                link.setPaidAt(paidAt);
+            }
+            link.setStatus("PAID");
+            managerPaymentLinkRepository.save(link);
+        });
     }
 
     public ManagerAnalyticsResponse managerAnalytics(OffsetDateTime from, OffsetDateTime to, String manager) {

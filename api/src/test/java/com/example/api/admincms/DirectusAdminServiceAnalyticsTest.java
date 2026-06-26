@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,6 +23,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -116,6 +118,45 @@ class DirectusAdminServiceAnalyticsTest {
         assertThat(response.paid()).isEqualTo(1);
         assertThat(response.rows()).hasSize(1);
         assertThat(response.rows().get(0).managerEmail()).isEqualTo("manager@example.test");
+    }
+
+    @Test
+    void recordManagerPaymentLink_reusesExistingOrderLinkAndMarksSent() {
+        UUID orderId = UUID.randomUUID();
+        Order order = order(orderId, "keycloak-subject-1", "PENDING", 10_000);
+        order.setPublicToken("public-token");
+        ManagerPaymentLink link = paymentLink(orderId, "keycloak-subject-1", "manager@example.test");
+        link.setStatus("CREATED");
+        link.setSentAt(null);
+
+        when(managerPaymentLinkRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId))
+                .thenReturn(Optional.of(link));
+
+        service.recordManagerPaymentLink(order, "keycloak-subject-1", "manager@example.test", true);
+
+        ArgumentCaptor<ManagerPaymentLink> captor = ArgumentCaptor.forClass(ManagerPaymentLink.class);
+        verify(managerPaymentLinkRepository).save(captor.capture());
+        assertThat(captor.getValue().getOrderId()).isEqualTo(orderId);
+        assertThat(captor.getValue().getPublicToken()).isEqualTo("public-token");
+        assertThat(captor.getValue().getStatus()).isEqualTo("SENT");
+        assertThat(captor.getValue().getSentAt()).isNotNull();
+    }
+
+    @Test
+    void markManagerPaymentLinkPaid_updatesAllLinksForOrder() {
+        UUID orderId = UUID.randomUUID();
+        ManagerPaymentLink link = paymentLink(orderId, "keycloak-subject-1", "manager@example.test");
+        link.setStatus("SENT");
+        link.setPaidAt(null);
+
+        when(managerPaymentLinkRepository.findByOrderId(orderId)).thenReturn(List.of(link));
+
+        service.markManagerPaymentLinkPaid(orderId);
+
+        ArgumentCaptor<ManagerPaymentLink> captor = ArgumentCaptor.forClass(ManagerPaymentLink.class);
+        verify(managerPaymentLinkRepository).save(captor.capture());
+        assertThat(captor.getValue().getStatus()).isEqualTo("PAID");
+        assertThat(captor.getValue().getPaidAt()).isNotNull();
     }
 
     private Order order(UUID id, String managerSubject, String status, long amount) {
