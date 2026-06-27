@@ -43,6 +43,61 @@ class PublicRateLimitFilterTest {
     }
 
     @Test
+    void cartReadsDoNotConsumeCartWriteLimit() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("cartLimit", 1, "cartWindowSeconds", 60);
+
+        MockHttpServletRequest readRequest = cartRequest("GET", "/carts/11111111-1111-1111-1111-111111111111", "203.0.113.30");
+        MockHttpServletResponse readResponse = new MockHttpServletResponse();
+        filter.doFilter(readRequest, readResponse, terminalChain());
+
+        MockHttpServletRequest writeRequest = cartRequest("POST", "/carts/11111111-1111-1111-1111-111111111111/items", "203.0.113.30");
+        MockHttpServletResponse writeResponse = new MockHttpServletResponse();
+        filter.doFilter(writeRequest, writeResponse, terminalChain());
+
+        assertThat(readResponse.getStatus()).isEqualTo(204);
+        assertThat(readResponse.getHeader("X-RateLimit-Limit")).isNull();
+        assertThat(writeResponse.getStatus()).isEqualTo(204);
+        assertThat(writeResponse.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
+    }
+
+    @Test
+    void cartWritesAreRateLimitedPerCartId() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("cartLimit", 1, "cartWindowSeconds", 60);
+
+        MockHttpServletRequest firstCartRequest = cartRequest("POST", "/carts/11111111-1111-1111-1111-111111111111/items", "203.0.113.40");
+        MockHttpServletResponse firstCartResponse = new MockHttpServletResponse();
+        filter.doFilter(firstCartRequest, firstCartResponse, terminalChain());
+
+        MockHttpServletRequest sameCartRequest = cartRequest("POST", "/carts/11111111-1111-1111-1111-111111111111/items", "203.0.113.40");
+        MockHttpServletResponse sameCartResponse = new MockHttpServletResponse();
+        filter.doFilter(sameCartRequest, sameCartResponse, terminalChain());
+
+        MockHttpServletRequest otherCartRequest = cartRequest("POST", "/carts/22222222-2222-2222-2222-222222222222/items", "203.0.113.40");
+        MockHttpServletResponse otherCartResponse = new MockHttpServletResponse();
+        filter.doFilter(otherCartRequest, otherCartResponse, terminalChain());
+
+        assertThat(firstCartResponse.getStatus()).isEqualTo(204);
+        assertThat(sameCartResponse.getStatus()).isEqualTo(429);
+        assertThat(otherCartResponse.getStatus()).isEqualTo(204);
+    }
+
+    @Test
+    void cartCreationIsStillRateLimitedPerForwardedClientAddress() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("cartLimit", 1, "cartWindowSeconds", 60);
+
+        MockHttpServletRequest firstRequest = cartRequest("POST", "/carts", "203.0.113.50");
+        MockHttpServletResponse firstResponse = new MockHttpServletResponse();
+        filter.doFilter(firstRequest, firstResponse, terminalChain());
+
+        MockHttpServletRequest secondRequest = cartRequest("POST", "/carts", "203.0.113.50");
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(secondRequest, secondResponse, terminalChain());
+
+        assertThat(firstResponse.getStatus()).isEqualTo(204);
+        assertThat(secondResponse.getStatus()).isEqualTo(429);
+    }
+
+    @Test
     void publicOrderRefreshDoesNotConsumePublicOrderReadLimit() throws Exception {
         PublicRateLimitFilter filter = configuredFilter("orderTokenLimit", 1, "orderTokenWindowSeconds", 60);
 
@@ -98,6 +153,12 @@ class PublicRateLimitFilterTest {
     private MockHttpServletRequest publicOrderRequest(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader("X-Forwarded-For", "203.0.113.20");
+        return request;
+    }
+
+    private MockHttpServletRequest cartRequest(String method, String path, String forwardedFor) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.addHeader("X-Forwarded-For", forwardedFor);
         return request;
     }
 

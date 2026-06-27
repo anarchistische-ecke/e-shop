@@ -74,7 +74,7 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
 
         long now = System.currentTimeMillis();
         pruneExpiredCounters(now);
-        String key = policy.name() + ":" + clientAddress(request);
+        String key = policy.name() + ":" + policy.scope();
         FixedWindowCounter counter = counters.computeIfAbsent(key, ignored -> new FixedWindowCounter(now));
         RateLimitResult result = counter.tryAcquire(policy, now);
         if (result.allowed()) {
@@ -98,32 +98,55 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
         String method = request.getMethod().toUpperCase(Locale.ROOT);
 
         if (path.equals("/orders/checkout") && method.equals(HttpMethod.POST.name())) {
-            return new RatePolicy("checkout", checkoutLimit, checkoutWindowSeconds);
+            return new RatePolicy("checkout", checkoutLimit, checkoutWindowSeconds, clientAddress(request));
         }
         if (path.equals("/orders") && method.equals(HttpMethod.POST.name())) {
-            return new RatePolicy("checkout", checkoutLimit, checkoutWindowSeconds);
+            return new RatePolicy("checkout", checkoutLimit, checkoutWindowSeconds, clientAddress(request));
         }
         if (path.startsWith("/orders/public/") && method.equals(HttpMethod.GET.name())) {
-            return new RatePolicy("order-token-read", orderTokenLimit, orderTokenWindowSeconds);
+            return new RatePolicy("order-token-read", orderTokenLimit, orderTokenWindowSeconds, clientAddress(request));
         }
         if (path.endsWith("/refresh-payment") && path.startsWith("/orders/public/")
                 && method.equals(HttpMethod.POST.name())) {
-            return new RatePolicy("order-token-refresh", orderTokenLimit, orderTokenWindowSeconds);
+            return new RatePolicy("order-token-refresh", orderTokenLimit, orderTokenWindowSeconds, clientAddress(request));
         }
         if (path.endsWith("/pay") && path.startsWith("/orders/public/")
                 && method.equals(HttpMethod.POST.name())) {
-            return new RatePolicy("order-token-pay", orderTokenLimit, orderTokenWindowSeconds);
+            return new RatePolicy("order-token-pay", orderTokenLimit, orderTokenWindowSeconds, clientAddress(request));
         }
         if (path.equals("/payments/yookassa/webhook") && method.equals(HttpMethod.POST.name())) {
-            return new RatePolicy("payment-webhook", webhookLimit, webhookWindowSeconds);
+            return new RatePolicy("payment-webhook", webhookLimit, webhookWindowSeconds, clientAddress(request));
         }
-        if (path.equals("/carts") || path.startsWith("/carts/")) {
-            return new RatePolicy("cart", cartLimit, cartWindowSeconds);
+        if (path.equals("/carts") && method.equals(HttpMethod.POST.name())) {
+            return new RatePolicy("cart-create", cartLimit, cartWindowSeconds, clientAddress(request));
+        }
+        if (path.startsWith("/carts/") && isMutatingCartMethod(method)) {
+            return new RatePolicy("cart-write", cartLimit, cartWindowSeconds, cartScope(path, request));
         }
         if (isPrivilegedSurface(path, method)) {
-            return new RatePolicy("privileged", privilegedLimit, privilegedWindowSeconds);
+            return new RatePolicy("privileged", privilegedLimit, privilegedWindowSeconds, clientAddress(request));
         }
         return null;
+    }
+
+    private boolean isMutatingCartMethod(String method) {
+        return method.equals(HttpMethod.POST.name())
+                || method.equals(HttpMethod.PUT.name())
+                || method.equals(HttpMethod.DELETE.name());
+    }
+
+    private String cartScope(String path, HttpServletRequest request) {
+        String prefix = "/carts/";
+        if (!path.startsWith(prefix)) {
+            return clientAddress(request);
+        }
+        String remainder = path.substring(prefix.length());
+        int slashIndex = remainder.indexOf('/');
+        String cartId = slashIndex >= 0 ? remainder.substring(0, slashIndex) : remainder;
+        if (!StringUtils.hasText(cartId)) {
+            return clientAddress(request);
+        }
+        return "cart:" + cartId;
     }
 
     private boolean isPrivilegedSurface(String path, String method) {
@@ -188,10 +211,11 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
         }
     }
 
-    private record RatePolicy(String name, int limit, int windowSeconds) {
+    private record RatePolicy(String name, int limit, int windowSeconds, String scope) {
         private RatePolicy {
             limit = Math.max(1, limit);
             windowSeconds = Math.max(1, windowSeconds);
+            scope = StringUtils.hasText(scope) ? scope : "unknown";
         }
     }
 
