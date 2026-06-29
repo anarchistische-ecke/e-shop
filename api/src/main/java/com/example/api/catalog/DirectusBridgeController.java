@@ -190,7 +190,13 @@ public class DirectusBridgeController {
                 requestBody.getWeightGrossG(),
                 requestBody.getLengthMm(),
                 requestBody.getWidthMm(),
-                requestBody.getHeightMm()
+                requestBody.getHeightMm(),
+                requestBody.getColorCode(),
+                requestBody.getColorLabel(),
+                requestBody.getColorHex(),
+                requestBody.getSizeCode(),
+                requestBody.getSizeLabel(),
+                requestBody.getSortOrder()
         );
         audit(principal, "catalogue.variant.create", Map.of("productId", productId, "variantId", variant.getId(), "sku", variant.getSku()));
         return ResponseEntity.status(HttpStatus.CREATED).body(responseFactory.toVariantResponse(variant));
@@ -223,7 +229,13 @@ public class DirectusBridgeController {
                 requestBody.getWeightGrossG(),
                 requestBody.getLengthMm(),
                 requestBody.getWidthMm(),
-                requestBody.getHeightMm()
+                requestBody.getHeightMm(),
+                requestBody.getColorCode(),
+                requestBody.getColorLabel(),
+                requestBody.getColorHex(),
+                requestBody.getSizeCode(),
+                requestBody.getSizeLabel(),
+                requestBody.getSortOrder()
         );
         Map<String, Object> auditDetails = new LinkedHashMap<>();
         auditDetails.put("productId", productId);

@@ -66,6 +66,10 @@ public class CatalogueResponseFactory {
         response.setPresentation(presentation);
         if (product.getVariants() != null) {
             List<CatalogController.VariantResponse> variants = product.getVariants().stream()
+                    .sorted(Comparator
+                            .comparing((ProductVariant variant) -> Optional.ofNullable(variant.getSortOrder()).orElse(Integer.MAX_VALUE))
+                            .thenComparing(variant -> Optional.ofNullable(variant.getSizeLabel()).orElse(""))
+                            .thenComparing(variant -> Optional.ofNullable(variant.getName()).orElse("")))
                     .map(this::toVariantResponse)
                     .toList();
             response.setVariants(variants);
@@ -123,6 +127,12 @@ public class CatalogueResponseFactory {
         response.setLengthMm(variant.getLengthMm());
         response.setWidthMm(variant.getWidthMm());
         response.setHeightMm(variant.getHeightMm());
+        response.setColorCode(variant.getColorCode());
+        response.setColorLabel(variant.getColorLabel());
+        response.setColorHex(variant.getColorHex());
+        response.setSizeCode(variant.getSizeCode());
+        response.setSizeLabel(variant.getSizeLabel());
+        response.setSortOrder(variant.getSortOrder());
         return response;
     }
 

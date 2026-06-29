@@ -61,13 +61,16 @@ public class CatalogService {
                                      Integer weightGrossG,
                                      Integer lengthMm,
                                      Integer widthMm,
-                                     Integer heightMm) {
+                                     Integer heightMm,
+                                     String colorCode,
+                                     String colorLabel,
+                                     String colorHex,
+                                     String sizeCode,
+                                     String sizeLabel,
+                                     Integer sortOrder) {
         Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Product not found: " + productId));
         ProductVariant variant = new ProductVariant(sku, name, price, stock);
-        variant.setWeightGrossG(weightGrossG);
-        variant.setLengthMm(lengthMm);
-        variant.setWidthMm(widthMm);
-        variant.setHeightMm(heightMm);
+        applyVariantMerchandising(variant, weightGrossG, lengthMm, widthMm, heightMm, colorCode, colorLabel, colorHex, sizeCode, sizeLabel, sortOrder);
         product.addVariant(variant);
         // saving the product will cascade to the variant
         productRepository.save(product);
@@ -82,8 +85,14 @@ public class CatalogService {
                                         Integer weightGrossG,
                                         Integer lengthMm,
                                         Integer widthMm,
-                                        Integer heightMm) {
-        return updateVariant(productId, variantId, null, name, price, stock, weightGrossG, lengthMm, widthMm, heightMm);
+                                        Integer heightMm,
+                                        String colorCode,
+                                        String colorLabel,
+                                        String colorHex,
+                                        String sizeCode,
+                                        String sizeLabel,
+                                        Integer sortOrder) {
+        return updateVariant(productId, variantId, null, name, price, stock, weightGrossG, lengthMm, widthMm, heightMm, colorCode, colorLabel, colorHex, sizeCode, sizeLabel, sortOrder);
     }
 
     public ProductVariant updateVariant(UUID productId,
@@ -95,7 +104,13 @@ public class CatalogService {
                                         Integer weightGrossG,
                                         Integer lengthMm,
                                         Integer widthMm,
-                                        Integer heightMm) {
+                                        Integer heightMm,
+                                        String colorCode,
+                                        String colorLabel,
+                                        String colorHex,
+                                        String sizeCode,
+                                        String sizeLabel,
+                                        Integer sortOrder) {
         ProductVariant variant = getVariant(productId, variantId);
         updateSkuIfProvided(variant, sku);
         if (name != null && !name.isBlank()) {
@@ -105,6 +120,21 @@ public class CatalogService {
             variant.setPrice(price);
         }
         variant.setStockQuantity(stock);
+        applyVariantMerchandising(variant, weightGrossG, lengthMm, widthMm, heightMm, colorCode, colorLabel, colorHex, sizeCode, sizeLabel, sortOrder);
+        return variantRepository.save(variant);
+    }
+
+    private void applyVariantMerchandising(ProductVariant variant,
+                                           Integer weightGrossG,
+                                           Integer lengthMm,
+                                           Integer widthMm,
+                                           Integer heightMm,
+                                           String colorCode,
+                                           String colorLabel,
+                                           String colorHex,
+                                           String sizeCode,
+                                           String sizeLabel,
+                                           Integer sortOrder) {
         if (weightGrossG != null) {
             variant.setWeightGrossG(weightGrossG);
         }
@@ -117,7 +147,20 @@ public class CatalogService {
         if (heightMm != null) {
             variant.setHeightMm(heightMm);
         }
-        return variantRepository.save(variant);
+        variant.setColorCode(normalizeNullable(colorCode));
+        variant.setColorLabel(normalizeNullable(colorLabel));
+        variant.setColorHex(normalizeNullable(colorHex));
+        variant.setSizeCode(normalizeNullable(sizeCode));
+        variant.setSizeLabel(normalizeNullable(sizeLabel));
+        variant.setSortOrder(sortOrder);
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isBlank() ? null : normalized;
     }
 
     public ProductVariant getVariant(UUID productId, UUID variantId) {

@@ -203,8 +203,8 @@ class DirectusAdminServiceStockImportTest {
         verify(inventoryService).adjustStock(eq(changed.getId()), eq(4), eq("stock-import-" + rows.getFirst().getId()), eq("STOCK_IMPORT"));
         verify(catalogService, never()).createProduct(any(), any(), any());
         verify(catalogService, never()).updateProduct(any(), any(), any(Boolean.class), any());
-        verify(catalogService, never()).addVariant(any(), any(), any(), any(), any(Integer.class), any(), any(), any(), any());
-        verify(catalogService, never()).updateVariant(any(), any(), any(), any(), any(Integer.class), any(), any(), any(), any());
+        verify(catalogService, never()).addVariant(any(), any(), any(), any(), any(Integer.class), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(catalogService, never()).updateVariant(any(), any(), any(), any(), any(Integer.class), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
