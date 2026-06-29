@@ -56,7 +56,12 @@ public record CartPricingSummary(
             boolean saleApplied,
             UUID salePromotionId,
             String salePromotionName,
-            String salePromotionType
+            String salePromotionType,
+            Integer availableStock,
+            String availabilityStatus,
+            Integer maxPurchasableQuantity,
+            boolean quantityAvailable,
+            String availabilityMessage
     ) {
     }
 }

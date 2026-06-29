@@ -84,6 +84,11 @@ class OrderServiceManualDeliveryTest {
                         false,
                         null,
                         null,
+                        null,
+                        10,
+                        "AVAILABLE",
+                        10,
+                        true,
                         null
                 ))
         ));
@@ -173,6 +178,11 @@ class OrderServiceManualDeliveryTest {
                         false,
                         null,
                         null,
+                        null,
+                        10,
+                        "AVAILABLE",
+                        10,
+                        true,
                         null
                 ))
         ));

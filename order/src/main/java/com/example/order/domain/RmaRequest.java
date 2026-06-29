@@ -5,11 +5,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -49,6 +53,10 @@ public class RmaRequest extends BaseEntity {
 
     @Column(name = "decision_version", nullable = false)
     private int decisionVersion;
+
+    @OneToMany(mappedBy = "rmaRequest", cascade = jakarta.persistence.CascadeType.ALL,
+            orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<RmaRequestItem> items = new ArrayList<>();
 
     public String getRmaNumber() {
         return rmaNumber;
@@ -128,5 +136,24 @@ public class RmaRequest extends BaseEntity {
 
     public void setDecisionVersion(int decisionVersion) {
         this.decisionVersion = decisionVersion;
+    }
+
+    public List<RmaRequestItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<RmaRequestItem> items) {
+        this.items.clear();
+        if (items != null) {
+            items.forEach(this::addItem);
+        }
+    }
+
+    public void addItem(RmaRequestItem item) {
+        if (item == null) {
+            return;
+        }
+        item.setRmaRequest(this);
+        this.items.add(item);
     }
 }

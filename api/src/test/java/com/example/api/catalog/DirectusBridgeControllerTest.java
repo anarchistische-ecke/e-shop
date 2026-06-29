@@ -187,6 +187,12 @@ class DirectusBridgeControllerTest {
                 isNull(),
                 isNull(),
                 isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
                 isNull()
         )).thenReturn(current);
 
@@ -204,6 +210,12 @@ class DirectusBridgeControllerTest {
                 eq("Linen / white updated"),
                 any(Money.class),
                 eq(9),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
                 isNull(),
                 isNull(),
                 isNull(),
@@ -227,6 +239,12 @@ class DirectusBridgeControllerTest {
                 isNull(),
                 isNull(),
                 isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
                 isNull()
         )).thenReturn(updated);
 
@@ -244,6 +262,12 @@ class DirectusBridgeControllerTest {
                 eq("Linen / white updated"),
                 any(Money.class),
                 eq(9),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
+                isNull(),
                 isNull(),
                 isNull(),
                 isNull(),

@@ -49,6 +49,24 @@ public class ProductVariant extends BaseEntity {
     @Column(name = "height_mm")
     private Integer heightMm;
 
+    @Column(name = "color_code")
+    private String colorCode;
+
+    @Column(name = "color_label")
+    private String colorLabel;
+
+    @Column(name = "color_hex")
+    private String colorHex;
+
+    @Column(name = "size_code")
+    private String sizeCode;
+
+    @Column(name = "size_label")
+    private String sizeLabel;
+
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false, columnDefinition = "uuid")
     private Product product;
@@ -126,6 +144,54 @@ public class ProductVariant extends BaseEntity {
 
     public void setHeightMm(Integer heightMm) {
         this.heightMm = heightMm;
+    }
+
+    public String getColorCode() {
+        return colorCode;
+    }
+
+    public void setColorCode(String colorCode) {
+        this.colorCode = colorCode;
+    }
+
+    public String getColorLabel() {
+        return colorLabel;
+    }
+
+    public void setColorLabel(String colorLabel) {
+        this.colorLabel = colorLabel;
+    }
+
+    public String getColorHex() {
+        return colorHex;
+    }
+
+    public void setColorHex(String colorHex) {
+        this.colorHex = colorHex;
+    }
+
+    public String getSizeCode() {
+        return sizeCode;
+    }
+
+    public void setSizeCode(String sizeCode) {
+        this.sizeCode = sizeCode;
+    }
+
+    public String getSizeLabel() {
+        return sizeLabel;
+    }
+
+    public void setSizeLabel(String sizeLabel) {
+        this.sizeLabel = sizeLabel;
+    }
+
+    public Integer getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     public Product getProduct() {

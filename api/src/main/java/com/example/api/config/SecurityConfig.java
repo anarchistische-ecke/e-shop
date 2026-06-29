@@ -81,6 +81,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.PUT, "/customers/me").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.PUT, "/customers/me/subscription").hasRole("CUSTOMER")
                 .requestMatchers(HttpMethod.GET, "/orders/me").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.GET, "/orders/me/*/rma-requests").hasRole("CUSTOMER")
+                .requestMatchers(HttpMethod.POST, "/orders/me/*/rma-requests").hasRole("CUSTOMER")
                 // Allow cart operations and checkout for guests
                 .requestMatchers("/carts/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/orders").permitAll()

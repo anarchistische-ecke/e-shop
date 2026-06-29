@@ -89,7 +89,13 @@ public class CatalogController {
                 request.getWeightGrossG(),
                 request.getLengthMm(),
                 request.getWidthMm(),
-                request.getHeightMm()
+                request.getHeightMm(),
+                request.getColorCode(),
+                request.getColorLabel(),
+                request.getColorHex(),
+                request.getSizeCode(),
+                request.getSizeLabel(),
+                request.getSortOrder()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(responseFactory.toVariantResponse(variant));
     }
@@ -108,7 +114,13 @@ public class CatalogController {
                 request.getWeightGrossG(),
                 request.getLengthMm(),
                 request.getWidthMm(),
-                request.getHeightMm()
+                request.getHeightMm(),
+                request.getColorCode(),
+                request.getColorLabel(),
+                request.getColorHex(),
+                request.getSizeCode(),
+                request.getSizeLabel(),
+                request.getSortOrder()
         );
         return ResponseEntity.ok(responseFactory.toVariantResponse(updated));
     }
@@ -341,6 +353,12 @@ public class CatalogController {
         private Integer lengthMm;
         private Integer widthMm;
         private Integer heightMm;
+        private String colorCode;
+        private String colorLabel;
+        private String colorHex;
+        private String sizeCode;
+        private String sizeLabel;
+        private Integer sortOrder;
 
         public String getSku() {
             return sku;
@@ -412,6 +430,54 @@ public class CatalogController {
 
         public void setHeightMm(Integer heightMm) {
             this.heightMm = heightMm;
+        }
+
+        public String getColorCode() {
+            return colorCode;
+        }
+
+        public void setColorCode(String colorCode) {
+            this.colorCode = colorCode;
+        }
+
+        public String getColorLabel() {
+            return colorLabel;
+        }
+
+        public void setColorLabel(String colorLabel) {
+            this.colorLabel = colorLabel;
+        }
+
+        public String getColorHex() {
+            return colorHex;
+        }
+
+        public void setColorHex(String colorHex) {
+            this.colorHex = colorHex;
+        }
+
+        public String getSizeCode() {
+            return sizeCode;
+        }
+
+        public void setSizeCode(String sizeCode) {
+            this.sizeCode = sizeCode;
+        }
+
+        public String getSizeLabel() {
+            return sizeLabel;
+        }
+
+        public void setSizeLabel(String sizeLabel) {
+            this.sizeLabel = sizeLabel;
+        }
+
+        public Integer getSortOrder() {
+            return sortOrder;
+        }
+
+        public void setSortOrder(Integer sortOrder) {
+            this.sortOrder = sortOrder;
         }
     }
 
@@ -429,6 +495,12 @@ public class CatalogController {
         private Integer lengthMm;
         private Integer widthMm;
         private Integer heightMm;
+        private String colorCode;
+        private String colorLabel;
+        private String colorHex;
+        private String sizeCode;
+        private String sizeLabel;
+        private Integer sortOrder;
 
         public String getSku() {
             return sku;
@@ -500,6 +572,54 @@ public class CatalogController {
 
         public void setHeightMm(Integer heightMm) {
             this.heightMm = heightMm;
+        }
+
+        public String getColorCode() {
+            return colorCode;
+        }
+
+        public void setColorCode(String colorCode) {
+            this.colorCode = colorCode;
+        }
+
+        public String getColorLabel() {
+            return colorLabel;
+        }
+
+        public void setColorLabel(String colorLabel) {
+            this.colorLabel = colorLabel;
+        }
+
+        public String getColorHex() {
+            return colorHex;
+        }
+
+        public void setColorHex(String colorHex) {
+            this.colorHex = colorHex;
+        }
+
+        public String getSizeCode() {
+            return sizeCode;
+        }
+
+        public void setSizeCode(String sizeCode) {
+            this.sizeCode = sizeCode;
+        }
+
+        public String getSizeLabel() {
+            return sizeLabel;
+        }
+
+        public void setSizeLabel(String sizeLabel) {
+            this.sizeLabel = sizeLabel;
+        }
+
+        public Integer getSortOrder() {
+            return sortOrder;
+        }
+
+        public void setSortOrder(Integer sortOrder) {
+            this.sortOrder = sortOrder;
         }
     }
 
@@ -682,6 +802,12 @@ public class CatalogController {
         private Integer lengthMm;
         private Integer widthMm;
         private Integer heightMm;
+        private String colorCode;
+        private String colorLabel;
+        private String colorHex;
+        private String sizeCode;
+        private String sizeLabel;
+        private Integer sortOrder;
 
         public UUID getId() {
             return id;
@@ -785,6 +911,54 @@ public class CatalogController {
 
         public void setHeightMm(Integer heightMm) {
             this.heightMm = heightMm;
+        }
+
+        public String getColorCode() {
+            return colorCode;
+        }
+
+        public void setColorCode(String colorCode) {
+            this.colorCode = colorCode;
+        }
+
+        public String getColorLabel() {
+            return colorLabel;
+        }
+
+        public void setColorLabel(String colorLabel) {
+            this.colorLabel = colorLabel;
+        }
+
+        public String getColorHex() {
+            return colorHex;
+        }
+
+        public void setColorHex(String colorHex) {
+            this.colorHex = colorHex;
+        }
+
+        public String getSizeCode() {
+            return sizeCode;
+        }
+
+        public void setSizeCode(String sizeCode) {
+            this.sizeCode = sizeCode;
+        }
+
+        public String getSizeLabel() {
+            return sizeLabel;
+        }
+
+        public void setSizeLabel(String sizeLabel) {
+            this.sizeLabel = sizeLabel;
+        }
+
+        public Integer getSortOrder() {
+            return sortOrder;
+        }
+
+        public void setSortOrder(Integer sortOrder) {
+            this.sortOrder = sortOrder;
         }
     }
 

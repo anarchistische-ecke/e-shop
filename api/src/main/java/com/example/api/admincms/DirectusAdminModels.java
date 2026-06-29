@@ -3,6 +3,7 @@ package com.example.api.admincms;
 import com.example.common.domain.Money;
 import com.example.order.domain.Order;
 import com.example.order.domain.RmaRequest;
+import com.example.order.domain.RmaRequestItem;
 import com.example.shipment.domain.Shipment;
 
 import java.math.BigDecimal;
@@ -136,6 +137,7 @@ public final class DirectusAdminModels {
             String decidedBy,
             OffsetDateTime decidedAt,
             int decisionVersion,
+            List<RmaRequestItemView> items,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {
@@ -152,8 +154,29 @@ public final class DirectusAdminModels {
                     request.getDecidedBy(),
                     request.getDecidedAt(),
                     request.getDecisionVersion(),
+                    request.getItems() != null
+                            ? request.getItems().stream().map(RmaRequestItemView::from).toList()
+                            : List.of(),
                     request.getCreatedAt(),
                     request.getUpdatedAt()
+            );
+        }
+    }
+
+    public record RmaRequestItemView(
+            UUID id,
+            UUID orderItemId,
+            int quantity,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt
+    ) {
+        public static RmaRequestItemView from(RmaRequestItem item) {
+            return new RmaRequestItemView(
+                    item.getId(),
+                    item.getOrderItemId(),
+                    item.getQuantity(),
+                    item.getCreatedAt(),
+                    item.getUpdatedAt()
             );
         }
     }

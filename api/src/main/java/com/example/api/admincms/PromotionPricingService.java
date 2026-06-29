@@ -127,7 +127,12 @@ public class PromotionPricingService implements CartPricingService {
                     pricing.saleApplied(),
                     pricing.salePromotionId(),
                     pricing.salePromotionName(),
-                    pricing.salePromotionType()
+                    pricing.salePromotionType(),
+                    variant != null ? variant.getStockQuantity() : null,
+                    availabilityStatus(variant, item.getQuantity()),
+                    variant != null ? Math.max(0, variant.getStockQuantity()) : 0,
+                    variant != null && variant.getStockQuantity() > 0 && item.getQuantity() <= variant.getStockQuantity(),
+                    availabilityMessage(variant, item.getQuantity())
             ));
         }
 
@@ -305,10 +310,43 @@ public class PromotionPricingService implements CartPricingService {
                     line.saleApplied(),
                     line.salePromotionId(),
                     line.salePromotionName(),
-                    line.salePromotionType()
+                    line.salePromotionType(),
+                    line.availableStock(),
+                    line.availabilityStatus(),
+                    line.maxPurchasableQuantity(),
+                    line.quantityAvailable(),
+                    line.availabilityMessage()
             ));
         }
         return result;
+    }
+
+    private String availabilityStatus(ProductVariant variant, int quantity) {
+        if (variant == null) {
+            return "MISSING_VARIANT";
+        }
+        int stock = variant.getStockQuantity();
+        if (stock <= 0) {
+            return "OUT_OF_STOCK";
+        }
+        if (quantity > stock) {
+            return "INSUFFICIENT_STOCK";
+        }
+        return "AVAILABLE";
+    }
+
+    private String availabilityMessage(ProductVariant variant, int quantity) {
+        if (variant == null) {
+            return "Товар больше недоступен в каталоге.";
+        }
+        int stock = variant.getStockQuantity();
+        if (stock <= 0) {
+            return "Этот вариант сейчас закончился.";
+        }
+        if (quantity > stock) {
+            return "В наличии только " + stock + " шт.";
+        }
+        return null;
     }
 
     private boolean sameCurrency(Money basePrice, Promotion promotion) {
