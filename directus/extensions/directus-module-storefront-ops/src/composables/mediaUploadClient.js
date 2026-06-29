@@ -9,15 +9,16 @@ export function createMediaUploadClient({ bridgeRequest, xhrFactory = () => new 
     files,
     onState = () => {},
   }) {
-    validateFiles(files);
+    const preparedFiles = await prepareUploadFiles(files);
+    validateFiles(preparedFiles);
     const created = await bridgeRequest('/media/uploads', {
       method: 'POST',
       data: {
         targetType,
         entityId,
-        files: files.map(({ file, variantId, position }) => ({
+        files: preparedFiles.map(({ file, contentType, variantId, position }) => ({
           filename: file.name,
-          contentType: normalizeContentType(file.type),
+          contentType,
           size: file.size,
           variantId: variantId || null,
           position: Number.isInteger(position) ? position : null,
@@ -28,7 +29,7 @@ export function createMediaUploadClient({ bridgeRequest, xhrFactory = () => new 
     publish(created.items, progress, onState);
 
     await runWithConcurrency(created.items, 2, async (item, index) => {
-      const descriptor = files[index];
+      const descriptor = preparedFiles[index];
       try {
         if (item.uploadMethod === 'MULTIPART') {
           await uploadMultipart(item, descriptor.file, (loaded) => {
@@ -150,12 +151,19 @@ export function validateMediaFiles(files) {
   validateFiles(files.map((file) => ({ file })));
 }
 
+async function prepareUploadFiles(files) {
+  return Promise.all(files.map(async (descriptor) => ({
+    ...descriptor,
+    contentType: await resolveContentType(descriptor.file),
+  })));
+}
+
 function validateFiles(files) {
   if (!files.length) {
     throw new Error('Выберите хотя бы один файл.');
   }
-  for (const { file } of files) {
-    const contentType = normalizeContentType(file.type);
+  for (const { file, contentType: preparedContentType } of files) {
+    const contentType = preparedContentType || normalizeContentType(file.type, file.name);
     if (!ALLOWED_TYPES.has(contentType)) {
       throw new Error(`${file.name}: поддерживаются только JPEG, PNG и WebP.`);
     }
@@ -165,8 +173,55 @@ function validateFiles(files) {
   }
 }
 
-function normalizeContentType(value) {
-  return value === 'image/jpg' ? 'image/jpeg' : String(value || '').toLowerCase();
+async function resolveContentType(file) {
+  const sniffed = await sniffContentType(file);
+  return sniffed || normalizeContentType(file.type, file.name);
+}
+
+async function sniffContentType(file) {
+  if (!file?.slice || typeof file.slice(0, 16).arrayBuffer !== 'function') {
+    return '';
+  }
+  const bytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return 'image/png';
+  }
+  if (
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return 'image/webp';
+  }
+  return '';
+}
+
+function normalizeContentType(value, filename = '') {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'image/jpg') return 'image/jpeg';
+  if (normalized) return normalized;
+  const extension = String(filename || '').split('.').pop()?.toLowerCase();
+  if (extension === 'jpg' || extension === 'jpeg') return 'image/jpeg';
+  if (extension === 'png') return 'image/png';
+  if (extension === 'webp') return 'image/webp';
+  return '';
 }
 
 async function runWithConcurrency(items, limit, worker) {

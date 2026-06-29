@@ -58,6 +58,48 @@ test('single upload sends object bytes before completing and polling readiness',
   assert.ok(requests.some((request) => request.path === '/media/uploads/upload-1/complete'));
 });
 
+test('upload batch uses sniffed JPEG type for a misnamed WebP file', async () => {
+  const requests = [];
+  const uploads = [];
+  const file = namedBlobFromBytes([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10], 'IMG_5308.WEBP', 'image/webp');
+  const client = createMediaUploadClient({
+    bridgeRequest: async (path, options = {}) => {
+      requests.push({ path, options });
+      if (path === '/media/uploads') {
+        return {
+          batchId: 'batch-sniffed',
+          items: [{
+            id: 'upload-sniffed',
+            batchId: 'batch-sniffed',
+            filename: file.name,
+            uploadMethod: 'SINGLE',
+            status: 'UPLOADING',
+            putUrl: 'https://storage.test/sniffed',
+            putHeaders: { 'content-type': options.data.files[0].contentType },
+            totalParts: 1,
+            partSize: 0,
+          }],
+        };
+      }
+      if (path === '/media/uploads/batches/batch-sniffed') {
+        return { batchId: 'batch-sniffed', items: [{ id: 'upload-sniffed', filename: file.name, status: 'READY' }] };
+      }
+      return {};
+    },
+    xhrFactory: () => new FakeXhr(uploads),
+  });
+
+  await client.uploadBatch({
+    targetType: 'PRODUCT',
+    entityId: 'product-sniffed',
+    files: [{ file }],
+  });
+
+  const createBatch = requests.find((request) => request.path === '/media/uploads');
+  assert.equal(createBatch.options.data.files[0].contentType, 'image/jpeg');
+  assert.equal(uploads[0].headers['content-type'], 'image/jpeg');
+});
+
 test('multipart upload signs and completes all eight MiB parts', async () => {
   const uploads = [];
   const completed = [];
@@ -249,6 +291,12 @@ class FakeXhr {
 
 function namedBlob(size, name, type) {
   const blob = new Blob([new Uint8Array(size)], { type });
+  Object.defineProperty(blob, 'name', { value: name });
+  return blob;
+}
+
+function namedBlobFromBytes(bytes, name, type) {
+  const blob = new Blob([new Uint8Array(bytes)], { type });
   Object.defineProperty(blob, 'name', { value: name });
   return blob;
 }
