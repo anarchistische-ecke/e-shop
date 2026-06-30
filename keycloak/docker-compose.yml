@@ -1,22 +1,44 @@
 services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${KEYCLOAK_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+      POSTGRES_DB: ${KEYCLOAK_DB_NAME:-keycloak}
+    volumes:
+      - kc-db:/var/lib/postgresql/data
+
   keycloak:
-    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION:-26.5.5}
+    image: ${KEYCLOAK_IMAGE:-keycloak-custom:25.0.5}
     restart: unless-stopped
     command:
       - start-dev
       - --import-realm
     environment:
-      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:-kcadmin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:-kcadmin}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-kcadmin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-kcadmin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://db:5432/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?Set KEYCLOAK_DB_PASSWORD}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-https://auth.yug-postel.ru}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: ${KEYCLOAK_HOSTNAME_BACKCHANNEL_DYNAMIC:-true}
+      KC_HOSTNAME_STRICT: ${KEYCLOAK_HOSTNAME_STRICT:-true}
+      KC_PROXY_HEADERS: ${KEYCLOAK_PROXY_HEADERS:-xforwarded}
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       KC_METRICS_ENABLED: "true"
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      - db
     volumes:
       - ./import:/opt/keycloak/data/import:ro
+      - ./providers:/opt/keycloak/providers:ro
       - ./themes:/opt/keycloak/themes:ro
       - keycloak-data:/opt/keycloak/data
 
 volumes:
+  kc-db:
   keycloak-data:
