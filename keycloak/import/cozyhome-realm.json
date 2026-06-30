@@ -152,9 +152,35 @@
           }
         }
       ]
+    },
+    {
+      "clientId": "magic-link-service",
+      "name": "Magic Link Service",
+      "description": "Backend service client for storefront passwordless login links",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "magic-link-local-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect"
     }
   ],
   "users": [
+    {
+      "username": "service-account-magic-link-service",
+      "enabled": true,
+      "serviceAccountClientId": "magic-link-service",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users"
+        ]
+      }
+    },
     {
       "username": "admin@example.com",
       "email": "admin@example.com",
