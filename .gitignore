@@ -7,6 +7,7 @@ target/
 backups/
 directus/.env
 keycloak/.env
+keycloak/providers/*.jar
 .DS_Store
 directus/extensions/**/node_modules/
 directus/extensions/**/dist/

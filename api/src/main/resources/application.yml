@@ -69,6 +69,19 @@ app:
       limit: ${APP_RATE_LIMIT_PRIVILEGED_LIMIT:120}
       window-seconds: ${APP_RATE_LIMIT_PRIVILEGED_WINDOW_SECONDS:60}
 
+auth:
+  magic-link:
+    enabled: ${AUTH_MAGIC_LINK_ENABLED:true}
+    keycloak-base-url: ${AUTH_MAGIC_LINK_KEYCLOAK_BASE_URL:http://localhost:8081}
+    realm: ${AUTH_MAGIC_LINK_REALM:cozyhome}
+    admin-client-id: ${AUTH_MAGIC_LINK_ADMIN_CLIENT_ID:magic-link-service}
+    admin-client-secret: ${AUTH_MAGIC_LINK_ADMIN_CLIENT_SECRET:}
+    storefront-client-id: ${AUTH_MAGIC_LINK_STOREFRONT_CLIENT_ID:cozyhome-web}
+    customer-role: ${AUTH_MAGIC_LINK_CUSTOMER_ROLE:customer}
+    lifespan: ${AUTH_MAGIC_LINK_LIFESPAN:15m}
+    cooldown: ${AUTH_MAGIC_LINK_COOLDOWN:60s}
+    allowed-redirect-origins: ${AUTH_MAGIC_LINK_ALLOWED_REDIRECT_ORIGINS:http://localhost:3000}
+
 media:
   derivatives:
     public-base-url: ${MEDIA_DERIVATIVES_PUBLIC_BASE_URL:https://img.yug-postel.ru}
