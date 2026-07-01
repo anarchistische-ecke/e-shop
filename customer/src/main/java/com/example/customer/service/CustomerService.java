@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,7 +32,8 @@ public class CustomerService {
         if (!StringUtils.hasText(email) || !StringUtils.hasText(rawPassword)) {
             throw new IllegalArgumentException("Email and password must be provided");
         }
-        if (customerRepository.findByEmail(email).isPresent()) {
+        String normalizedEmail = normalizeEmail(email);
+        if (customerRepository.findByEmail(normalizedEmail).isPresent()) {
             throw new IllegalArgumentException("Email already in use");
         }
         if (StringUtils.hasText(phone)) {
@@ -41,7 +43,7 @@ public class CustomerService {
                     });
         }
         String hashed = passwordEncoder.encode(rawPassword);
-        Customer customer = buildCustomer(firstName, lastName, email, phone, emptyAddress());
+        Customer customer = buildCustomer(firstName, lastName, normalizedEmail, phone, emptyAddress());
         customer.setPassword(hashed);
         return customerRepository.save(customer);
     }
@@ -50,11 +52,12 @@ public class CustomerService {
         if (!StringUtils.hasText(email) || !StringUtils.hasText(rawPassword)) {
             throw new IllegalArgumentException("Email and password must be provided");
         }
-        if (customerRepository.findByEmail(email).isPresent()) {
+        String normalizedEmail = normalizeEmail(email);
+        if (customerRepository.findByEmail(normalizedEmail).isPresent()) {
             throw new IllegalArgumentException("Email already in use");
         }
         String hashed = passwordEncoder.encode(rawPassword);
-        Customer customer = buildCustomer(firstName, lastName, email, null, address);
+        Customer customer = buildCustomer(firstName, lastName, normalizedEmail, null, address);
         customer.setPassword(hashed);
         return customerRepository.save(customer);
     }
@@ -146,7 +149,8 @@ public class CustomerService {
         if (!StringUtils.hasText(email)) {
             throw new IllegalArgumentException("Email must be provided");
         }
-        Optional<Customer> existing = customerRepository.findByEmail(email);
+        String normalizedEmail = normalizeEmail(email);
+        Optional<Customer> existing = customerRepository.findByEmail(normalizedEmail);
         if (existing.isPresent()) {
             Customer customer = existing.get();
             if (StringUtils.hasText(firstName)) {
@@ -157,12 +161,19 @@ public class CustomerService {
             }
             return customerRepository.save(customer);
         }
-        Customer customer = buildCustomer(firstName, lastName, email, null, emptyAddress());
+        Customer customer = buildCustomer(firstName, lastName, normalizedEmail, null, emptyAddress());
         customer.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
         return customerRepository.save(customer);
     }
 
     public Customer applyCheckoutContact(Customer customer, String customerName, String phone) {
+        return applyCheckoutContact(customer, customerName, phone, null);
+    }
+
+    public Customer applyCheckoutContact(Customer customer,
+                                         String customerName,
+                                         String phone,
+                                         CheckoutAddressSpec addressSpec) {
         if (customer == null) {
             throw new IllegalArgumentException("Customer is required");
         }
@@ -190,6 +201,12 @@ public class CustomerService {
             changed = true;
         }
 
+        Address address = buildCheckoutAddress(addressSpec);
+        if (address != null && !sameAddress(customer.getAddress(), address)) {
+            customer.setAddress(address);
+            changed = true;
+        }
+
         return changed ? customerRepository.save(customer) : customer;
     }
 
@@ -201,13 +218,36 @@ public class CustomerService {
                                           LocalDate birthDate,
                                           String gender,
                                           Boolean marketingOptIn) {
-        if (StringUtils.hasText(email) && !email.equalsIgnoreCase(customer.getEmail())) {
-            customerRepository.findByEmail(email)
+        return updateCustomerProfile(
+                customer,
+                email,
+                firstName,
+                lastName,
+                phone,
+                birthDate,
+                gender,
+                marketingOptIn,
+                null
+        );
+    }
+
+    public Customer updateCustomerProfile(Customer customer,
+                                          String email,
+                                          String firstName,
+                                          String lastName,
+                                          String phone,
+                                          LocalDate birthDate,
+                                          String gender,
+                                          Boolean marketingOptIn,
+                                          CheckoutAddressSpec addressSpec) {
+        String normalizedEmail = normalizeEmail(email);
+        if (StringUtils.hasText(normalizedEmail) && !normalizedEmail.equalsIgnoreCase(customer.getEmail())) {
+            customerRepository.findByEmail(normalizedEmail)
                     .filter(existing -> !existing.getId().equals(customer.getId()))
                     .ifPresent(existing -> {
                         throw new IllegalArgumentException("Email already in use");
                     });
-            customer.setEmail(email);
+            customer.setEmail(normalizedEmail);
         }
         if (StringUtils.hasText(phone) && !phone.equals(customer.getPhone())) {
             customerRepository.findByPhone(phone)
@@ -232,6 +272,10 @@ public class CustomerService {
         if (marketingOptIn != null) {
             customer.setMarketingOptIn(marketingOptIn);
         }
+        Address address = buildCheckoutAddress(addressSpec);
+        if (address != null) {
+            customer.setAddress(address);
+        }
         return customerRepository.save(customer);
     }
 
@@ -250,7 +294,10 @@ public class CustomerService {
     }
 
     public Optional<Customer> findByEmail(String email) {
-        return customerRepository.findByEmail(email);
+        String normalizedEmail = normalizeEmail(email);
+        return StringUtils.hasText(normalizedEmail)
+                ? customerRepository.findByEmail(normalizedEmail)
+                : Optional.empty();
     }
 
     public Optional<Customer> findByPhone(String phone) {
@@ -295,6 +342,44 @@ public class CustomerService {
         return new Address("Not provided", "Not provided", "", "000000", "Unknown");
     }
 
+    private Address buildCheckoutAddress(CheckoutAddressSpec spec) {
+        if (spec == null) {
+            return null;
+        }
+        String city = normalizeText(spec.city());
+        String street = normalizeText(spec.street());
+        if (!StringUtils.hasText(city) && !StringUtils.hasText(street)) {
+            return null;
+        }
+        return new Address(
+                defaultIfBlank(street, "Not provided"),
+                defaultIfBlank(city, "Not provided"),
+                normalizeText(spec.address2()),
+                defaultIfBlank(normalizePostalCode(spec.postalCode()), "000000"),
+                "RU"
+        );
+    }
+
+    private boolean sameAddress(Address current, Address next) {
+        if (current == null || next == null) {
+            return current == next;
+        }
+        return normalizeText(current.getStreet()).equals(normalizeText(next.getStreet()))
+                && normalizeText(current.getCity()).equals(normalizeText(next.getCity()))
+                && normalizeText(current.getState()).equals(normalizeText(next.getState()))
+                && normalizeText(current.getPostalCode()).equals(normalizeText(next.getPostalCode()))
+                && normalizeText(current.getCountry()).equals(normalizeText(next.getCountry()));
+    }
+
+    private String normalizePostalCode(String postalCode) {
+        String normalized = normalizeText(postalCode);
+        return StringUtils.hasText(normalized) ? normalized : "";
+    }
+
+    private String normalizeText(String value) {
+        return StringUtils.hasText(value) ? value.trim().replaceAll("\\s+", " ") : "";
+    }
+
     private String[] splitName(String customerName) {
         String value = StringUtils.hasText(customerName) ? customerName.trim().replaceAll("\\s+", " ") : "";
         if (!StringUtils.hasText(value)) {
@@ -328,4 +413,10 @@ public class CustomerService {
     private String defaultIfBlank(String value, String fallback) {
         return StringUtils.hasText(value) ? value : fallback;
     }
+
+    private String normalizeEmail(String email) {
+        return StringUtils.hasText(email) ? email.trim().toLowerCase(Locale.ROOT) : "";
+    }
+
+    public record CheckoutAddressSpec(String postalCode, String city, String street, String address2) {}
 }

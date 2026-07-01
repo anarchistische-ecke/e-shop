@@ -47,7 +47,8 @@ public class CustomerController {
                 request.phone(),
                 request.birthDate(),
                 request.gender(),
-                null
+                null,
+                toCheckoutAddressSpec(request.address())
         );
         return ResponseEntity.ok(toProfileResponse(updated));
     }
@@ -65,7 +66,8 @@ public class CustomerController {
                 null,
                 null,
                 null,
-                request.marketingOptIn()
+                request.marketingOptIn(),
+                null
         );
         return ResponseEntity.ok(toProfileResponse(updated));
     }
@@ -126,6 +128,7 @@ public class CustomerController {
     }
 
     private CustomerProfileResponse toProfileResponse(Customer customer) {
+        var address = customer.getAddress();
         return new CustomerProfileResponse(
                 customer.getId(),
                 customer.getEmail(),
@@ -135,7 +138,25 @@ public class CustomerController {
                 customer.getBirthDate(),
                 customer.getGender(),
                 customer.isMarketingOptIn(),
-                customer.isEmailVerified()
+                customer.isEmailVerified(),
+                address == null ? null : new CustomerAddressResponse(
+                        address.getPostalCode(),
+                        address.getCity(),
+                        address.getStreet(),
+                        address.getState()
+                )
+        );
+    }
+
+    private CustomerService.CheckoutAddressSpec toCheckoutAddressSpec(CustomerAddressRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return new CustomerService.CheckoutAddressSpec(
+                request.postalCode(),
+                request.city(),
+                request.street(),
+                request.address2()
         );
     }
 
@@ -145,10 +166,25 @@ public class CustomerController {
             String lastName,
             @Pattern(regexp = "^\\+?\\d{11,15}$") String phone,
             LocalDate birthDate,
-            String gender
+            String gender,
+            CustomerAddressRequest address
     ) {}
 
     public record SubscriptionUpdateRequest(boolean marketingOptIn) {}
+
+    public record CustomerAddressRequest(
+            String postalCode,
+            String city,
+            String street,
+            String address2
+    ) {}
+
+    public record CustomerAddressResponse(
+            String postalCode,
+            String city,
+            String street,
+            String address2
+    ) {}
 
     public record CustomerProfileResponse(
             UUID id,
@@ -159,6 +195,7 @@ public class CustomerController {
             LocalDate birthDate,
             String gender,
             boolean marketingOptIn,
-            boolean emailVerified
+            boolean emailVerified,
+            CustomerAddressResponse address
     ) {}
 }
