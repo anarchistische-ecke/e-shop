@@ -19,6 +19,7 @@
   "ssoSessionMaxLifespanRememberMe": 7776000,
   "verifyEmail": false,
   "loginTheme": "postel-yug",
+  "emailTheme": "postel-yug",
   "defaultRoles": [
     "offline_access",
     "uma_authorization"
