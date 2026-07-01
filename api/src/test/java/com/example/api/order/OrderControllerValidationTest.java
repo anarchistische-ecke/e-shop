@@ -28,6 +28,8 @@ class OrderControllerValidationTest {
                 "EMBEDDED",
                 false,
                 null,
+                "https://example.test/account?order={orderId}#orders",
+                null,
                 null
         );
 

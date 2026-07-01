@@ -1,6 +1,7 @@
 package com.example.api.order;
 
 import com.example.api.admincms.DirectusAdminService;
+import com.example.api.auth.MagicLinkService;
 import com.example.api.metrika.MetrikaOutboxService;
 import com.example.api.notification.EmailService;
 import com.example.api.notification.NotificationOrchestrator;
@@ -57,6 +58,7 @@ public class OrderController {
     private final EmailService emailService;
     private final DirectusAdminService directusAdminService;
     private final NotificationOrchestrator notificationOrchestrator;
+    private final MagicLinkService magicLinkService;
     private final MetrikaOutboxService metrikaOutboxService;
     private final ObjectMapper objectMapper;
 
@@ -80,6 +82,7 @@ public class OrderController {
                 directusAdminService,
                 notificationOrchestrator,
                 null,
+                null,
                 new ObjectMapper()
         );
     }
@@ -91,6 +94,7 @@ public class OrderController {
                            EmailService emailService,
                            DirectusAdminService directusAdminService,
                            NotificationOrchestrator notificationOrchestrator,
+                           MagicLinkService magicLinkService,
                            MetrikaOutboxService metrikaOutboxService,
                            ObjectMapper objectMapper) {
         this.orderService = orderService;
@@ -99,6 +103,7 @@ public class OrderController {
         this.emailService = emailService;
         this.directusAdminService = directusAdminService;
         this.notificationOrchestrator = notificationOrchestrator;
+        this.magicLinkService = magicLinkService;
         this.metrikaOutboxService = metrikaOutboxService;
         this.objectMapper = objectMapper;
     }
@@ -144,7 +149,11 @@ public class OrderController {
                     resolvePaymentConfirmationMode(request.confirmationMode)
             );
             notifyPaymentCompletedIfNeeded(existingOrder.getStatus(), existingPayment);
-            return ResponseEntity.ok(new OrderCheckoutResponse(attachPaymentSummary(existingOrder), toPaymentResponse(existingPayment)));
+            return ResponseEntity.ok(new OrderCheckoutResponse(
+                    attachPaymentSummary(existingOrder),
+                    toPaymentResponse(existingPayment),
+                    buildCheckoutAccountResponse(request, jwt, customer, existingOrder)
+            ));
         }
 
         boolean checkoutAttemptBound = false;
@@ -178,7 +187,11 @@ public class OrderController {
             notifyPaymentCompletedIfNeeded("PENDING", payment);
             emailService.sendOrderCreatedEmail(order, request.receiptEmail, buildOrderUrl(request.orderPageUrl, order));
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new OrderCheckoutResponse(attachPaymentSummary(order), toPaymentResponse(payment)));
+                    .body(new OrderCheckoutResponse(
+                            attachPaymentSummary(order),
+                            toPaymentResponse(payment),
+                            buildCheckoutAccountResponse(request, jwt, customer, order)
+                    ));
         } catch (RuntimeException ex) {
             if (!checkoutAttemptBound) {
                 orderService.releaseCheckoutAttemptIfUnbound(effectiveIdempotencyKey, requestHash);
@@ -346,7 +359,70 @@ public class OrderController {
         Customer customer = jwt != null
                 ? resolveCustomer(jwt)
                 : customerService.findOrCreateByEmail(request.receiptEmail, null, null);
-        return customerService.applyCheckoutContact(customer, request.customerName, request.phone);
+        return customerService.applyCheckoutContact(
+                customer,
+                request.customerName,
+                request.phone,
+                toCheckoutAddressSpec(request.addressParts)
+        );
+    }
+
+    private CheckoutAccountResponse buildCheckoutAccountResponse(CheckoutRequest request,
+                                                                 Jwt jwt,
+                                                                 Customer customer,
+                                                                 Order order) {
+        String redirectPath = buildAccountRedirectPath(order);
+        String email = normalizeEmail(customer != null ? customer.getEmail() : request.receiptEmail);
+        if (jwt != null) {
+            return new CheckoutAccountResponse(CheckoutAccountStatus.AUTHENTICATED, redirectPath, email);
+        }
+        String accountRedirectUrl = resolveAccountRedirectUrl(request.accountRedirectUrl, order);
+        if (magicLinkService == null || !StringUtils.hasText(accountRedirectUrl)) {
+            return new CheckoutAccountResponse(CheckoutAccountStatus.UNAVAILABLE, redirectPath, email);
+        }
+        MagicLinkService.MagicLinkResult result;
+        try {
+            result = magicLinkService.requestMagicLink(email, accountRedirectUrl);
+        } catch (RuntimeException ex) {
+            return new CheckoutAccountResponse(CheckoutAccountStatus.UNAVAILABLE, redirectPath, email);
+        }
+        CheckoutAccountStatus status = switch (result.status()) {
+            case ACCEPTED -> CheckoutAccountStatus.MAGIC_LINK_SENT;
+            case RATE_LIMITED -> CheckoutAccountStatus.MAGIC_LINK_RATE_LIMITED;
+            case VALIDATION_ERROR, UNAVAILABLE -> CheckoutAccountStatus.UNAVAILABLE;
+        };
+        return new CheckoutAccountResponse(status, redirectPath, email);
+    }
+
+    private String buildAccountRedirectPath(Order order) {
+        if (order == null || order.getId() == null) {
+            return "/account#orders";
+        }
+        return "/account?order=" + order.getId() + "#orders";
+    }
+
+    private String resolveAccountRedirectUrl(String redirectUrl, Order order) {
+        String normalized = normalizeValue(redirectUrl);
+        if (!StringUtils.hasText(normalized) || order == null) {
+            return normalized;
+        }
+        String orderId = order.getId() == null ? "" : order.getId().toString();
+        String publicToken = normalizeValue(order.getPublicToken());
+        return normalized
+                .replace("{orderId}", orderId)
+                .replace("{token}", publicToken);
+    }
+
+    private CustomerService.CheckoutAddressSpec toCheckoutAddressSpec(AddressPartsRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return new CustomerService.CheckoutAddressSpec(
+                request.postalCode(),
+                request.city(),
+                request.street(),
+                request.address2()
+        );
     }
 
     private Customer resolveCustomer(Jwt jwt) {
@@ -497,7 +573,16 @@ public class OrderController {
             String confirmationMode,
             Boolean savePaymentMethod,
             AnalyticsAttributionRequest analyticsAttribution,
+            String accountRedirectUrl,
+            AddressPartsRequest addressParts,
             String idempotencyKey
+    ) {}
+
+    public record AddressPartsRequest(
+            String postalCode,
+            String city,
+            String street,
+            String address2
     ) {}
 
     public record AdminLinkRequest(
@@ -551,7 +636,16 @@ public class OrderController {
             String confirmationToken
     ) {}
 
-    public record OrderCheckoutResponse(Order order, PaymentResponse payment) {}
+    public record CheckoutAccountResponse(CheckoutAccountStatus status, String redirectPath, String email) {}
+
+    public enum CheckoutAccountStatus {
+        AUTHENTICATED,
+        MAGIC_LINK_SENT,
+        MAGIC_LINK_RATE_LIMITED,
+        UNAVAILABLE
+    }
+
+    public record OrderCheckoutResponse(Order order, PaymentResponse payment, CheckoutAccountResponse account) {}
 
     private String buildCheckoutRequestHash(CheckoutRequest request, UUID customerId) {
         StringJoiner joiner = new StringJoiner("|");
@@ -560,11 +654,17 @@ public class OrderController {
         joiner.add(normalizeValue(request.receiptEmail));
         joiner.add(normalizeValue(request.returnUrl));
         joiner.add(normalizeValue(request.orderPageUrl));
+        joiner.add(normalizeValue(request.accountRedirectUrl));
         joiner.add(normalizeValue(resolvePaymentConfirmationMode(request.confirmationMode)));
         joiner.add(Boolean.TRUE.equals(request.savePaymentMethod) ? "1" : "0");
         joiner.add(normalizeValue(request.customerName));
         joiner.add(normalizeValue(request.phone));
         joiner.add(normalizeValue(request.homeAddress));
+        AddressPartsRequest addressParts = request.addressParts;
+        joiner.add(addressParts == null ? "" : normalizeValue(addressParts.postalCode()));
+        joiner.add(addressParts == null ? "" : normalizeValue(addressParts.city()));
+        joiner.add(addressParts == null ? "" : normalizeValue(addressParts.street()));
+        joiner.add(addressParts == null ? "" : normalizeValue(addressParts.address2()));
 
         return sha256(joiner.toString());
     }
@@ -588,6 +688,10 @@ public class OrderController {
             return "";
         }
         return value.trim();
+    }
+
+    private String normalizeEmail(String value) {
+        return normalizeValue(value).toLowerCase();
     }
 
     private String sha256(String payload) {
