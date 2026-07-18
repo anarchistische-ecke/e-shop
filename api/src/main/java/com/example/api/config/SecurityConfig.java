@@ -76,6 +76,7 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/prometheus").access(prometheusAccess)
                 .requestMatchers("/internal/directus/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/auth/magic-link").permitAll()
+                .requestMatchers("/chat/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/content/preview/**").access(previewAccess)
                 .requestMatchers(HttpMethod.GET, "/content/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")

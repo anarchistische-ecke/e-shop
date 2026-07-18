@@ -16,7 +16,7 @@ class WebConfigTest {
         ReflectionTestUtils.setField(config, "allowedHeaders", "Authorization,Content-Type");
 
         assertThat(config.resolveAllowedHeaders())
-                .containsExactly("Authorization", "Content-Type", "Idempotency-Key");
+                .containsExactly("Authorization", "Content-Type", "Idempotency-Key", "X-Chat-Token");
     }
 
     @Test
@@ -38,7 +38,9 @@ class WebConfigTest {
         CorsConfiguration cors = source.getCorsConfiguration(new MockHttpServletRequest("OPTIONS", "/orders/checkout"));
 
         assertThat(cors).isNotNull();
-        assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type", "Idempotency-Key");
+        assertThat(cors.getAllowedHeaders()).containsExactly(
+                "Authorization", "Content-Type", "Idempotency-Key", "X-Chat-Token"
+        );
         assertThat(cors.getExposedHeaders()).containsExactly(
                 "X-Page",
                 "X-Page-Size",

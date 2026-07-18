@@ -32,6 +32,20 @@ notifications:
     pochta: ${NOTIFICATIONS_TRACKING_URL_POCHTA:https://www.pochta.ru/tracking#{trackingNumber}}
     boxberry: ${NOTIFICATIONS_TRACKING_URL_BOXBERRY:https://boxberry.ru/tracking-page?id={trackingNumber}}
 
+chat:
+  enabled: ${CHAT_ENABLED:true}
+  max-message-length: ${CHAT_MAX_MESSAGE_LENGTH:2000}
+  max-attempts: ${CHAT_DELIVERY_MAX_ATTEMPTS:3}
+  retry-delay: ${CHAT_DELIVERY_RETRY_DELAY:30s}
+  batch-size: ${CHAT_DELIVERY_BATCH_SIZE:20}
+  telegram:
+    bot-token: ${TELEGRAM_BOT_TOKEN:}
+    manager-chat-id: ${TELEGRAM_MANAGER_CHAT_ID:}
+    webhook-secret: ${TELEGRAM_WEBHOOK_SECRET:}
+    api-base-url: ${TELEGRAM_API_BASE_URL:https://api.telegram.org}
+    dispatcher-enabled: ${CHAT_TELEGRAM_DISPATCHER_ENABLED:false}
+    dispatcher-fixed-delay-ms: ${CHAT_TELEGRAM_DISPATCHER_FIXED_DELAY_MS:5000}
+
 metrika:
   enabled: ${YANDEX_METRIKA_ENABLED:false}
   counter-id: ${YANDEX_METRIKA_COUNTER_ID:}
@@ -65,6 +79,12 @@ app:
     webhook:
       limit: ${APP_RATE_LIMIT_WEBHOOK_LIMIT:120}
       window-seconds: ${APP_RATE_LIMIT_WEBHOOK_WINDOW_SECONDS:60}
+    chat-start:
+      limit: ${APP_RATE_LIMIT_CHAT_START_LIMIT:6}
+      window-seconds: ${APP_RATE_LIMIT_CHAT_START_WINDOW_SECONDS:60}
+    chat-message:
+      limit: ${APP_RATE_LIMIT_CHAT_MESSAGE_LIMIT:60}
+      window-seconds: ${APP_RATE_LIMIT_CHAT_MESSAGE_WINDOW_SECONDS:60}
     privileged:
       limit: ${APP_RATE_LIMIT_PRIVILEGED_LIMIT:120}
       window-seconds: ${APP_RATE_LIMIT_PRIVILEGED_WINDOW_SECONDS:60}

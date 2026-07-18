@@ -56,6 +56,18 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
     @Value("${app.rate-limit.webhook.window-seconds:60}")
     private int webhookWindowSeconds;
 
+    @Value("${app.rate-limit.chat-start.limit:6}")
+    private int chatStartLimit;
+
+    @Value("${app.rate-limit.chat-start.window-seconds:60}")
+    private int chatStartWindowSeconds;
+
+    @Value("${app.rate-limit.chat-message.limit:60}")
+    private int chatMessageLimit;
+
+    @Value("${app.rate-limit.chat-message.window-seconds:60}")
+    private int chatMessageWindowSeconds;
+
     @Value("${app.rate-limit.privileged.limit:120}")
     private int privilegedLimit;
 
@@ -116,6 +128,15 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
         }
         if (path.equals("/payments/yookassa/webhook") && method.equals(HttpMethod.POST.name())) {
             return new RatePolicy("payment-webhook", webhookLimit, webhookWindowSeconds, clientAddress(request));
+        }
+        if (path.equals("/chat/telegram/webhook") && method.equals(HttpMethod.POST.name())) {
+            return new RatePolicy("chat-webhook", webhookLimit, webhookWindowSeconds, clientAddress(request));
+        }
+        if (path.equals("/chat/conversations") && method.equals(HttpMethod.POST.name())) {
+            return new RatePolicy("chat-start", chatStartLimit, chatStartWindowSeconds, clientAddress(request));
+        }
+        if (path.startsWith("/chat/conversations/")) {
+            return new RatePolicy("chat-message", chatMessageLimit, chatMessageWindowSeconds, clientAddress(request));
         }
         if (path.equals("/carts") && method.equals(HttpMethod.POST.name())) {
             return new RatePolicy("cart-create", cartLimit, cartWindowSeconds, clientAddress(request));
