@@ -120,6 +120,35 @@ class ChatServiceTest {
     }
 
     @Test
+    void listMessagesWithoutAfterUsesInitialHistoryQuery() {
+        ChatConversation conversation = conversation("hash");
+        when(conversationRepository.findByIdAndCustomerTokenHash(any(), any())).thenReturn(Optional.of(conversation));
+        when(messageRepository.findByConversation_IdOrderByCreatedAtAscIdAsc(conversation.getId()))
+                .thenReturn(List.of());
+
+        service.listMessages(conversation.getId(), "token", null);
+
+        verify(messageRepository).findByConversation_IdOrderByCreatedAtAscIdAsc(conversation.getId());
+        verify(messageRepository, never())
+                .findByConversation_IdAndCreatedAtAfterOrderByCreatedAtAscIdAsc(any(), any());
+    }
+
+    @Test
+    void listMessagesWithAfterUsesIncrementalHistoryQuery() {
+        ChatConversation conversation = conversation("hash");
+        OffsetDateTime after = OffsetDateTime.parse("2026-07-19T17:00:00Z");
+        when(conversationRepository.findByIdAndCustomerTokenHash(any(), any())).thenReturn(Optional.of(conversation));
+        when(messageRepository.findByConversation_IdAndCreatedAtAfterOrderByCreatedAtAscIdAsc(
+                conversation.getId(), after)).thenReturn(List.of());
+
+        service.listMessages(conversation.getId(), "token", after.toString());
+
+        verify(messageRepository)
+                .findByConversation_IdAndCreatedAtAfterOrderByCreatedAtAscIdAsc(conversation.getId(), after);
+        verify(messageRepository, never()).findByConversation_IdOrderByCreatedAtAscIdAsc(any());
+    }
+
+    @Test
     void telegramWebhookStoresManagerReplyWhenReplyMapsToConversation() {
         ChatConversation conversation = conversation("hash");
         ChatTelegramMessageMap mapping = new ChatTelegramMessageMap();

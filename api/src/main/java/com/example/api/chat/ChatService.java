@@ -85,10 +85,16 @@ public class ChatService {
     public MessageListResponse listMessages(UUID conversationId, String token, String after) {
         ChatConversation conversation = requireConversation(conversationId, token);
         OffsetDateTime afterTime = parseAfter(after);
+        List<ChatMessage> messages = afterTime == null
+                ? messageRepository.findByConversation_IdOrderByCreatedAtAscIdAsc(conversation.getId())
+                : messageRepository.findByConversation_IdAndCreatedAtAfterOrderByCreatedAtAscIdAsc(
+                        conversation.getId(),
+                        afterTime
+                );
         return new MessageListResponse(
                 conversation.getId(),
                 conversation.getStatus(),
-                toResponses(messageRepository.findConversationMessagesAfter(conversation.getId(), afterTime))
+                toResponses(messages)
         );
     }
 
