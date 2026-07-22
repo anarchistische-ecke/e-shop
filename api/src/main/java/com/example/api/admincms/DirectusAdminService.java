@@ -12,6 +12,7 @@ import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsRow;
 import com.example.api.admincms.DirectusAdminModels.NotUpdatedVariantView;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
+import com.example.api.admincms.DirectusAdminModels.OrderConversionAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderSearchResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderStatusEvent;
@@ -106,6 +107,25 @@ public class DirectusAdminService {
             "COMPLETED",
             "CANCELLED",
             "REFUNDED"
+    );
+    private static final Set<String> PAID_ORDER_STATUSES = Set.of(
+            "PAID",
+            "PROCESSING",
+            "READY_FOR_PICKUP",
+            "SHIPPED",
+            "DELIVERED",
+            "RECEIVED",
+            "COMPLETED",
+            "REFUNDED"
+    );
+    private static final Set<String> COMMISSIONABLE_ORDER_STATUSES = Set.of(
+            "PAID",
+            "PROCESSING",
+            "READY_FOR_PICKUP",
+            "SHIPPED",
+            "DELIVERED",
+            "RECEIVED",
+            "COMPLETED"
     );
     private static final Set<String> PICKER_VISIBLE_STATUSES = Set.of("PAID", "PROCESSING", "READY_FOR_PICKUP", "SHIPPED");
     private static final Set<String> PICKER_TARGET_STATUSES = Set.of("PROCESSING", "READY_FOR_PICKUP", "SHIPPED");
@@ -1167,9 +1187,9 @@ public class DirectusAdminService {
                 .collect(Collectors.groupingBy(this::assignedManagerLabel, LinkedHashMap::new, Collectors.toList()));
         List<ManagerAnalyticsRow> rows = byManager.entrySet().stream()
                 .map(entry -> {
-                    long paidOrders = entry.getValue().stream().filter(order -> equalsIgnoreCase(order.getStatus(), "PAID")).count();
+                    long paidOrders = entry.getValue().stream().filter(this::isCommissionableOrder).count();
                     long paidAmount = entry.getValue().stream()
-                            .filter(order -> equalsIgnoreCase(order.getStatus(), "PAID"))
+                            .filter(this::isCommissionableOrder)
                             .map(Order::getTotalAmount)
                             .filter(money -> money != null)
                             .mapToLong(Money::getAmount)
@@ -1196,7 +1216,9 @@ public class DirectusAdminService {
                 .filter(link -> !StringUtils.hasText(normalizedManager) || matchesManager(link, normalizedManager))
                 .map(link -> {
                     Order order = orderRepository.findById(link.getOrderId()).orElse(null);
-                    boolean paid = order != null && equalsIgnoreCase(order.getStatus(), "PAID");
+                    boolean paid = link.getPaidAt() != null
+                            || equalsIgnoreCase(link.getStatus(), "PAID")
+                            || isPaidOrder(order);
                     return new PaymentLinkAnalyticsRow(
                             link.getId(),
                             link.getOrderId(),
@@ -1209,10 +1231,38 @@ public class DirectusAdminService {
                     );
                 })
                 .toList();
-        long sent = rows.size();
+        long sent = rows.stream().filter(this::isSentPaymentLink).count();
         long paid = rows.stream().filter(PaymentLinkAnalyticsRow::paid).count();
         double conversion = sent > 0 ? (double) paid / sent : 0d;
         return new PaymentLinkAnalyticsResponse(sent, paid, conversion, rows);
+    }
+
+    public OrderConversionAnalyticsResponse orderConversionAnalytics(OffsetDateTime from,
+                                                                      OffsetDateTime to,
+                                                                      String manager) {
+        String normalizedManager = normalize(manager);
+        Set<UUID> managerLinkedOrderIds = managerLinkedOrderIds(normalizedManager);
+        List<Order> orders = orderRepository.findAllByOrderByOrderDateDesc().stream()
+                .filter(order -> !StringUtils.hasText(normalizedManager)
+                        || matchesManager(order, normalizedManager)
+                        || managerLinkedOrderIds.contains(order.getId()))
+                .filter(order -> from == null || (order.getOrderDate() != null && !order.getOrderDate().isBefore(from)))
+                .filter(order -> to == null || (order.getOrderDate() != null && !order.getOrderDate().isAfter(to)))
+                .toList();
+        long created = orders.size();
+        long paid = orders.stream().filter(this::isPaidOrder).count();
+        long pending = orders.stream().filter(order -> equalsIgnoreCase(order.getStatus(), "PENDING")).count();
+        long cancelled = orders.stream().filter(order -> equalsIgnoreCase(order.getStatus(), "CANCELLED")).count();
+        long refunded = orders.stream().filter(order -> equalsIgnoreCase(order.getStatus(), "REFUNDED")).count();
+        double checkoutToPaidRate = created > 0 ? (double) paid / created : 0d;
+        return new OrderConversionAnalyticsResponse(
+                created,
+                paid,
+                pending,
+                cancelled,
+                refunded,
+                checkoutToPaidRate
+        );
     }
 
     private Set<UUID> managerLinkedOrderIds(String normalizedManager) {
@@ -1773,6 +1823,22 @@ public class DirectusAdminService {
 
     private boolean equalsIgnoreCase(String left, String right) {
         return left != null && right != null && left.equalsIgnoreCase(right);
+    }
+
+    private boolean isPaidOrder(Order order) {
+        return order != null && PAID_ORDER_STATUSES.contains(normalizeStatus(order.getStatus()));
+    }
+
+    private boolean isCommissionableOrder(Order order) {
+        return order != null && COMMISSIONABLE_ORDER_STATUSES.contains(normalizeStatus(order.getStatus()));
+    }
+
+    private boolean isSentPaymentLink(PaymentLinkAnalyticsRow row) {
+        return row != null
+                && (row.sentAt() != null
+                || row.paid()
+                || equalsIgnoreCase(row.status(), "SENT")
+                || equalsIgnoreCase(row.status(), "PAID"));
     }
 
     private boolean containsIgnoreCase(String value, String query) {

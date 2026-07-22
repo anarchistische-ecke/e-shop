@@ -9,6 +9,7 @@ import com.example.api.admincms.DirectusAdminModels.LowStockAlertResponse;
 import com.example.api.admincms.DirectusAdminModels.ManagerAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.MetrikaAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderDetail;
+import com.example.api.admincms.DirectusAdminModels.OrderConversionAnalyticsResponse;
 import com.example.api.admincms.DirectusAdminModels.OrderArchiveRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderRefundRequest;
 import com.example.api.admincms.DirectusAdminModels.OrderSearchResponse;
@@ -542,6 +543,22 @@ public class DirectusAdminBridgeController {
         return ResponseEntity.ok(adminService.paymentLinkAnalytics(from, to, analyticsManagerFilter(principal, manager)));
     }
 
+    @GetMapping("/analytics/orders")
+    public ResponseEntity<OrderConversionAnalyticsResponse> orderConversionAnalytics(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to,
+            @RequestParam(required = false) String manager,
+            HttpServletRequest request
+    ) {
+        var principal = authorize(request);
+        roleGuard.requireAnalytics(principal);
+        return ResponseEntity.ok(adminService.orderConversionAnalytics(
+                from,
+                to,
+                analyticsManagerFilter(principal, manager)
+        ));
+    }
+
     @GetMapping("/analytics/metrika")
     public ResponseEntity<MetrikaAnalyticsResponse> metrikaAnalytics(HttpServletRequest request) {
         var principal = authorize(request);
@@ -549,11 +566,15 @@ public class DirectusAdminBridgeController {
         boolean enabled = metrikaProperties != null && metrikaProperties.isEnabled();
         boolean offlineEnabled = metrikaProperties != null && metrikaProperties.getOfflineImport().isEnabled();
         boolean counterConfigured = metrikaProperties != null && StringUtils.hasText(metrikaProperties.getCounterId());
+        boolean oauthConfigured = metrikaProperties != null && StringUtils.hasText(metrikaProperties.getOauthToken());
+        boolean ready = enabled && offlineEnabled && counterConfigured && oauthConfigured;
         if (metrikaOutboxRepository == null) {
             return ResponseEntity.ok(new MetrikaAnalyticsResponse(
                     enabled,
                     offlineEnabled,
                     counterConfigured,
+                    oauthConfigured,
+                    ready,
                     0,
                     0,
                     0,
@@ -564,6 +585,8 @@ public class DirectusAdminBridgeController {
                 enabled,
                 offlineEnabled,
                 counterConfigured,
+                oauthConfigured,
+                ready,
                 metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.PENDING),
                 metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.SENT),
                 metrikaOutboxRepository.countByStatus(MetrikaOutboxStatus.FAILED),

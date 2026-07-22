@@ -441,11 +441,21 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     to: '',
     manager: '',
     managerRows: [],
+    orderConversion: {
+      created: 0,
+      paid: 0,
+      pending: 0,
+      cancelled: 0,
+      refunded: 0,
+      checkoutToPaidRate: 0,
+    },
     paymentLinks: { sent: 0, paid: 0, conversionRate: 0, rows: [] },
     metrika: {
       enabled: false,
       offlineImportEnabled: false,
       counterConfigured: false,
+      oauthConfigured: false,
+      ready: false,
       pending: 0,
       sent: 0,
       failed: 0,
@@ -2757,12 +2767,14 @@ export function useStorefrontOpsWorkspace(tabComponents) {
         to: toIsoDateTime(analyticsState.to),
         manager: isManagerRole.value ? '' : analyticsState.manager,
       });
-      const [managerResponse, paymentLinkResponse, metrikaResponse] = await Promise.all([
+      const [managerResponse, orderConversionResponse, paymentLinkResponse, metrikaResponse] = await Promise.all([
         bridgeRequest('/admin/analytics/managers', { params }),
+        bridgeRequest('/admin/analytics/orders', { params }),
         bridgeRequest('/admin/analytics/payment-links', { params }),
         bridgeRequest('/admin/analytics/metrika', { params }),
       ]);
       analyticsState.managerRows = managerResponse.rows || [];
+      analyticsState.orderConversion = orderConversionResponse || analyticsState.orderConversion;
       analyticsState.paymentLinks = paymentLinkResponse || { sent: 0, paid: 0, conversionRate: 0, rows: [] };
       analyticsState.metrika = metrikaResponse || analyticsState.metrika;
       analyticsState.loaded = true;

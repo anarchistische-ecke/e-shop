@@ -455,6 +455,12 @@ YANDEX_STORAGE_KEY=replace-me-commerce-storage-key
 YANDEX_STORAGE_SECRET=replace-me-commerce-storage-secret
 YANDEX_STORAGE_ENDPOINT=https://storage.yandexcloud.net
 
+YANDEX_METRIKA_ENABLED=true
+YANDEX_METRIKA_COUNTER_ID=109831177
+YANDEX_METRIKA_OAUTH_TOKEN=replace-me-metrika-oauth-token
+YANDEX_METRIKA_OFFLINE_IMPORT_ENABLED=true
+YANDEX_METRIKA_DISPATCHER_ENABLED=true
+
 KEYCLOAK_ISSUER_URI=https://auth.yug-postel.ru/realms/yug-postel
 
 DIRECTUS_VERSION=11.17.2

@@ -87,7 +87,7 @@ class DirectusAdminServiceAnalyticsTest {
     @Test
     void managerAnalytics_matchesDirectusEmailViaPaymentLink() {
         UUID ownOrderId = UUID.randomUUID();
-        Order ownOrder = order(ownOrderId, "keycloak-subject-1", "PAID", 10_000);
+        Order ownOrder = order(ownOrderId, "keycloak-subject-1", "PROCESSING", 10_000);
         Order otherOrder = order(UUID.randomUUID(), "keycloak-subject-2", "PAID", 20_000);
         ManagerPaymentLink ownLink = paymentLink(ownOrderId, "keycloak-subject-1", "manager@example.test");
 
@@ -102,6 +102,27 @@ class DirectusAdminServiceAnalyticsTest {
     }
 
     @Test
+    void orderConversionAnalytics_reportsCheckoutToPaidRateAcrossFulfilmentStatuses() {
+        Order pending = order(UUID.randomUUID(), null, "PENDING", 10_000);
+        Order shipped = order(UUID.randomUUID(), null, "SHIPPED", 20_000);
+        Order cancelled = order(UUID.randomUUID(), null, "CANCELLED", 30_000);
+        Order refunded = order(UUID.randomUUID(), null, "REFUNDED", 40_000);
+
+        when(orderRepository.findAllByOrderByOrderDateDesc())
+                .thenReturn(List.of(pending, shipped, cancelled, refunded));
+
+        DirectusAdminModels.OrderConversionAnalyticsResponse response =
+                service.orderConversionAnalytics(null, null, null);
+
+        assertThat(response.created()).isEqualTo(4);
+        assertThat(response.paid()).isEqualTo(2);
+        assertThat(response.pending()).isEqualTo(1);
+        assertThat(response.cancelled()).isEqualTo(1);
+        assertThat(response.refunded()).isEqualTo(1);
+        assertThat(response.checkoutToPaidRate()).isEqualTo(0.5d);
+    }
+
+    @Test
     void paymentLinkAnalytics_matchesManagerEmailAndHidesOtherManagers() {
         UUID ownOrderId = UUID.randomUUID();
         UUID otherOrderId = UUID.randomUUID();
@@ -110,7 +131,7 @@ class DirectusAdminServiceAnalyticsTest {
 
         when(managerPaymentLinkRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(any(), any()))
                 .thenReturn(List.of(ownLink, otherLink));
-        when(orderRepository.findById(ownOrderId)).thenReturn(Optional.of(order(ownOrderId, "keycloak-subject-1", "PAID", 10_000)));
+        when(orderRepository.findById(ownOrderId)).thenReturn(Optional.of(order(ownOrderId, "keycloak-subject-1", "SHIPPED", 10_000)));
 
         DirectusAdminModels.PaymentLinkAnalyticsResponse response = service.paymentLinkAnalytics(null, null, "manager@example.test");
 
@@ -118,6 +139,27 @@ class DirectusAdminServiceAnalyticsTest {
         assertThat(response.paid()).isEqualTo(1);
         assertThat(response.rows()).hasSize(1);
         assertThat(response.rows().get(0).managerEmail()).isEqualTo("manager@example.test");
+    }
+
+    @Test
+    void paymentLinkAnalytics_excludesUnsentDraftLinksFromConversionDenominator() {
+        UUID paidOrderId = UUID.randomUUID();
+        ManagerPaymentLink sentLink = paymentLink(paidOrderId, "keycloak-subject-1", "manager@example.test");
+        ManagerPaymentLink draftLink = paymentLink(UUID.randomUUID(), "keycloak-subject-1", "manager@example.test");
+        draftLink.setStatus("CREATED");
+        draftLink.setSentAt(null);
+
+        when(managerPaymentLinkRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(any(), any()))
+                .thenReturn(List.of(sentLink, draftLink));
+        when(orderRepository.findById(paidOrderId))
+                .thenReturn(Optional.of(order(paidOrderId, "keycloak-subject-1", "SHIPPED", 10_000)));
+
+        DirectusAdminModels.PaymentLinkAnalyticsResponse response = service.paymentLinkAnalytics(null, null, null);
+
+        assertThat(response.rows()).hasSize(2);
+        assertThat(response.sent()).isEqualTo(1);
+        assertThat(response.paid()).isEqualTo(1);
+        assertThat(response.conversionRate()).isEqualTo(1d);
     }
 
     @Test

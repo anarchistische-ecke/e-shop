@@ -385,10 +385,22 @@ public final class DirectusAdminModels {
     ) {
     }
 
+    public record OrderConversionAnalyticsResponse(
+            long created,
+            long paid,
+            long pending,
+            long cancelled,
+            long refunded,
+            double checkoutToPaidRate
+    ) {
+    }
+
     public record MetrikaAnalyticsResponse(
             boolean enabled,
             boolean offlineImportEnabled,
             boolean counterConfigured,
+            boolean oauthConfigured,
+            boolean ready,
             long pending,
             long sent,
             long failed,

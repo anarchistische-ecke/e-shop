@@ -21,7 +21,8 @@ public class WebConfig implements WebMvcConfigurer {
     private static final String[] REQUIRED_ALLOWED_HEADERS = {
             "Authorization",
             "Content-Type",
-            "Idempotency-Key"
+            "Idempotency-Key",
+            "X-Chat-Token"
     };
     private static final String[] EXPOSED_RESPONSE_HEADERS = {
             "X-Page",
@@ -36,7 +37,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${cors.allowed-methods:GET,POST,PUT,DELETE,PATCH,OPTIONS}")
     private String allowedMethods;
 
-    @Value("${cors.allowed-headers:Authorization,Content-Type,Idempotency-Key}")
+    @Value("${cors.allowed-headers:Authorization,Content-Type,Idempotency-Key,X-Chat-Token}")
     private String allowedHeaders;
 
     @Override

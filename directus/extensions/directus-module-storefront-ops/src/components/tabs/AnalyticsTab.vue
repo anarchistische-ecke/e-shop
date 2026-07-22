@@ -50,8 +50,8 @@
         <header class="detail-header">
           <div>
             <p class="detail-kicker">Аналитика</p>
-            <h2>Менеджеры и ссылки оплаты</h2>
-            <p class="detail-subtitle">Комиссия менеджера фиксирована на уровне 3% от оплаченной суммы.</p>
+            <h2>Заказы, оплаты и менеджеры</h2>
+            <p class="detail-subtitle">Конверсия заказов отделена от конверсии ссылок менеджеров, чтобы показатели не смешивались.</p>
           </div>
         </header>
         <div class="form-grid form-grid-three">
@@ -78,35 +78,88 @@
           </button>
         </div>
 
-        <div class="metrics-row">
-          <article class="metric-card">
-            <span>Ссылок отправлено</span>
-            <strong>{{ analyticsState.paymentLinks.sent || 0 }}</strong>
-          </article>
-          <article class="metric-card">
-            <span>Оплачено</span>
-            <strong>{{ analyticsState.paymentLinks.paid || 0 }}</strong>
-          </article>
-          <article class="metric-card">
-            <span>Конверсия</span>
-            <strong>{{ formatPercent(analyticsState.paymentLinks.conversionRate) }}</strong>
-          </article>
-        </div>
+        <section class="section-block">
+          <div class="section-head">
+            <div>
+              <h3>Заказ → оплата</h3>
+              <p>Доля созданных заказов, которые дошли до успешной оплаты.</p>
+            </div>
+          </div>
+          <div class="metrics-row">
+            <article class="metric-card">
+              <span>Заказов создано</span>
+              <strong>{{ analyticsState.orderConversion?.created || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Оплачено</span>
+              <strong>{{ analyticsState.orderConversion?.paid || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Конверсия заказ → оплата</span>
+              <strong>{{ formatPercent(analyticsState.orderConversion?.checkoutToPaidRate) }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Ожидают оплаты</span>
+              <strong>{{ analyticsState.orderConversion?.pending || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Отменено</span>
+              <strong>{{ analyticsState.orderConversion?.cancelled || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Возвраты</span>
+              <strong>{{ analyticsState.orderConversion?.refunded || 0 }}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block">
+          <div class="section-head">
+            <div>
+              <h3>Ссылки менеджеров</h3>
+              <p>Отдельная конверсия отправленных менеджерами ссылок в оплату.</p>
+            </div>
+          </div>
+          <div class="metrics-row">
+            <article class="metric-card">
+              <span>Ссылок отправлено</span>
+              <strong>{{ analyticsState.paymentLinks.sent || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Оплачено по ссылкам</span>
+              <strong>{{ analyticsState.paymentLinks.paid || 0 }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>Конверсия ссылок</span>
+              <strong>{{ formatPercent(analyticsState.paymentLinks.conversionRate) }}</strong>
+            </article>
+          </div>
+        </section>
 
         <section class="section-block">
           <div class="section-head">
             <div>
               <h3>Yandex Metrica</h3>
               <p>
-                {{ analyticsState.metrika?.enabled ? 'Включена' : 'Выключена' }}
-                · {{ analyticsState.metrika?.offlineImportEnabled ? 'offline import on' : 'offline import off' }}
+                {{ analyticsState.metrika?.ready ? 'Готова к отправке подтверждённых оплат' : 'Требует настройки' }}
               </p>
             </div>
           </div>
+          <p v-if="!analyticsState.metrika?.ready" class="inline-note">
+            Для подтверждённых покупок нужны включённый offline import, counter ID и OAuth token.
+          </p>
           <div class="metrics-row">
+            <article class="metric-card">
+              <span>Offline import</span>
+              <strong>{{ analyticsState.metrika?.offlineImportEnabled ? 'Вкл' : 'Выкл' }}</strong>
+            </article>
             <article class="metric-card">
               <span>Counter</span>
               <strong>{{ analyticsState.metrika?.counterConfigured ? 'OK' : 'Нет' }}</strong>
+            </article>
+            <article class="metric-card">
+              <span>OAuth</span>
+              <strong>{{ analyticsState.metrika?.oauthConfigured ? 'OK' : 'Нет' }}</strong>
             </article>
             <article class="metric-card">
               <span>Pending</span>
