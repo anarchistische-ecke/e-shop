@@ -46,6 +46,12 @@ directus:
   read-timeout: ${DIRECTUS_READ_TIMEOUT:PT5S}
   slow-request-threshold: ${DIRECTUS_SLOW_REQUEST_THRESHOLD:PT2S}
 
+yookassa:
+  enabled: ${YOOKASSA_ENABLED:false}
+  base-url: ${YOOKASSA_BASE_URL:https://api.yookassa.ru/v3}
+  shop-id: ${YOOKASSA_SHOP_ID:1348143}
+  secret-key: ${YOOKASSA_SECRET_KEY:}
+
 yandex:
   storage:
     bucket: ${YANDEX_STORAGE_BUCKET:directus}
