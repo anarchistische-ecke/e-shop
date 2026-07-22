@@ -217,6 +217,7 @@ jobs:
             }
             reconcile_deploy_worktree_path "docker-compose.prod.yml"
             reconcile_deploy_worktree_path "directus/docker-compose.yml"
+            reconcile_deploy_worktree_path "directus/seed/initial-content.js"
             reconcile_deploy_worktree_path "docker-compose.runtime-slot.yml"
             reconcile_deploy_worktree_path "scripts/keycloak-directus-session-policy.sh"
             reconcile_deploy_worktree_path "scripts/keycloak-yandex-seamless-login.sh"

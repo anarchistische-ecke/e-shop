@@ -825,7 +825,11 @@ Everything must pass. In particular:
 - the `.env` file must exist and contain the blue-green keys
 - `git status --short` should be empty before deploys
 
-If `git status --short` shows modified tracked files, do not proceed with GitHub-driven deploys. The current SSH deploy flow assumes a clean checkout for `git checkout` and `git pull --ff-only`.
+The repository is authoritative for every tracked deployment file. Do not edit tracked files directly in the VM checkout. If `git status --short` shows a tracked modification, capture its patch and commit any intentional source change to the repository before resetting the VM copy.
+
+The deployment workflows reconcile a small allowlist of deployment-managed files, including `directus/seed/initial-content.js`. They save a recovery patch and clear a local modification only when the file is byte-for-byte identical to the fetched deploy ref. A different VM version still stops deployment so it can be reviewed and committed first.
+
+Runtime state, release worktrees, and local backup files under `.deploy-state/`, `releases/`, and the documented backup filename patterns are ignored by Git. They remain on the VM and must never be committed; environment backups can contain production secrets.
 
 If the VM is an existing production host, also re-run:
 
