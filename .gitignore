@@ -42,3 +42,11 @@ build/
 .vscode/
 .env
 .env.save*
+
+# Deployment checkouts keep runtime state and recoverable local backups here.
+# These are operational artifacts, not repository source.
+/.deploy-state/
+/releases/
+.env.backup*
+.env.bak*
+*.bak.*
