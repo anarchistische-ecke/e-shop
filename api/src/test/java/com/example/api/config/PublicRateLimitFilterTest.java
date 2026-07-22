@@ -133,6 +133,32 @@ class PublicRateLimitFilterTest {
         assertThat(readResponse.getHeader("X-RateLimit-Remaining")).isEqualTo("0");
     }
 
+    @Test
+    void chatConversationStartsAreRateLimitedSeparatelyFromMessages() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("chatStartLimit", 1, "chatStartWindowSeconds", 60);
+        ReflectionTestUtils.setField(filter, "chatMessageLimit", 1);
+        ReflectionTestUtils.setField(filter, "chatMessageWindowSeconds", 60);
+
+        MockHttpServletRequest startRequest = new MockHttpServletRequest("POST", "/chat/conversations");
+        startRequest.addHeader("X-Forwarded-For", "203.0.113.30");
+        MockHttpServletResponse startResponse = new MockHttpServletResponse();
+        filter.doFilter(startRequest, startResponse, terminalChain());
+
+        MockHttpServletRequest messageRequest = new MockHttpServletRequest("POST", "/chat/conversations/00000000-0000-0000-0000-000000000001/messages");
+        messageRequest.addHeader("X-Forwarded-For", "203.0.113.30");
+        MockHttpServletResponse messageResponse = new MockHttpServletResponse();
+        filter.doFilter(messageRequest, messageResponse, terminalChain());
+
+        MockHttpServletRequest secondStartRequest = new MockHttpServletRequest("POST", "/chat/conversations");
+        secondStartRequest.addHeader("X-Forwarded-For", "203.0.113.30");
+        MockHttpServletResponse secondStartResponse = new MockHttpServletResponse();
+        filter.doFilter(secondStartRequest, secondStartResponse, terminalChain());
+
+        assertThat(startResponse.getStatus()).isEqualTo(204);
+        assertThat(messageResponse.getStatus()).isEqualTo(204);
+        assertThat(secondStartResponse.getStatus()).isEqualTo(429);
+    }
+
     private PublicRateLimitFilter configuredFilter(String limitField,
                                                   int limit,
                                                   String windowField,

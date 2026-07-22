@@ -34,7 +34,7 @@ public class MetrikaClient {
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.setBearerAuth(properties.getOauthToken());
+        headers.set(HttpHeaders.AUTHORIZATION, "OAuth " + properties.getOauthToken().trim());
         headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();

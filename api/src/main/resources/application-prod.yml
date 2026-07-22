@@ -49,7 +49,7 @@ management:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:https://yug-postel.ru}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
-  allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,Idempotency-Key}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,Idempotency-Key,X-Chat-Token}
 
 directus:
   base-url: ${DIRECTUS_BASE_URL:?DIRECTUS_BASE_URL is required}

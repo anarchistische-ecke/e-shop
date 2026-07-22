@@ -21,6 +21,7 @@ The production go-live sequence is documented in [directus-production-cutover.md
 The metrics, alerts, dashboards, and log-search contract are documented in [directus-observability.md](./directus-observability.md).
 The custom Directus back-office module contract is documented in [directus-storefront-ops-module.md](./directus-storefront-ops-module.md).
 The catalogue image upload and optimization contract is documented in [catalogue-media-upload-runbook.md](./catalogue-media-upload-runbook.md).
+The storefront conversion and server-confirmed purchase tracking contract is documented in [yandex-metrika-operations.md](./yandex-metrika-operations.md).
 
 ## Planned Environment Variables
 
@@ -59,6 +60,11 @@ The catalogue image upload and optimization contract is documented in [catalogue
 | `NOTIFICATIONS_RETRY_DELAY` | backend | `5m` | Delay before retrying a failed notification. |
 | `NOTIFICATIONS_BATCH_SIZE` | backend | `20` | Maximum due outbox rows processed per dispatcher tick. |
 | `NOTIFICATIONS_DISPATCHER_FIXED_DELAY_MS` | backend | `30000` | Scheduler delay between dispatcher runs. |
+| `YANDEX_METRIKA_ENABLED` | backend | `true` | Enables the backend Metrica integration. This alone does not upload server-confirmed conversions. |
+| `YANDEX_METRIKA_COUNTER_ID` | backend | `109831177` | Counter that receives offline conversions. |
+| `YANDEX_METRIKA_OAUTH_TOKEN` | backend secret | unset in repo | OAuth token with permission to upload offline conversions to the configured counter. Never commit it. |
+| `YANDEX_METRIKA_OFFLINE_IMPORT_ENABLED` | backend | `true` | Enables upload of queued `order_created`, `purchase_paid`, cancellation, and refund events. Startup fails if the counter or OAuth token is missing. |
+| `YANDEX_METRIKA_DISPATCHER_ENABLED` | backend | `true` | Runs the scheduled conversion outbox dispatcher. |
 | `NOTIFICATIONS_TRACKING_URL_CDEK` | backend | `https://www.cdek.ru/ru/tracking?order_id={trackingNumber}` | Carrier-specific tracking URL template for NTF-02. |
 | `NOTIFICATIONS_TRACKING_URL_POCHTA` | backend | `https://www.pochta.ru/tracking#{trackingNumber}` | Carrier-specific tracking URL template for NTF-02. |
 | `NOTIFICATIONS_TRACKING_URL_BOXBERRY` | backend | `https://boxberry.ru/tracking-page?id={trackingNumber}` | Carrier-specific tracking URL template for NTF-02. |

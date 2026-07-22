@@ -1,13 +1,19 @@
 package com.example.api.metrika;
 
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.time.Duration;
 
 @Component
 @ConfigurationProperties(prefix = "metrika")
 public class MetrikaProperties {
+    private static final Logger log = LoggerFactory.getLogger(MetrikaProperties.class);
+
     private boolean enabled = false;
     private String counterId = "";
     private String oauthToken = "";
@@ -79,6 +85,26 @@ public class MetrikaProperties {
 
     public void setDispatcher(Dispatcher dispatcher) {
         this.dispatcher = dispatcher;
+    }
+
+    @PostConstruct
+    public void validateConfiguration() {
+        if (!enabled || !offlineImport.isEnabled()) {
+            if (enabled) {
+                log.warn("Yandex Metrica is enabled, but server-side offline conversion import is disabled");
+            }
+            return;
+        }
+        if (!StringUtils.hasText(counterId)) {
+            throw new IllegalStateException(
+                    "YANDEX_METRIKA_COUNTER_ID is required when YANDEX_METRIKA_OFFLINE_IMPORT_ENABLED=true"
+            );
+        }
+        if (!StringUtils.hasText(oauthToken)) {
+            throw new IllegalStateException(
+                    "YANDEX_METRIKA_OAUTH_TOKEN is required when YANDEX_METRIKA_OFFLINE_IMPORT_ENABLED=true"
+            );
+        }
     }
 
     public static class OfflineImport {
