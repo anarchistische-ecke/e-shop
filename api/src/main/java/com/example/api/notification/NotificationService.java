@@ -96,7 +96,7 @@ public class NotificationService {
         }
     }
 
-    static boolean isValidEmail(String value) {
+    public static boolean isValidEmail(String value) {
         return StringUtils.hasText(value) && EMAIL_PATTERN.matcher(value.trim()).matches();
     }
 

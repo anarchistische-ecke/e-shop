@@ -76,6 +76,8 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/prometheus").access(prometheusAccess)
                 .requestMatchers("/internal/directus/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/auth/magic-link").permitAll()
+                .requestMatchers(HttpMethod.POST, "/marketing/subscriptions/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/marketing/subscriptions").permitAll()
                 .requestMatchers("/chat/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/content/preview/**").access(previewAccess)
                 .requestMatchers(HttpMethod.GET, "/content/**").permitAll()
@@ -98,7 +100,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/payments/yookassa/cancel").access(adminAccess)
                 .requestMatchers(HttpMethod.GET, "/promotions/active").permitAll()
                 // Allow anyone to view products, categories and brands via GET
-                .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/brands/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/brands/**", "/catalogue/**").permitAll()
                 // Inventory adjustments require admin privileges
                 .requestMatchers(HttpMethod.POST, "/inventory/**").access(adminAccess)
                 .requestMatchers(HttpMethod.POST, "/orders/admin-link").access(adminAccess)

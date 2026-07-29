@@ -68,6 +68,12 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
     @Value("${app.rate-limit.chat-message.window-seconds:60}")
     private int chatMessageWindowSeconds;
 
+    @Value("${app.rate-limit.marketing.limit:6}")
+    private int marketingLimit;
+
+    @Value("${app.rate-limit.marketing.window-seconds:60}")
+    private int marketingWindowSeconds;
+
     @Value("${app.rate-limit.privileged.limit:120}")
     private int privilegedLimit;
 
@@ -137,6 +143,9 @@ public class PublicRateLimitFilter extends OncePerRequestFilter {
         }
         if (path.startsWith("/chat/conversations/")) {
             return new RatePolicy("chat-message", chatMessageLimit, chatMessageWindowSeconds, clientAddress(request));
+        }
+        if (path.equals("/marketing/subscriptions") || path.startsWith("/marketing/subscriptions/")) {
+            return new RatePolicy("marketing", marketingLimit, marketingWindowSeconds, clientAddress(request));
         }
         if (path.equals("/carts") && method.equals(HttpMethod.POST.name())) {
             return new RatePolicy("cart-create", cartLimit, cartWindowSeconds, clientAddress(request));

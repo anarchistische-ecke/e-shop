@@ -22,9 +22,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -172,6 +174,13 @@ public class CatalogService {
         return variant;
     }
 
+    @Transactional
+    public Optional<ProductVariant> getVariant(UUID variantId) {
+        Optional<ProductVariant> variant = variantRepository.findWithProductById(variantId);
+        variant.map(ProductVariant::getProduct).ifPresent(this::hydrateProduct);
+        return variant;
+    }
+
     private void updateSkuIfProvided(ProductVariant variant, String sku) {
         if (sku == null) {
             return;
@@ -225,6 +234,20 @@ public class CatalogService {
             }
         });
         return images;
+    }
+
+    public Map<UUID, ProductImage> getPrimaryProductImages(Collection<UUID> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, ProductImage> primaryByProduct = new LinkedHashMap<>();
+        imageRepository.findByProduct_IdInOrderByPositionAscCreatedAtDesc(productIds)
+                .forEach(image -> {
+                    if (image.getProduct() != null && image.getProduct().getId() != null) {
+                        primaryByProduct.putIfAbsent(image.getProduct().getId(), image);
+                    }
+                });
+        return primaryByProduct;
     }
 
     public ProductImage getProductImage(UUID imageId) {

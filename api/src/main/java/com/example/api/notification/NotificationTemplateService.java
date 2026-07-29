@@ -24,7 +24,41 @@ public class NotificationTemplateService {
             case RMA_DECISION -> renderRmaDecision(payload);
             case ORDER_DELIVERED -> renderStatusUpdate(payload, "Доставлен", "Ваш заказ доставлен.");
             case ORDER_RECEIVED -> renderStatusUpdate(payload, "Получен", "Заказ отмечен как полученный.");
+            case MARKETING_CONFIRMATION -> renderMarketingConfirmation(payload);
+            case MARKETING_UNSUBSCRIBE -> renderMarketingUnsubscribe(payload);
         };
+    }
+
+    private RenderedNotification renderMarketingConfirmation(JsonNode payload) {
+        String subject = "Подтвердите подписку";
+        String confirmationUrl = text(payload, "confirmationUrl");
+        String unsubscribeUrl = text(payload, "unsubscribeUrl");
+        String html = paragraph("Остался один шаг: подтвердите адрес, чтобы получать новые коллекции и редкие предложения.")
+                + action("Подтвердить подписку", confirmationUrl)
+                + paragraph("Ссылка действует 24 часа.")
+                + (StringUtils.hasText(unsubscribeUrl)
+                        ? paragraph("Если вы не запрашивали подписку, письмо можно проигнорировать.")
+                        : "");
+        String textBody = "Подтвердите подписку: " + confirmationUrl
+                + "\nСсылка действует 24 часа."
+                + (StringUtils.hasText(unsubscribeUrl)
+                        ? "\nОтказаться: " + unsubscribeUrl
+                        : "");
+        return marketingLayout(subject, html, textBody);
+    }
+
+    private RenderedNotification renderMarketingUnsubscribe(JsonNode payload) {
+        String subject = "Подписка отключена";
+        String resubscribeUrl = text(payload, "resubscribeUrl");
+        String html = paragraph("Мы отключили рекламную рассылку для этого адреса.")
+                + (StringUtils.hasText(resubscribeUrl)
+                        ? action("Подписаться снова", resubscribeUrl)
+                        : "");
+        String textBody = "Подписка отключена."
+                + (StringUtils.hasText(resubscribeUrl)
+                        ? "\nПодписаться снова: " + resubscribeUrl
+                        : "");
+        return marketingLayout(subject, html, textBody);
     }
 
     public String statusLabel(String status) {
@@ -177,6 +211,22 @@ public class NotificationTemplateService {
                 + "</td></tr><tr><td style=\"padding:10px 30px 26px;color:#8b817b;font-size:12px;line-height:1.5;\">"
                 + "Это транзакционное уведомление по вашему заказу.</td></tr></table></td></tr></table>"
                 + "</body></html>";
+        return new RenderedNotification(subject, html, textBody);
+    }
+
+    private RenderedNotification marketingLayout(String subject, String contentHtml, String textBody) {
+        String html = "<!doctype html><html lang=\"ru\"><head><meta charset=\"UTF-8\">"
+                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">"
+                + "<title>" + h(subject) + "</title></head>"
+                + "<body style=\"margin:0;padding:0;background:#f6f2ed;color:#2b2221;font-family:Arial,sans-serif;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding:24px 0;\">"
+                + "<tr><td align=\"center\"><table role=\"presentation\" width=\"640\" cellspacing=\"0\" cellpadding=\"0\" "
+                + "style=\"max-width:640px;width:100%;background:#fff;border:1px solid #eee3db;\">"
+                + "<tr><td style=\"padding:26px 30px;\">"
+                + "<div style=\"font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#8f837b;\">ПОСТЕЛЬНОЕ БЕЛЬЕ-ЮГ</div>"
+                + "<h1 style=\"margin:12px 0 16px;font-size:26px;line-height:1.25;color:#2b2221;\">" + h(subject) + "</h1>"
+                + contentHtml
+                + "</td></tr></table></td></tr></table></body></html>";
         return new RenderedNotification(subject, html, textBody);
     }
 
