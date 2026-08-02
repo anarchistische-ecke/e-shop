@@ -4,6 +4,7 @@ import com.example.catalog.domain.ProductImage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,8 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, UUID
     List<ProductImage> findByProduct_Id(UUID productId);
 
     List<ProductImage> findByProduct_IdOrderByPositionAscCreatedAtDesc(UUID productId);
+
+    List<ProductImage> findByProduct_IdInOrderByPositionAscCreatedAtDesc(Collection<UUID> productIds);
 
     Optional<ProductImage> findByObjectKey(String objectKey);
 }

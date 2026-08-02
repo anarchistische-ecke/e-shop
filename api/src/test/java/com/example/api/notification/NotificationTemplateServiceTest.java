@@ -84,4 +84,27 @@ class NotificationTemplateServiceTest {
         assertThat(service.statusLabel("COMPLETED")).isEqualTo("Получен");
         assertThat(service.statusLabel("READY_FOR_PICKUP")).isEqualTo("Готов к выдаче");
     }
+
+    @Test
+    void marketingTemplatesContainConfirmationAndUnsubscribeActions() throws Exception {
+        String confirmationPayload = objectMapper.writeValueAsString(Map.of(
+                "confirmationUrl", "https://shop.example/subscribe/confirm?token=secret",
+                "unsubscribeUrl", "https://shop.example/subscribe/unsubscribe?token=secret"
+        ));
+
+        RenderedNotification confirmation =
+                service.render(NotificationType.MARKETING_CONFIRMATION, confirmationPayload);
+        RenderedNotification unsubscribe = service.render(
+                NotificationType.MARKETING_UNSUBSCRIBE,
+                objectMapper.writeValueAsString(Map.of(
+                        "resubscribeUrl", "https://shop.example/#newsletter"
+                ))
+        );
+
+        assertThat(confirmation.subject()).contains("Подтвердите");
+        assertThat(confirmation.htmlBody()).contains("/subscribe/confirm?token=secret");
+        assertThat(confirmation.textBody()).contains("/subscribe/unsubscribe?token=secret");
+        assertThat(unsubscribe.subject()).contains("отключена");
+        assertThat(unsubscribe.htmlBody()).contains("#newsletter");
+    }
 }

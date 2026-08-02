@@ -159,6 +159,26 @@ class PublicRateLimitFilterTest {
         assertThat(secondStartResponse.getStatus()).isEqualTo(429);
     }
 
+    @Test
+    void marketingSubscriptionActionsShareThePublicMarketingLimit() throws Exception {
+        PublicRateLimitFilter filter = configuredFilter("marketingLimit", 1, "marketingWindowSeconds", 60);
+
+        MockHttpServletRequest signupRequest = new MockHttpServletRequest("POST", "/marketing/subscriptions");
+        signupRequest.addHeader("X-Forwarded-For", "203.0.113.60");
+        MockHttpServletResponse signupResponse = new MockHttpServletResponse();
+        filter.doFilter(signupRequest, signupResponse, terminalChain());
+
+        MockHttpServletRequest confirmRequest =
+                new MockHttpServletRequest("POST", "/marketing/subscriptions/confirm");
+        confirmRequest.addHeader("X-Forwarded-For", "203.0.113.60");
+        MockHttpServletResponse confirmResponse = new MockHttpServletResponse();
+        filter.doFilter(confirmRequest, confirmResponse, terminalChain());
+
+        assertThat(signupResponse.getStatus()).isEqualTo(204);
+        assertThat(confirmResponse.getStatus()).isEqualTo(429);
+        assertThat(confirmResponse.getContentAsString()).contains("RATE_LIMITED");
+    }
+
     private PublicRateLimitFilter configuredFilter(String limitField,
                                                   int limit,
                                                   String windowField,
