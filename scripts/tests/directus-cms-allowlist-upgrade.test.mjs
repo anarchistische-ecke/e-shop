@@ -3,9 +3,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const require = createRequire(import.meta.url);
+const { isMissingFieldLookupError } = require('../directus-schema.js');
 const legacyCmsCollections = [
   'site_settings',
   'navigation',
@@ -65,5 +68,29 @@ test('governance bootstrap unions required collections with persisted configurat
   assert.match(
     source,
     /DIRECTUS_CMS_CONTENT_COLLECTIONS="\$\{DIRECTUS_CMS_CONTENT_COLLECTIONS:\+\$\{DIRECTUS_CMS_CONTENT_COLLECTIONS\},\}\$\{REQUIRED_CMS_CONTENT_COLLECTIONS\}"/
+  );
+});
+
+test('new virtual fields survive Directus missing-collection lookup responses', () => {
+  assert.equal(
+    isMissingFieldLookupError(
+      new Error(
+        'Directus API 403 http://directus/fields/campaign/banners: ' +
+          'You do not have permission or it does not exist'
+      )
+    ),
+    true
+  );
+  assert.equal(
+    isMissingFieldLookupError(new Error('Directus API 404 http://directus/fields/page/sections')),
+    true
+  );
+  assert.equal(
+    isMissingFieldLookupError(new Error('Directus API 401 http://directus/fields/page/sections')),
+    false
+  );
+  assert.equal(
+    isMissingFieldLookupError(new Error('Directus API 500 http://directus/fields/page/sections')),
+    false
   );
 });

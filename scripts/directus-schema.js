@@ -561,7 +561,7 @@ async function suppressExistingVirtualFieldDiffs(config, authHeader, diffRespons
         `/fields/${encodeURIComponent(entry.collection)}/${encodeURIComponent(entry.field)}`
       );
     } catch (error) {
-      if (!String(error?.message || '').includes('Directus API 404')) {
+      if (!isMissingFieldLookupError(error)) {
         throw error;
       }
       retained.push(entry);
@@ -569,6 +569,11 @@ async function suppressExistingVirtualFieldDiffs(config, authHeader, diffRespons
   }
 
   changeSet.fields = retained;
+}
+
+function isMissingFieldLookupError(error) {
+  const message = String(error?.message || '');
+  return message.includes('Directus API 403') || message.includes('Directus API 404');
 }
 
 function hasChanges(diffResponse) {
@@ -614,7 +619,13 @@ function formatEntryPreview(entry) {
   return target ? `${kind}:${target}` : kind;
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  isMissingFieldLookupError,
+};
