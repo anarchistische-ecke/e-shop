@@ -54,8 +54,10 @@ fi
 
 load_env_file "$ENV_FILE"
 
-: "${POSTGRES_USER:?Set POSTGRES_USER in $ENV_FILE}"
-: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in $ENV_FILE}"
+: "${POSTGRES_USER:=${DIRECTUS_DB_USER:-}}"
+: "${POSTGRES_PASSWORD:=${DIRECTUS_DB_PASSWORD:-}}"
+: "${POSTGRES_USER:?Set POSTGRES_USER or DIRECTUS_DB_USER in $ENV_FILE}"
+: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD or DIRECTUS_DB_PASSWORD in $ENV_FILE}"
 : "${DIRECTUS_DB_DATABASE:?Set DIRECTUS_DB_DATABASE in $ENV_FILE}"
 
 DIRECTUS_DEFAULT_LANGUAGE="${DIRECTUS_DEFAULT_LANGUAGE:-ru-RU}"
@@ -86,11 +88,19 @@ DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID="${DIRECTUS_ACCESS_INVENTORY_OPERATOR_ID:-
 DIRECTUS_ACCESS_MANAGER_ID="${DIRECTUS_ACCESS_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30006}"
 DIRECTUS_ACCESS_PICKER_ID="${DIRECTUS_ACCESS_PICKER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30007}"
 DIRECTUS_ACCESS_CONTENT_MANAGER_ID="${DIRECTUS_ACCESS_CONTENT_MANAGER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30008}"
+DIRECTUS_POLICY_STOREFRONT_READER_ID="${DIRECTUS_POLICY_STOREFRONT_READER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20009}"
+DIRECTUS_USER_STOREFRONT_READER_ID="${DIRECTUS_USER_STOREFRONT_READER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10009}"
+DIRECTUS_ACCESS_STOREFRONT_READER_ID="${DIRECTUS_ACCESS_STOREFRONT_READER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30009}"
+DIRECTUS_POLICY_PREVIEW_READER_ID="${DIRECTUS_POLICY_PREVIEW_READER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f20010}"
+DIRECTUS_USER_PREVIEW_READER_ID="${DIRECTUS_USER_PREVIEW_READER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f10010}"
+DIRECTUS_ACCESS_PREVIEW_READER_ID="${DIRECTUS_ACCESS_PREVIEW_READER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f30010}"
 DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID="${DIRECTUS_DASHBOARD_STOREFRONT_OPS_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f40001}"
 DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID="${DIRECTUS_PANEL_STOREFRONT_OPS_LAUNCHER_ID:-4c4cc8d0-9b7f-4d56-84d2-1d64f5f40002}"
-DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_settings,navigation,navigation_items,page,page_sections,page_section_items,faq,legal_documents,banner,post,product_overlay,category_overlay,catalogue_overlay_block,catalogue_overlay_block_item,storefront_collection,storefront_collection_item}"
-DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-$DIRECTUS_CMS_CONTENT_COLLECTIONS}"
+DIRECTUS_CMS_CONTENT_COLLECTIONS="${DIRECTUS_CMS_CONTENT_COLLECTIONS:-site_settings,navigation,navigation_items,page,page_sections,page_section_items,page_section_banners,page_section_faqs,page_section_legal_documents,faq,legal_documents,banner,campaign,product_overlay,category_overlay,catalogue_overlay_block,catalogue_overlay_block_item,storefront_collection,storefront_collection_item}"
+DIRECTUS_CMS_PUBLIC_COLLECTIONS="${DIRECTUS_CMS_PUBLIC_COLLECTIONS:-}"
 DIRECTUS_CMS_STATUS_FIELD="${DIRECTUS_CMS_STATUS_FIELD:-status}"
+: "${DIRECTUS_STATIC_TOKEN:?Set DIRECTUS_STATIC_TOKEN to a long random server-side storefront reader token in $ENV_FILE}"
+: "${DIRECTUS_PREVIEW_TOKEN:?Set DIRECTUS_PREVIEW_TOKEN to a separate long random server-side preview token in $ENV_FILE}"
 
 EDITOR_CREATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_eq":"draft"}}' "$DIRECTUS_CMS_STATUS_FIELD")"
 EDITOR_UPDATE_STATUS_VALIDATION_JSON="$(printf '{"%s":{"_in":["draft","in_review"]}}' "$DIRECTUS_CMS_STATUS_FIELD")"
@@ -200,7 +210,9 @@ VALUES
   ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через bridge.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_MANAGER_ID}', 'Политика менеджера', 'support_agent', 'Работа с заказами, ссылками оплаты и активными акциями.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_PICKER_ID}', 'Политика сборщика', 'inventory', 'Очередь сборки и смена статусов заказов.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_CONTENT_MANAGER_ID}', 'Политика контент-менеджера', 'edit_note', 'Каталог, импорт, акции и алерты низких остатков.', NULL, false, false, true)
+  ('${DIRECTUS_POLICY_CONTENT_MANAGER_ID}', 'Политика контент-менеджера', 'edit_note', 'Публикация страниц, кампаний, баннеров, навигации, FAQ и юридических документов.', NULL, false, false, true),
+  ('${DIRECTUS_POLICY_STOREFRONT_READER_ID}', 'Сервисное чтение витрины', 'visibility', 'Только опубликованный CMS-контент для backend facade. Нет доступа к приложению Directus.', NULL, false, false, false),
+  ('${DIRECTUS_POLICY_PREVIEW_READER_ID}', 'Сервисный предпросмотр витрины', 'preview', 'Черновики и версии только для подписанных server-side preview-сессий. Нет доступа к приложению Directus.', NULL, false, false, false)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -219,7 +231,7 @@ VALUES
   ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Оператор остатков', 'inventory', 'Роль для работы с вариантами, ценами и остатками через bridge.', NULL),
   ('${DIRECTUS_ROLE_MANAGER_ID}', 'Менеджер', 'support_agent', 'Роль для управления заказами, ссылками оплаты и просмотра активных акций.', NULL),
   ('${DIRECTUS_ROLE_PICKER_ID}', 'Сборщик', 'inventory', 'Роль для работы с очередью сборки заказов.', NULL),
-  ('${DIRECTUS_ROLE_CONTENT_MANAGER_ID}', 'Контент-менеджер', 'edit_note', 'Роль для каталога, импорта, акций и алертов низких остатков.', NULL)
+  ('${DIRECTUS_ROLE_CONTENT_MANAGER_ID}', 'Контент-менеджер', 'edit_note', 'Страницы, кампании, баннеры, навигация, FAQ и юридические документы.', NULL)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -242,11 +254,74 @@ ON CONFLICT (id) DO UPDATE SET
   policy = EXCLUDED.policy,
   sort = EXCLUDED.sort;
 
+INSERT INTO directus_users (id, status, email, token, provider, role)
+VALUES (
+  '${DIRECTUS_USER_STOREFRONT_READER_ID}',
+  'active',
+  'storefront-reader@service.local',
+  '${DIRECTUS_STATIC_TOKEN}',
+  'default',
+  NULL
+)
+ON CONFLICT (id) DO UPDATE SET
+  status = EXCLUDED.status,
+  email = EXCLUDED.email,
+  token = EXCLUDED.token,
+  provider = EXCLUDED.provider,
+  role = EXCLUDED.role;
+
+INSERT INTO directus_users (id, status, email, token, provider, role)
+VALUES (
+  '${DIRECTUS_USER_PREVIEW_READER_ID}',
+  'active',
+  'storefront-preview@service.local',
+  '${DIRECTUS_PREVIEW_TOKEN}',
+  'default',
+  NULL
+)
+ON CONFLICT (id) DO UPDATE SET
+  status = EXCLUDED.status,
+  email = EXCLUDED.email,
+  token = EXCLUDED.token,
+  provider = EXCLUDED.provider,
+  role = EXCLUDED.role;
+
+INSERT INTO directus_access (id, role, \"user\", policy, sort)
+VALUES (
+  '${DIRECTUS_ACCESS_STOREFRONT_READER_ID}',
+  NULL,
+  '${DIRECTUS_USER_STOREFRONT_READER_ID}',
+  '${DIRECTUS_POLICY_STOREFRONT_READER_ID}',
+  1
+)
+ON CONFLICT (id) DO UPDATE SET
+  role = EXCLUDED.role,
+  \"user\" = EXCLUDED.\"user\",
+  policy = EXCLUDED.policy,
+  sort = EXCLUDED.sort;
+
+INSERT INTO directus_access (id, role, \"user\", policy, sort)
+VALUES (
+  '${DIRECTUS_ACCESS_PREVIEW_READER_ID}',
+  NULL,
+  '${DIRECTUS_USER_PREVIEW_READER_ID}',
+  '${DIRECTUS_POLICY_PREVIEW_READER_ID}',
+  1
+)
+ON CONFLICT (id) DO UPDATE SET
+  role = EXCLUDED.role,
+  \"user\" = EXCLUDED.\"user\",
+  policy = EXCLUDED.policy,
+  sort = EXCLUDED.sort;
+
 DELETE FROM directus_permissions
 WHERE policy IN ('${DIRECTUS_POLICY_CMS_EDITOR_ID}', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}');
 
 DELETE FROM directus_permissions
 WHERE policy = '${PUBLIC_POLICY_ID}';
+
+DELETE FROM directus_permissions
+WHERE policy = '${DIRECTUS_POLICY_PREVIEW_READER_ID}';
 
 INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
 VALUES
@@ -267,7 +342,22 @@ VALUES
   ('directus_files', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
   ('directus_folders', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
   ('directus_folders', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
-  ('directus_folders', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}');
+  ('directus_folders', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_versions', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_EDITOR_ID}'),
+  ('directus_versions', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_EDITOR_ID}'),
+  ('directus_versions', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_EDITOR_ID}'),
+  ('directus_versions', 'delete', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_EDITOR_ID}'),
+  ('directus_versions', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_versions', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_versions', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_versions', 'delete', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CMS_PUBLISHER_ID}'),
+  ('directus_versions', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_versions', 'create', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_versions', 'update', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_versions', 'delete', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_CONTENT_MANAGER_ID}'),
+  ('directus_files', 'read', '{}'::json, NULL, NULL, 'id,title,description,width,height,filename_download,type', '${DIRECTUS_POLICY_STOREFRONT_READER_ID}'),
+  ('directus_versions', 'read', '{}'::json, NULL, NULL, '*', '${DIRECTUS_POLICY_PREVIEW_READER_ID}'),
+  ('directus_files', 'read', '{}'::json, NULL, NULL, 'id,title,description,width,height,filename_download,type', '${DIRECTUS_POLICY_PREVIEW_READER_ID}');
 
 DELETE FROM directus_permissions
 WHERE collection IN ('directus_dashboards', 'directus_panels')
@@ -381,25 +471,42 @@ VALUES
   (:'collection', 'create', '{}'::json, :'publisher_create_status_validation'::json, :'create_status_preset'::json, '*', :'publisher_policy'),
   (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'publisher_policy'),
   (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'content_manager_policy'),
-  (:'collection', 'create', '{}'::json, :'editor_create_status_validation'::json, :'create_status_preset'::json, '*', :'content_manager_policy'),
-  (:'collection', 'update', '{}'::json, :'editor_update_status_validation'::json, NULL, '*', :'content_manager_policy');
+  (:'collection', 'create', '{}'::json, :'publisher_update_status_validation'::json, :'create_status_preset'::json, '*', :'content_manager_policy'),
+  (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'content_manager_policy');
 "
 done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
 
 while IFS= read -r collection; do
+  [[ -n "$collection" ]] || continue
   run_psql_directus "
 \\set collection '${collection}'
-\\set public_policy '${PUBLIC_POLICY_ID}'
+\\set reader_policy '${DIRECTUS_POLICY_STOREFRONT_READER_ID}'
 \\set public_published_filter '${PUBLIC_PUBLISHED_FILTER_JSON}'
 
 DELETE FROM directus_permissions
 WHERE collection = :'collection'
-  AND policy = :'public_policy';
+  AND policy = :'reader_policy';
 
 INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
 VALUES
-  (:'collection', 'read', :'public_published_filter'::json, NULL, NULL, '*', :'public_policy');
+  (:'collection', 'read', :'public_published_filter'::json, NULL, NULL, '*', :'reader_policy');
 "
-done < <(normalize_csv "$DIRECTUS_CMS_PUBLIC_COLLECTIONS")
+done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
+
+while IFS= read -r collection; do
+  [[ -n "$collection" ]] || continue
+  run_psql_directus "
+\\set collection '${collection}'
+\\set preview_policy '${DIRECTUS_POLICY_PREVIEW_READER_ID}'
+
+DELETE FROM directus_permissions
+WHERE collection = :'collection'
+  AND policy = :'preview_policy';
+
+INSERT INTO directus_permissions (collection, action, permissions, validation, presets, fields, policy)
+VALUES
+  (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'preview_policy');
+"
+done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
 
 echo "Directus governance bootstrap completed."

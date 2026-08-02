@@ -6,6 +6,7 @@ ENV_FILE="$ROOT_DIR/.env"
 COMPOSE_FILE="$ROOT_DIR/docker-compose.prod.yml"
 OUTPUT_DIR="$ROOT_DIR/backups/directus"
 RETENTION_DAYS="${DIRECTUS_BACKUP_RETENTION_DAYS:-14}"
+DATABASE_SERVICE="postgres"
 
 # shellcheck source=scripts/lib/env-file.sh
 source "$ROOT_DIR/scripts/lib/env-file.sh"
@@ -13,7 +14,7 @@ source "$ROOT_DIR/scripts/lib/env-file.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/directus-db-backup.sh [--env-file <path>] [--compose-file <path>] [--output-dir <path>] [--retention-days <days>]
+  ./scripts/directus-db-backup.sh [--env-file <path>] [--compose-file <path>] [--database-service <name>] [--output-dir <path>] [--retention-days <days>]
 EOF
 }
 
@@ -29,6 +30,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --output-dir)
       OUTPUT_DIR="$(resolve_env_file_path "$2")"
+      shift 2
+      ;;
+    --database-service)
+      DATABASE_SERVICE="$2"
       shift 2
       ;;
     --retention-days)
@@ -59,8 +64,10 @@ fi
 
 load_env_file "$ENV_FILE"
 
-: "${POSTGRES_USER:?Set POSTGRES_USER in $ENV_FILE}"
-: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in $ENV_FILE}"
+: "${POSTGRES_USER:=${DIRECTUS_DB_USER:-}}"
+: "${POSTGRES_PASSWORD:=${DIRECTUS_DB_PASSWORD:-}}"
+: "${POSTGRES_USER:?Set POSTGRES_USER or DIRECTUS_DB_USER in $ENV_FILE}"
+: "${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD or DIRECTUS_DB_PASSWORD in $ENV_FILE}"
 : "${DIRECTUS_DB_DATABASE:?Set DIRECTUS_DB_DATABASE in $ENV_FILE}"
 
 compose() {
@@ -74,11 +81,11 @@ compose() {
   fi
 }
 
-compose up -d postgres >/dev/null
+compose up -d "$DATABASE_SERVICE" >/dev/null
 
 if ! compose exec -T \
   -e PGPASSWORD="$POSTGRES_PASSWORD" \
-  postgres \
+  "$DATABASE_SERVICE" \
   psql \
     --username "$POSTGRES_USER" \
     --dbname postgres \
@@ -96,7 +103,7 @@ backup_path="$OUTPUT_DIR/directus-${timestamp}.sql.gz"
 
 compose exec -T \
   -e PGPASSWORD="$POSTGRES_PASSWORD" \
-  postgres \
+  "$DATABASE_SERVICE" \
   pg_dump \
     --username "$POSTGRES_USER" \
     --dbname "$DIRECTUS_DB_DATABASE" \

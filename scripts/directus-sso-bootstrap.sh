@@ -222,7 +222,7 @@ VALUES
   ('${DIRECTUS_POLICY_INVENTORY_OPERATOR_ID}', 'Политика оператора остатков', 'inventory', 'Операции с вариантами, ценами и остатками через витринный bridge Directus.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_MANAGER_ID}', 'Политика менеджера', 'support_agent', 'Работа с заказами, ссылками оплаты и активными акциями.', NULL, false, false, true),
   ('${DIRECTUS_POLICY_PICKER_ID}', 'Политика сборщика', 'inventory', 'Очередь сборки и смена статусов заказов.', NULL, false, false, true),
-  ('${DIRECTUS_POLICY_CONTENT_MANAGER_ID}', 'Политика контент-менеджера', 'edit_note', 'Каталог, импорт, акции и алерты низких остатков.', NULL, false, false, true)
+  ('${DIRECTUS_POLICY_CONTENT_MANAGER_ID}', 'Политика контент-менеджера', 'edit_note', 'Публикация страниц, кампаний, баннеров, навигации, FAQ и юридических документов.', NULL, false, false, true)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -241,7 +241,7 @@ VALUES
   ('${DIRECTUS_ROLE_INVENTORY_OPERATOR_ID}', 'Оператор остатков', 'inventory', 'Роль для работы с вариантами, ценами и остатками через bridge.', NULL),
   ('${DIRECTUS_ROLE_MANAGER_ID}', 'Менеджер', 'support_agent', 'Роль для управления заказами, ссылками оплаты и просмотра активных акций.', NULL),
   ('${DIRECTUS_ROLE_PICKER_ID}', 'Сборщик', 'inventory', 'Роль для работы с очередью сборки заказов.', NULL),
-  ('${DIRECTUS_ROLE_CONTENT_MANAGER_ID}', 'Контент-менеджер', 'edit_note', 'Роль для каталога, импорта, акций и алертов низких остатков.', NULL)
+  ('${DIRECTUS_ROLE_CONTENT_MANAGER_ID}', 'Контент-менеджер', 'edit_note', 'Страницы, кампании, баннеры, навигация, FAQ и юридические документы.', NULL)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   icon = EXCLUDED.icon,
@@ -427,8 +427,8 @@ VALUES
   (:'collection', 'create', '{}'::json, :'publisher_create_status_validation'::json, :'create_status_preset'::json, '*', :'publisher_policy'),
   (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'publisher_policy'),
   (:'collection', 'read', '{}'::json, NULL, NULL, '*', :'content_manager_policy'),
-  (:'collection', 'create', '{}'::json, :'editor_create_status_validation'::json, :'create_status_preset'::json, '*', :'content_manager_policy'),
-  (:'collection', 'update', '{}'::json, :'editor_update_status_validation'::json, NULL, '*', :'content_manager_policy');
+  (:'collection', 'create', '{}'::json, :'publisher_update_status_validation'::json, :'create_status_preset'::json, '*', :'content_manager_policy'),
+  (:'collection', 'update', '{}'::json, :'publisher_update_status_validation'::json, NULL, '*', :'content_manager_policy');
 SQL
 done < <(normalize_csv "$DIRECTUS_CMS_CONTENT_COLLECTIONS")
 

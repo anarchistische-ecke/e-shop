@@ -2,6 +2,7 @@ package com.example.api.config;
 
 import com.example.api.catalog.DirectusBridgeUnauthorizedException;
 import com.example.api.content.ContentNotFoundException;
+import com.example.api.content.CmsPreviewUnauthorizedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -47,6 +48,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> handleBridgeUnauthorized(DirectusBridgeUnauthorizedException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                 new ApiError("DIRECTUS_BRIDGE_UNAUTHORIZED", ex.getMessage(), true, List.of())
+        );
+    }
+
+    @ExceptionHandler(CmsPreviewUnauthorizedException.class)
+    public ResponseEntity<ApiError> handlePreviewUnauthorized(CmsPreviewUnauthorizedException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                new ApiError("CMS_PREVIEW_UNAUTHORIZED", ex.getMessage(), false, List.of())
         );
     }
 

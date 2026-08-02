@@ -173,6 +173,8 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     roleName: '',
     roleAdminAccess: false,
     previewBaseUrl: '',
+    marketingV2Enabled: false,
+    legacyHomeEnabled: false,
   });
   const navigationCounts = reactive(createStorefrontOpsNavigationCounts());
 
@@ -1057,6 +1059,9 @@ export function useStorefrontOpsWorkspace(tabComponents) {
   }
 
   function canAccessTab(tabId) {
+    if (tabId === 'home' && !accessState.legacyHomeEnabled) {
+      return false;
+    }
     return canAccessStorefrontOpsTab(tabId, roleKind.value, tabs);
   }
 
@@ -2450,6 +2455,12 @@ export function useStorefrontOpsWorkspace(tabComponents) {
     accessState.roleKind = user?.roleKind || user?.role_kind || (roleIsObject ? role.kind || '' : '');
     accessState.roleAdminAccess = Boolean(roleIsObject && (role.admin_access || role.adminAccess));
     accessState.previewBaseUrl = user?.preview?.baseUrl || user?.preview?.base_url || user?.storefrontPreviewBaseUrl || '';
+    accessState.marketingV2Enabled = Boolean(
+      user?.features?.marketingV2Enabled ?? user?.features?.marketing_v2_enabled
+    );
+    accessState.legacyHomeEnabled = Boolean(
+      user?.features?.legacyHomeEnabled ?? user?.features?.legacy_home_enabled
+    );
   }
 
   async function loadProducts({ reloadSelected = true } = {}) {

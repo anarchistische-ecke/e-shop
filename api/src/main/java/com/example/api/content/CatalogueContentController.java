@@ -17,6 +17,7 @@ public class CatalogueContentController {
     private final CataloguePresentationService presentationService;
     private final CatalogueResponseFactory responseFactory;
     private final CatalogService catalogService;
+    private final DirectusContentProperties properties;
     public CatalogueContentController(
             CataloguePresentationService presentationService,
             CatalogueResponseFactory responseFactory,
@@ -26,6 +27,7 @@ public class CatalogueContentController {
         this.presentationService = presentationService;
         this.responseFactory = responseFactory;
         this.catalogService = catalogService;
+        this.properties = properties;
     }
 
     @GetMapping("/collections/{key}")
@@ -63,6 +65,12 @@ public class CatalogueContentController {
     }
 
     private String buildPublicCacheControl() {
-        return "no-store";
+        return "public, max-age=" + seconds(properties.getResponseCacheMaxAge())
+                + ", stale-while-revalidate=" + seconds(properties.getResponseCacheStaleWhileRevalidate())
+                + ", stale-if-error=" + seconds(properties.getResponseCacheStaleIfError());
+    }
+
+    private long seconds(java.time.Duration value) {
+        return value == null ? 0 : Math.max(0, value.toSeconds());
     }
 }

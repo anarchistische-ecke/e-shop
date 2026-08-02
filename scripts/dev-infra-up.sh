@@ -49,6 +49,19 @@ echo "Bootstrapping automatic published_at handling..."
 echo "Bootstrapping Directus SSO and governance..."
 "$ROOT_DIR/scripts/directus-sso-bootstrap.sh"
 
+POSTGRES_USER="${DIRECTUS_DB_USER:-directus}" \
+POSTGRES_PASSWORD="${DIRECTUS_DB_PASSWORD:-directus}" \
+"$ROOT_DIR/scripts/directus-governance-bootstrap.sh" \
+  --env-file "$DIRECTUS_ENV_FILE" \
+  --compose-file "$ROOT_DIR/directus/docker-compose.yml" \
+  --database-service database
+
+echo "Provisioning Marketing V2 saved views and cache invalidation flows..."
+node "$ROOT_DIR/scripts/directus-marketing-v2-presets.js" \
+  --env-file "$DIRECTUS_ENV_FILE"
+node "$ROOT_DIR/scripts/directus-marketing-v2-flows.js" \
+  --env-file "$DIRECTUS_ENV_FILE"
+
 echo
 echo "Infrastructure started."
 echo "Backend infra:   docker compose -f $ROOT_DIR/docker-compose.yml ps"

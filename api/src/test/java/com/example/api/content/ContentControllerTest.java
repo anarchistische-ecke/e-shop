@@ -55,7 +55,10 @@ class ContentControllerTest {
 
         mockMvc.perform(get("/content/navigation").param("placement", "footer"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string(
+                        "Cache-Control",
+                        "public, max-age=60, stale-while-revalidate=300, stale-if-error=3600"
+                ))
                 .andExpect(jsonPath("$[0].key").value("footer-service"))
                 .andExpect(jsonPath("$[0].items[0].label").value("Delivery"));
 
@@ -108,7 +111,10 @@ class ContentControllerTest {
 
         mockMvc.perform(get("/content/site-settings"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string(
+                        "Cache-Control",
+                        "public, max-age=0, must-revalidate"
+                ))
                 .andExpect(jsonPath("$.siteName").value("Cozyhome"))
                 .andExpect(jsonPath("$.defaultOgImage.url").value("http://cms.test/assets/og-1"))
                 .andExpect(jsonPath("$.defaultOgImage.alt").value("Share image"));

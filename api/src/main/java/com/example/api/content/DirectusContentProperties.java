@@ -12,6 +12,7 @@ public class DirectusContentProperties {
     private String baseUrl;
     private String publicUrl;
     private String staticToken;
+    private String previewStaticToken;
     private Duration cacheTtl = Duration.ofMinutes(5);
     private Duration cacheStaleTtl = Duration.ofHours(1);
     private String cacheKeyPrefix = "cms:content";
@@ -21,6 +22,8 @@ public class DirectusContentProperties {
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration readTimeout = Duration.ofSeconds(5);
     private Duration slowRequestThreshold = Duration.ofSeconds(2);
+    private boolean marketingV2Enabled;
+    private String previewSecret;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -44,6 +47,14 @@ public class DirectusContentProperties {
 
     public void setStaticToken(String staticToken) {
         this.staticToken = staticToken;
+    }
+
+    public String getPreviewStaticToken() {
+        return previewStaticToken;
+    }
+
+    public void setPreviewStaticToken(String previewStaticToken) {
+        this.previewStaticToken = previewStaticToken;
     }
 
     public Duration getCacheTtl() {
@@ -116,5 +127,21 @@ public class DirectusContentProperties {
 
     public void setSlowRequestThreshold(Duration slowRequestThreshold) {
         this.slowRequestThreshold = slowRequestThreshold;
+    }
+
+    public boolean isMarketingV2Enabled() {
+        return marketingV2Enabled;
+    }
+
+    public void setMarketingV2Enabled(boolean marketingV2Enabled) {
+        this.marketingV2Enabled = marketingV2Enabled;
+    }
+
+    public String getPreviewSecret() {
+        return previewSecret;
+    }
+
+    public void setPreviewSecret(String previewSecret) {
+        this.previewSecret = previewSecret;
     }
 }
