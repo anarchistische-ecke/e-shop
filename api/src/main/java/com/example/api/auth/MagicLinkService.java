@@ -54,13 +54,17 @@ public class MagicLinkService {
             return MagicLinkResult.rateLimited(retryAt.get());
         }
 
-        customerService.findOrCreateByEmail(normalizedEmail, "Customer", "");
-        String token = requestAdminToken();
-        String userId = ensureKeycloakUser(token, normalizedEmail);
-        assignCustomerRole(token, userId);
-        sendMagicLink(token, normalizedEmail, redirectUri);
-        lastRequestByEmail.put(normalizedEmail, Instant.now());
-        return MagicLinkResult.accepted();
+        try {
+            customerService.findOrCreateByEmail(normalizedEmail, "Customer", "");
+            String token = requestAdminToken();
+            String userId = ensureKeycloakUser(token, normalizedEmail);
+            assignCustomerRole(token, userId);
+            sendMagicLink(token, normalizedEmail, redirectUri);
+            lastRequestByEmail.put(normalizedEmail, Instant.now());
+            return MagicLinkResult.accepted();
+        } catch (RuntimeException ex) {
+            return MagicLinkResult.unavailable("Magic-link login is temporarily unavailable");
+        }
     }
 
     private Optional<Instant> resolveRetryAt(String email) {
