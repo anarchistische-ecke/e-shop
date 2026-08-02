@@ -79,6 +79,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/marketing/subscriptions/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/marketing/subscriptions").permitAll()
                 .requestMatchers("/chat/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/content/preview/session").permitAll()
                 .requestMatchers(HttpMethod.GET, "/content/preview/**").access(previewAccess)
                 .requestMatchers(HttpMethod.GET, "/content/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/customers/me").hasRole("CUSTOMER")

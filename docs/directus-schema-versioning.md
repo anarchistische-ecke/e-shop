@@ -83,6 +83,13 @@ This versioning workflow covers the Directus data model:
 - relations
 - collection and field metadata that Directus includes in its snapshot format
 
+The two authoring folders (`cms_marketing` and `cms_site_content`) are
+metadata-only Directus collections with no database schema. Directus 11.17.2
+rejects those folder rows when they are included in `/schema/diff`, so
+`scripts/directus-schema.js` provisions their metadata separately and keeps
+only their child `group` assignments in the committed snapshot. Drift checks
+still verify and update the folder metadata.
+
 It does not replace the governance/bootstrap process for:
 
 - roles

@@ -15,15 +15,17 @@ import java.util.List;
 public class ContentController {
 
     private final ContentService contentService;
+    private final DirectusContentProperties properties;
 
     public ContentController(ContentService contentService, DirectusContentProperties properties) {
         this.contentService = contentService;
+        this.properties = properties;
     }
 
     @GetMapping("/site-settings")
     public ResponseEntity<ContentModels.SiteSettings> getSiteSettings() {
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, buildPublicCacheControl())
+                .header(HttpHeaders.CACHE_CONTROL, "public, max-age=0, must-revalidate")
                 .body(contentService.getSiteSettings());
     }
 
@@ -54,9 +56,15 @@ public class ContentController {
 
     @GetMapping("/pages/{slug}")
     public ResponseEntity<ContentModels.Page> getPageBySlug(@PathVariable String slug) {
+        ContentModels.Page page = contentService.getPageBySlug(slug);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CACHE_CONTROL, buildPublicCacheControl())
-                .body(contentService.getPageBySlug(slug));
+                .header(
+                        HttpHeaders.CACHE_CONTROL,
+                        hasCampaignSlot(page)
+                                ? "private, no-store, max-age=0"
+                                : buildPublicCacheControl()
+                )
+                .body(page);
     }
 
     @GetMapping("/preview/pages/{slug}")
@@ -67,6 +75,19 @@ public class ContentController {
     }
 
     private String buildPublicCacheControl() {
-        return "no-store";
+        return "public, max-age=" + seconds(properties.getResponseCacheMaxAge())
+                + ", stale-while-revalidate=" + seconds(properties.getResponseCacheStaleWhileRevalidate())
+                + ", stale-if-error=" + seconds(properties.getResponseCacheStaleIfError());
+    }
+
+    private long seconds(java.time.Duration value) {
+        return value == null ? 0 : Math.max(0, value.toSeconds());
+    }
+
+    private boolean hasCampaignSlot(ContentModels.Page page) {
+        return page != null
+                && page.sections() != null
+                && page.sections().stream()
+                .anyMatch(section -> "campaign_slot".equalsIgnoreCase(section.sectionType()));
     }
 }

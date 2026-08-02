@@ -149,7 +149,7 @@ public class DirectusContentClient {
         query.add("filter[navigation][_in]", joinIntegerIds(navigationIds));
         query.add("sort", "sort,id");
         query.add("limit", "-1");
-        query.add("fields", "id,navigation,label,url,item_type,open_in_new_tab,visibility,sort");
+        query.add("fields", "id,navigation,label,url,item_type,open_in_new_tab,visibility,sort,page.slug,page.path,page.status");
 
         URI uri = itemsUri("navigation_items", query);
         return observe("navigation_items", accessMode, uri, () -> {
@@ -170,7 +170,7 @@ public class DirectusContentClient {
         query.add("filter[slug][_eq]", slug);
         applyStatusFilter(query, accessMode);
         query.add("limit", "1");
-        query.add("fields", "id,slug,path,title,template,nav_label,summary,seo_title,seo_description,seo_image,published_at");
+        query.add("fields", "id,slug,path,title,template,nav_label,summary,seo_title,seo_description,seo_image,robots,published_at");
 
         URI uri = itemsUri("page", query);
         return observe("page", accessMode, uri, () -> {
@@ -217,6 +217,10 @@ public class DirectusContentClient {
                 "secondary_cta_url",
                 "style_variant",
                 "layout_variant",
+                "campaign_placement",
+                "item_limit",
+                "storefront_collection.key",
+                "storefront_collection.status",
                 "published_at"
         ));
 
@@ -244,7 +248,11 @@ public class DirectusContentClient {
         applyStatusFilter(query, accessMode);
         query.add("sort", "sort,id");
         query.add("limit", "-1");
-        query.add("fields", "id,page_section,title,description,label,url,image,image_alt,reference_kind,reference_key,sort,published_at");
+        query.add("fields", String.join(",",
+                "id", "page_section", "title", "description", "label", "url", "image", "image_alt",
+                "reference_kind", "reference_key", "product_key", "category_key", "brand_key",
+                "storefront_collection.key", "storefront_collection.status", "sort", "published_at"
+        ));
 
         URI uri = itemsUri("page_section_items", query);
         return observe("page_section_items", accessMode, uri, () -> {
@@ -489,8 +497,25 @@ public class DirectusContentClient {
             @JsonProperty("item_type") String itemType,
             @JsonProperty("open_in_new_tab") Boolean openInNewTab,
             String visibility,
-            Integer sort
+            Integer sort,
+            DirectusPageReference page
     ) {
+        public DirectusNavigationItem(
+                Integer id,
+                Integer navigation,
+                String label,
+                String url,
+                String itemType,
+                Boolean openInNewTab,
+                String visibility,
+                Integer sort
+        ) {
+            this(id, navigation, label, url, itemType, openInNewTab, visibility, sort, null);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DirectusPageReference(String slug, String path, String status) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -505,8 +530,27 @@ public class DirectusContentClient {
             @JsonProperty("seo_title") String seoTitle,
             @JsonProperty("seo_description") String seoDescription,
             @JsonProperty("seo_image") String seoImage,
+            String robots,
             @JsonProperty("published_at") OffsetDateTime publishedAt
     ) {
+        public DirectusPage(
+                Integer id,
+                String slug,
+                String path,
+                String title,
+                String template,
+                String navLabel,
+                String summary,
+                String seoTitle,
+                String seoDescription,
+                String seoImage,
+                OffsetDateTime publishedAt
+        ) {
+            this(
+                    id, slug, path, title, template, navLabel, summary, seoTitle,
+                    seoDescription, seoImage, "index,follow", publishedAt
+            );
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -531,8 +575,41 @@ public class DirectusContentClient {
             @JsonProperty("secondary_cta_url") String secondaryCtaUrl,
             @JsonProperty("style_variant") String styleVariant,
             @JsonProperty("layout_variant") String layoutVariant,
+            @JsonProperty("campaign_placement") String campaignPlacement,
+            @JsonProperty("item_limit") Integer itemLimit,
+            @JsonProperty("storefront_collection") DirectusCollectionReference storefrontCollection,
             @JsonProperty("published_at") OffsetDateTime publishedAt
     ) {
+        public DirectusPageSection(
+                Integer id,
+                Integer page,
+                String internalName,
+                String sectionType,
+                Integer sort,
+                String anchorId,
+                String eyebrow,
+                String title,
+                String accent,
+                String body,
+                String image,
+                String imageAlt,
+                String mobileImage,
+                String mobileImageAlt,
+                String primaryCtaLabel,
+                String primaryCtaUrl,
+                String secondaryCtaLabel,
+                String secondaryCtaUrl,
+                String styleVariant,
+                String layoutVariant,
+                OffsetDateTime publishedAt
+        ) {
+            this(
+                    id, page, internalName, sectionType, sort, anchorId, eyebrow, title, accent,
+                    body, image, imageAlt, mobileImage, mobileImageAlt, primaryCtaLabel,
+                    primaryCtaUrl, secondaryCtaLabel, secondaryCtaUrl, styleVariant, layoutVariant,
+                    null, null, null, publishedAt
+            );
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -547,9 +624,36 @@ public class DirectusContentClient {
             @JsonProperty("image_alt") String imageAlt,
             @JsonProperty("reference_kind") String referenceKind,
             @JsonProperty("reference_key") String referenceKey,
+            @JsonProperty("product_key") String productKey,
+            @JsonProperty("category_key") String categoryKey,
+            @JsonProperty("brand_key") String brandKey,
+            @JsonProperty("storefront_collection") DirectusCollectionReference storefrontCollection,
             Integer sort,
             @JsonProperty("published_at") OffsetDateTime publishedAt
     ) {
+        public DirectusPageSectionItem(
+                Integer id,
+                Integer pageSection,
+                String title,
+                String description,
+                String label,
+                String url,
+                String image,
+                String imageAlt,
+                String referenceKind,
+                String referenceKey,
+                Integer sort,
+                OffsetDateTime publishedAt
+        ) {
+            this(
+                    id, pageSection, title, description, label, url, image, imageAlt,
+                    referenceKind, referenceKey, null, null, null, null, sort, publishedAt
+            );
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DirectusCollectionReference(String key, String status) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

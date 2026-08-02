@@ -6,6 +6,7 @@ import {
   resolveAccountabilityRoleKind,
   resolveAdminRoleSets,
 } from '../../storefront-ops-access-policy.js';
+import { createHmac, randomBytes } from 'node:crypto';
 
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -26,6 +27,26 @@ function accountabilityUserId(accountability) {
 
 function resolvePreviewBaseUrl(env) {
   return normalizeBaseUrl(env.STOREFRONT_OPS_PREVIEW_BASE_URL || env.STOREFRONT_PUBLIC_URL || '');
+}
+
+function envFlag(value, fallback = false) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+const PREVIEW_COLLECTIONS = new Set(['page', 'campaign', 'banner']);
+
+function signPreviewToken(payload, secret) {
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = createHmac('sha256', secret).update(encodedPayload).digest('base64url');
+  return `${encodedPayload}.${signature}`;
+}
+
+function safePreviewReturnPath(collection, id) {
+  if (collection === 'campaign') return `/promo/${encodeURIComponent(id)}`;
+  return '/';
 }
 
 async function resolveDirectusRoleDetails(accountability, context) {
@@ -100,6 +121,10 @@ async function sendAccessProfile(req, res, context, roleSets) {
       },
       preview: {
         baseUrl: previewBaseUrl,
+      },
+      features: {
+        marketingV2Enabled: envFlag(context.env.CMS_MARKETING_V2_ENABLED, false),
+        legacyHomeEnabled: envFlag(context.env.STOREFRONT_OPS_LEGACY_HOME_ENABLED, false),
       },
     },
   });
@@ -200,6 +225,47 @@ export default {
         error: error instanceof Error ? error.message : 'Не удалось определить профиль доступа Directus.',
       });
     }
+  });
+
+  router.get('/cms-preview/:collection/:id', async (req, res) => {
+    if (!req.accountability?.user) {
+      res.status(401).json({ error: 'Требуется авторизация Directus.' });
+      return;
+    }
+    const collection = String(req.params.collection || '').trim().toLowerCase();
+    const id = String(req.params.id || '').trim();
+    if (!PREVIEW_COLLECTIONS.has(collection) || !id) {
+      res.status(400).json({ error: 'Предпросмотр поддерживается для page, campaign и banner.' });
+      return;
+    }
+    const secret = String(context.env.CMS_PREVIEW_SECRET || '');
+    const previewBaseUrl = resolvePreviewBaseUrl(context.env);
+    if (secret.length < 32 || !previewBaseUrl) {
+      res.status(503).json({
+        error: 'Предпросмотр не настроен: задайте CMS_PREVIEW_SECRET и STOREFRONT_OPS_PREVIEW_BASE_URL.',
+      });
+      return;
+    }
+    const ttlSeconds = Math.max(
+      30,
+      Math.min(Number(context.env.CMS_PREVIEW_TOKEN_TTL_SECONDS || 300), 900)
+    );
+    const now = Math.floor(Date.now() / 1000);
+    const token = signPreviewToken({
+      v: 1,
+      collection,
+      id,
+      version: String(req.query.version || ''),
+      iat: now,
+      exp: now + ttlSeconds,
+      nonce: randomBytes(12).toString('base64url'),
+      actor: accountabilityUserId(req.accountability),
+      returnPath: safePreviewReturnPath(collection, id),
+    }, secret);
+    const target = new URL('/__cms-preview/accept', `${previewBaseUrl}/`);
+    target.searchParams.set('token', token);
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.redirect(307, target.toString());
   });
 
   router.all('/*', async (req, res) => {

@@ -29,7 +29,9 @@ The storefront conversion and server-confirmed purchase tracking contract is doc
 | --- | --- | --- | --- |
 | `DIRECTUS_BASE_URL` | backend | `http://localhost:8055` | Base URL for the Directus instance the backend should call. |
 | `DIRECTUS_PUBLIC_URL` | backend + Directus | `https://cms.example.com` | Browser-reachable Directus origin used when backend CMS payloads emit `/assets/{id}` media URLs. If `DIRECTUS_BASE_URL` is private/internal, this must still be public. |
-| `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Server-side Directus token. Effectively required for preview/draft reads and for published media metadata enrichment (`/files` width/height/type lookup) unless you intentionally expose Directus file metadata publicly. Keep it in local/prod env only. Never commit it. |
+| `DIRECTUS_STATIC_TOKEN` | backend | unset in repo | Scoped, server-side token for published CMS reads and media metadata enrichment (`/files` width/height/type lookup). It has no Directus app access and no draft access. Keep it in local/prod env only. Never commit it. |
+| `DIRECTUS_PREVIEW_TOKEN` | backend | unset in repo | Separate scoped, server-side token for draft/content-version reads after a signed preview claim is validated. It has no Directus app access and is never exposed to browser code. Never reuse the published reader token. |
+| `CMS_PREVIEW_SECRET` | backend + Directus | unset in repo | HMAC secret for short-lived preview claims. Use at least 32 random characters and keep the same value in Directus and backend secrets. |
 | `DIRECTUS_BRIDGE_TOKEN` | backend + Directus | unset in repo | Shared secret used by the Directus operator extensions when they call `/internal/directus/catalogue/**`. Keep it in env/secret storage only. |
 | `CATALOGUE_MEDIA_UPLOAD_ENABLED` | backend | `false` | Environment default for creating new direct-to-storage upload batches. Keep false during deployment; the Redis feature override can enable it after smoke checks. |
 | `CATALOGUE_MEDIA_PROCESSOR_ENABLED` | backend | `true` | Keeps queued optimization work running even when creation of new uploads is disabled. |

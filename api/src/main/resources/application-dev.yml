@@ -33,9 +33,12 @@ cors:
   allowed-headers: "*"
 
 directus:
+  marketing-v2-enabled: ${CMS_MARKETING_V2_ENABLED:false}
+  preview-secret: ${CMS_PREVIEW_SECRET:}
   base-url: ${DIRECTUS_BASE_URL:http://localhost:8055}
   public-url: ${DIRECTUS_PUBLIC_URL:${DIRECTUS_BASE_URL:http://localhost:8055}}
   static-token: ${DIRECTUS_STATIC_TOKEN:}
+  preview-static-token: ${DIRECTUS_PREVIEW_TOKEN:}
   cache-ttl: ${DIRECTUS_CACHE_TTL:PT5M}
   cache-stale-ttl: ${DIRECTUS_CACHE_STALE_TTL:PT1H}
   cache-key-prefix: ${DIRECTUS_CACHE_KEY_PREFIX:cms:content}

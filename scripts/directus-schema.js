@@ -16,6 +16,10 @@ const DEFAULT_CMS_COLLECTIONS = [
   'faq',
   'legal_documents',
   'banner',
+  'campaign',
+  'page_section_banners',
+  'page_section_faqs',
+  'page_section_legal_documents',
   'post',
   'product_overlay',
   'category_overlay',
@@ -24,6 +28,29 @@ const DEFAULT_CMS_COLLECTIONS = [
   'storefront_collection',
   'storefront_collection_item',
 ];
+const DEFAULT_FOLDER_COLLECTIONS = ['cms_marketing', 'cms_site_content'];
+const DEFAULT_FOLDER_META = {
+  cms_marketing: {
+    icon: 'campaign',
+    note: 'Кампании, креативы и витринные подборки.',
+    translations: [{
+      language: 'ru-RU',
+      translation: 'Маркетинг',
+      singular: 'Маркетинг',
+      plural: 'Маркетинг',
+    }],
+  },
+  cms_site_content: {
+    icon: 'web',
+    note: 'Страницы, навигация, FAQ, юридические документы и настройки.',
+    translations: [{
+      language: 'ru-RU',
+      translation: 'Контент сайта',
+      singular: 'Контент сайта',
+      plural: 'Контент сайта',
+    }],
+  },
+};
 const FORBIDDEN_COMMERCE_COLLECTIONS = [
   'brand',
   'cart',
@@ -76,6 +103,10 @@ async function main() {
   await waitForDirectus(config.baseUrl);
   const authHeader = await getAuthHeader(config);
 
+  if (command === 'apply') {
+    await ensureFolderCollections(config, authHeader);
+  }
+
   if (command === 'snapshot') {
     const snapshot = await requestJson(config.baseUrl, authHeader, 'GET', '/schema/snapshot');
     validateSnapshotBoundary(snapshot, config);
@@ -87,13 +118,14 @@ async function main() {
 
   const snapshot = readSnapshot(config.snapshotPath);
   validateSnapshotBoundary(snapshot, config);
-  const diffResponse = await requestJson(
+  const diffResponse = preserveFolderCollections(await requestJson(
     config.baseUrl,
     authHeader,
     'POST',
     `/schema/diff${options.force ? '?force=true' : ''}`,
     snapshot
-  );
+  ), config.folderCollections);
+  await suppressExistingVirtualFieldDiffs(config, authHeader, diffResponse);
 
   if (!diffResponse || !hasChanges(diffResponse)) {
     console.log(`No Directus schema changes detected against ${config.snapshotPath}`);
@@ -189,11 +221,60 @@ function loadConfig(options) {
   return {
     baseUrl,
     cmsContentCollections: parseCsv(env.DIRECTUS_CMS_CONTENT_COLLECTIONS || DEFAULT_CMS_COLLECTIONS.join(',')),
+    folderCollections: parseCsv(
+      env.DIRECTUS_SCHEMA_FOLDER_COLLECTIONS || DEFAULT_FOLDER_COLLECTIONS.join(',')
+    ),
     snapshotPath: options.snapshotPath,
     schemaAdminToken,
     adminEmail,
     adminPassword,
   };
+}
+
+async function ensureFolderCollections(config, authHeader) {
+  if (config.folderCollections.length === 0) {
+    return;
+  }
+
+  const collections = await requestJson(
+    config.baseUrl,
+    authHeader,
+    'GET',
+    '/collections?limit=-1'
+  );
+  const existing = new Set(
+    (Array.isArray(collections) ? collections : [])
+      .map((entry) => entry?.collection)
+      .filter(Boolean)
+  );
+
+  for (const collectionName of config.folderCollections) {
+    const meta = {
+      collapse: 'open',
+      hidden: false,
+      icon: 'folder',
+      singleton: false,
+      ...(DEFAULT_FOLDER_META[collectionName] || {}),
+    };
+
+    if (existing.has(collectionName)) {
+      await requestJson(
+        config.baseUrl,
+        authHeader,
+        'PATCH',
+        `/collections/${encodeURIComponent(collectionName)}`,
+        { meta }
+      );
+      continue;
+    }
+
+    await requestJson(config.baseUrl, authHeader, 'POST', '/collections', {
+      collection: collectionName,
+      meta,
+      schema: null,
+    });
+    console.log(`Created Directus content folder ${collectionName}`);
+  }
 }
 
 function loadEnvFile(envFile) {
@@ -437,10 +518,60 @@ function extractChangeSet(diffResponse) {
   return diffResponse?.diff || diffResponse || {};
 }
 
+function preserveFolderCollections(diffResponse, folderCollections) {
+  const changeSet = extractChangeSet(diffResponse);
+  if (!changeSet || !Array.isArray(changeSet.collections)) {
+    return diffResponse;
+  }
+
+  const folders = new Set(folderCollections);
+  changeSet.collections = changeSet.collections.filter(
+    (entry) => !folders.has(entry?.collection)
+  );
+  return diffResponse;
+}
+
+async function suppressExistingVirtualFieldDiffs(config, authHeader, diffResponse) {
+  const changeSet = extractChangeSet(diffResponse);
+  if (!changeSet || !Array.isArray(changeSet.fields)) {
+    return;
+  }
+
+  const retained = [];
+  for (const entry of changeSet.fields) {
+    const candidate = entry?.diff?.[0]?.rhs;
+    const isVirtualNewField =
+      entry?.diff?.[0]?.kind === 'N'
+      && candidate?.type === 'alias'
+      && !candidate?.schema;
+
+    if (!isVirtualNewField) {
+      retained.push(entry);
+      continue;
+    }
+
+    try {
+      await requestJson(
+        config.baseUrl,
+        authHeader,
+        'GET',
+        `/fields/${encodeURIComponent(entry.collection)}/${encodeURIComponent(entry.field)}`
+      );
+    } catch (error) {
+      if (!String(error?.message || '').includes('Directus API 404')) {
+        throw error;
+      }
+      retained.push(entry);
+    }
+  }
+
+  changeSet.fields = retained;
+}
+
 function hasChanges(diffResponse) {
   const changeSet = extractChangeSet(diffResponse);
 
-  return ['collections', 'fields', 'relations']
+  return ['collections', 'fields', 'systemFields', 'relations']
     .map((key) => changeSet[key])
     .some((value) => Array.isArray(value) && value.length > 0);
 }
@@ -451,6 +582,7 @@ function summarizeDiff(diffResponse) {
 
   lines.push(formatChangeBucket('collections', changeSet.collections));
   lines.push(formatChangeBucket('fields', changeSet.fields));
+  lines.push(formatChangeBucket('system fields', changeSet.systemFields));
   lines.push(formatChangeBucket('relations', changeSet.relations));
 
   return lines.join('\n');
