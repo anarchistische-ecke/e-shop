@@ -41,6 +41,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify storefront cache health policy
+        run: node --test scripts/tests/storefront-content-consistency-cache.test.mjs
+
       - name: Validate committed Directus schema snapshot
         run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
 

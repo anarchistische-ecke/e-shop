@@ -14,10 +14,13 @@ const categoryBySlug = new Map(categories.map((category) => [normalizeKey(catego
 const home = await fetchJson(`${apiBase}/content/pages/home`);
 
 await validateHomepageReferences(home);
-await assertNoStore('/');
-await assertNoStore('/catalog');
-await assertNoStore('/catalog?search=publication-smoke');
+await assertSharedCache('/', 60);
+await assertSharedCache('/catalog', 60);
+await assertSharedCache('/catalog?search=publication-smoke', 60);
 await assertNoStore('/sitemap.xml');
+await assertNoStore('/cart');
+await assertNoStore('/checkout');
+await assertNoStore('/account');
 await assertStaticAssetCaching();
 
 if (productId) {
@@ -90,8 +93,8 @@ async function validateProduct(id) {
 
   const categorySlug = direct.categories?.[0]?.slug;
   assert(categorySlug, `Reported product ${id} has no category`);
-  await assertNoStore(`/category/${encodeURIComponent(categorySlug)}`);
-  await assertNoStore(`/product/${encodeURIComponent(id)}/${encodeURIComponent(direct.slug)}`);
+  await assertSharedCache(`/category/${encodeURIComponent(categorySlug)}`, 60);
+  await assertSharedCache(`/product/${encodeURIComponent(id)}/${encodeURIComponent(direct.slug)}`, 30);
 
   const catalogueHtml = await fetchText(`${storefrontBase}/catalog`);
   assert(catalogueHtml.includes(id), `Reported product ${id} is absent from catalogue SSR data`);
@@ -125,6 +128,27 @@ async function assertNoStore(path) {
   const response = await fetchRequired(`${storefrontBase}${path}`);
   const cacheControl = response.headers.get('cache-control') || '';
   assert(/(?:^|,)\s*no-store(?:\s*(?:,|$))/.test(cacheControl), `${path} is missing Cache-Control: no-store (${cacheControl || 'empty'})`);
+}
+
+async function assertSharedCache(path, sharedMaxAge) {
+  const response = await fetchRequired(`${storefrontBase}${path}`);
+  const cacheControl = response.headers.get('cache-control') || '';
+  assert(
+    /(?:^|,)\s*public(?:\s*(?:,|$))/.test(cacheControl),
+    `${path} is not public-cacheable (${cacheControl || 'empty'})`
+  );
+  assert(
+    new RegExp(`(?:^|,)\\s*s-maxage=${sharedMaxAge}(?:\\s*(?:,|$))`).test(cacheControl),
+    `${path} is missing s-maxage=${sharedMaxAge} (${cacheControl || 'empty'})`
+  );
+  assert(
+    /(?:^|,)\s*stale-while-revalidate=300(?:\s*(?:,|$))/.test(cacheControl),
+    `${path} is missing stale-while-revalidate=300 (${cacheControl || 'empty'})`
+  );
+  assert(
+    !/(?:^|,)\s*no-store(?:\s*(?:,|$))/.test(cacheControl),
+    `${path} unexpectedly disables shared caching (${cacheControl})`
+  );
 }
 
 async function assertStaticAssetCaching() {
