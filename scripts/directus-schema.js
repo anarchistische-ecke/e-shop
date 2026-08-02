@@ -217,10 +217,13 @@ function loadConfig(options) {
   const schemaAdminToken = env.DIRECTUS_SCHEMA_ADMIN_TOKEN || env.DIRECTUS_ADMIN_TOKEN || env.ADMIN_TOKEN || '';
   const adminEmail = env.DIRECTUS_ADMIN_EMAIL || env.ADMIN_EMAIL || '';
   const adminPassword = env.DIRECTUS_ADMIN_PASSWORD || env.ADMIN_PASSWORD || '';
+  const configuredCmsContentCollections = parseCsv(env.DIRECTUS_CMS_CONTENT_COLLECTIONS || '');
 
   return {
     baseUrl,
-    cmsContentCollections: parseCsv(env.DIRECTUS_CMS_CONTENT_COLLECTIONS || DEFAULT_CMS_COLLECTIONS.join(',')),
+    cmsContentCollections: parseCsv(
+      [...DEFAULT_CMS_COLLECTIONS, ...configuredCmsContentCollections].join(',')
+    ),
     folderCollections: parseCsv(
       env.DIRECTUS_SCHEMA_FOLDER_COLLECTIONS || DEFAULT_FOLDER_COLLECTIONS.join(',')
     ),

@@ -101,6 +101,9 @@ jobs:
       - name: Validate committed Directus schema snapshot
         run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
 
+      - name: Test Directus CMS allowlist upgrades
+        run: node --test scripts/tests/directus-cms-allowlist-upgrade.test.mjs
+
       - name: Verify committed Directus runtime extensions are up to date
         run: bash ./scripts/directus-extensions-build.sh --check
 
