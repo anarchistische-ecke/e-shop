@@ -70,3 +70,23 @@ test('service-secret bootstrap provisions missing values and preserves them on r
   assert.equal(secondRun.status, 0, secondRun.stderr || secondRun.stdout);
   assert.deepEqual(readAssignments(envFile), firstAssignments);
 });
+
+test('production deploy runs Marketing V2 provisioners inside Directus', () => {
+  const deploySource = readFileSync(resolve(rootDir, 'scripts/deploy-stack.sh'), 'utf8');
+
+  assert.doesNotMatch(
+    deploySource,
+    /DIRECTUS_BASE_URL="http:\/\/127\.0\.0\.1:8055"\s+\\\s+node/
+  );
+  for (const provisioner of [
+    'directus-marketing-v2-presets.js',
+    'directus-marketing-v2-flows.js',
+  ]) {
+    assert.match(
+      deploySource,
+      new RegExp(
+        String.raw`compose exec -T[\s\S]*?directus \\\n  node /opt/directus-deploy/scripts/${provisioner.replace('.', String.raw`\.`)}`
+      )
+    );
+  }
+});
