@@ -59,6 +59,10 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
+echo "Ensuring Directus server-side service secrets exist..."
+bash "$ROOT_DIR/scripts/directus-service-secrets-bootstrap.sh" \
+  --env-file "$ENV_FILE"
+
 load_env_file "$ENV_FILE"
 
 compose() {

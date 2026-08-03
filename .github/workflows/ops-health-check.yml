@@ -13,6 +13,9 @@ on:
         options:
           - staging
           - production
+          - production-remote-diagnostic
+          - production-remote-expand-filesystem
+          - production-remote-prune-build-cache
 
 jobs:
   health-check-production:
@@ -70,3 +73,164 @@ jobs:
             cd ${{ env.YC_VM_DEPLOY_PATH }}
             expected_release_id="$(git rev-parse HEAD)"
             bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state --expected-release-id "$expected_release_id"
+
+  diagnose-production-remotely:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'production-remote-diagnostic' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Require production VM SSH configuration
+        run: |
+          set -euo pipefail
+          test -n "${YC_VM_HOST}"
+          test -n "${YC_VM_USER}"
+          test -n "${YC_VM_SSH_KEY}"
+          test -n "${YC_VM_DEPLOY_PATH}"
+
+      - name: Inspect production host without changing it
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -u
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            echo "## Host"
+            date -u
+            uptime
+            free -m
+            df -h /
+            lsblk -o NAME,PATH,SIZE,TYPE,FSTYPE,MOUNTPOINT
+            findmnt -no SOURCE,FSTYPE,OPTIONS /
+            printf 'root_source=%s\n' "$(findmnt -no SOURCE /)"
+            printf 'root_fstype=%s\n' "$(findmnt -no FSTYPE /)"
+            printf 'disk_bytes=%s\n' "$(lsblk -bndo SIZE /dev/vda)"
+            printf 'partition_bytes=%s\n' "$(lsblk -bndo SIZE /dev/vda2)"
+            for utility in growpart resize2fs parted sfdisk fdisk; do
+              if command -v "${utility}" >/dev/null; then
+                printf '%s=%s\n' "${utility}" "$(command -v "${utility}")"
+              else
+                printf '%s=missing\n' "${utility}"
+              fi
+            done
+            if sudo -n true 2>/dev/null; then
+              echo "passwordless_sudo=yes"
+            else
+              echo "passwordless_sudo=no"
+            fi
+            echo "## Runner"
+            systemctl list-units --type=service --all 'actions.runner*' --no-pager || true
+            systemctl --user list-units --type=service --all 'actions.runner*' --no-pager || true
+            echo "## Containers"
+            docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true
+            docker compose --env-file .env -f docker-compose.prod.yml ps -a || true
+            echo "## Docker storage"
+            docker system df -v || true
+            echo "## Deploy-path storage"
+            du -xhd1 . .deploy-state releases backups 2>/dev/null | sort -h || true
+            echo "## Release directories"
+            du -xhd1 releases/* 2>/dev/null | sort -h || true
+            echo "## Backup files"
+            find backups .deploy-state -xdev -type f -printf '%s %TY-%Tm-%TdT%TH:%TM:%TSZ %p\n' 2>/dev/null \
+              | sort -n \
+              | tail -n 80 || true
+            echo "## Container log paths"
+            docker inspect --format '{{.Name}} {{.LogPath}}' $(docker ps -aq) 2>/dev/null || true
+            journalctl --disk-usage 2>/dev/null || true
+            echo "## Runtime state"
+            sed -n '1,160p' .deploy-state/runtime-live.env 2>/dev/null || true
+            sed -n '1,200p' .deploy-state/latest-runtime-summary.txt 2>/dev/null || true
+            echo "## Latest deployment log"
+            latest_log="$(ls -1t .deploy-state/logs/*.log 2>/dev/null | head -n 1 || true)"
+            if [ -n "${latest_log}" ]; then
+              echo "${latest_log}"
+              tail -n 300 "${latest_log}"
+            fi
+
+  expand-production-filesystem-remotely:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'production-remote-expand-filesystem' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Require production VM SSH configuration
+        run: |
+          set -euo pipefail
+          test -n "${YC_VM_HOST}"
+          test -n "${YC_VM_USER}"
+          test -n "${YC_VM_SSH_KEY}"
+          test -n "${YC_VM_DEPLOY_PATH}"
+
+      - name: Expand verified production root filesystem
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            root_source="$(findmnt -no SOURCE /)"
+            root_fstype="$(findmnt -no FSTYPE /)"
+            disk_size="$(lsblk -bndo SIZE /dev/vda)"
+            partition_size="$(lsblk -bndo SIZE /dev/vda2)"
+
+            test "${root_source}" = "/dev/vda2"
+            test "${root_fstype}" = "ext4"
+            test "${disk_size}" -ge 50000000000
+            test "${partition_size}" -lt "${disk_size}"
+            command -v growpart >/dev/null
+            sudo test -x /sbin/resize2fs
+
+            sudo growpart /dev/vda 2
+            sudo /sbin/resize2fs /dev/vda2
+
+            expanded_size="$(lsblk -bndo SIZE /dev/vda2)"
+            test "${expanded_size}" -gt "${partition_size}"
+            df -h /
+            sudo systemctl restart actions.runner.anarchistische-ecke-e-shop.e-shop-prod-vm.service
+
+  prune-production-build-cache-remotely:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'production-remote-prune-build-cache' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Require production VM SSH configuration
+        run: |
+          set -euo pipefail
+          test -n "${YC_VM_HOST}"
+          test -n "${YC_VM_USER}"
+          test -n "${YC_VM_SSH_KEY}"
+
+      - name: Prune unused Docker build cache
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            echo "## Before"
+            df -h /
+            docker system df
+            docker builder prune --all --force
+            echo "## After"
+            df -h /
+            docker system df
