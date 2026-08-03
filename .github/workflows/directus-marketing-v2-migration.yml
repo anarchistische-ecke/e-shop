@@ -1,0 +1,101 @@
+name: directus-marketing-v2-migration
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validate only or back up and apply the idempotent migration
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - apply
+      ref:
+        description: Already-deployed e-shop ref containing the migration
+        required: true
+        default: main
+        type: string
+
+jobs:
+  migrate:
+    runs-on: [self-hosted, prod-vm, prod-deploy]
+    environment: production-destructive
+    concurrency:
+      group: directus-marketing-v2-migration
+      cancel-in-progress: false
+    env:
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+      MIGRATION_MODE: ${{ inputs.mode }}
+      MIGRATION_REF: ${{ inputs.ref }}
+      MIGRATION_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Require production deploy path
+        run: test -n "${YC_VM_DEPLOY_PATH}"
+
+      - name: Verify requested ref is already deployed
+        run: |
+          set -euo pipefail
+          cd "${YC_VM_DEPLOY_PATH}"
+          git fetch origin "${MIGRATION_REF}"
+          expected_sha="$(git rev-parse FETCH_HEAD)"
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "${actual_sha}" != "${expected_sha}" ]; then
+            echo "::error::Deploy ${MIGRATION_REF} before running its content migration."
+            echo "Expected ${expected_sha}; production checkout is ${actual_sha}."
+            exit 1
+          fi
+
+      - name: Run pre-migration dry run
+        run: |
+          set -euo pipefail
+          cd "${YC_VM_DEPLOY_PATH}"
+          mkdir -p .deploy-state/migration-reports
+          bash ./scripts/directus-marketing-v2-migrate-production.sh \
+            --mode dry-run \
+            --env-file .env \
+            --compose-file docker-compose.prod.yml \
+            --report-file ".deploy-state/migration-reports/${MIGRATION_RUN_ID}-before.json"
+
+      - name: Apply migration with backup
+        if: ${{ inputs.mode == 'apply' }}
+        run: |
+          set -euo pipefail
+          cd "${YC_VM_DEPLOY_PATH}"
+          bash ./scripts/directus-marketing-v2-migrate-production.sh \
+            --mode apply \
+            --env-file .env \
+            --compose-file docker-compose.prod.yml \
+            --report-file ".deploy-state/migration-reports/${MIGRATION_RUN_ID}-apply.json"
+
+      - name: Verify applied migration is idempotent
+        if: ${{ inputs.mode == 'apply' }}
+        run: |
+          set -euo pipefail
+          cd "${YC_VM_DEPLOY_PATH}"
+          bash ./scripts/directus-marketing-v2-migrate-production.sh \
+            --mode dry-run \
+            --assert-idempotent \
+            --env-file .env \
+            --compose-file docker-compose.prod.yml \
+            --report-file ".deploy-state/migration-reports/${MIGRATION_RUN_ID}-after.json"
+
+      - name: Stage migration reports
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          rm -rf directus-marketing-v2-migration-reports
+          mkdir -p directus-marketing-v2-migration-reports
+          cp "${YC_VM_DEPLOY_PATH}/.deploy-state/migration-reports/${MIGRATION_RUN_ID}-"*.json \
+            directus-marketing-v2-migration-reports/ 2>/dev/null || true
+
+      - name: Upload migration reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: directus-marketing-v2-migration-${{ github.run_id }}
+          path: directus-marketing-v2-migration-reports
+          if-no-files-found: warn

@@ -90,3 +90,19 @@ test('production deploy runs Marketing V2 provisioners inside Directus', () => {
     );
   }
 });
+
+test('production content migration uses container runtimes and mandatory apply backup', () => {
+  const source = readFileSync(
+    resolve(rootDir, 'scripts/directus-marketing-v2-migrate-production.sh'),
+    'utf8'
+  );
+
+  assert.match(source, /STOREFRONT_CONTAINER:\/app\/public\/legal/);
+  assert.match(
+    source,
+    /node \/opt\/directus-deploy\/scripts\/directus-marketing-v2-migrate\.js/
+  );
+  assert.match(source, /if \[\[ "\$MODE" == "apply" \]\]; then[\s\S]*directus-db-backup\.sh/);
+  assert.match(source, /migration_args\+=\(--assert-idempotent\)/);
+  assert.doesNotMatch(source, /\nnode "\$ROOT_DIR\/scripts\/directus-marketing-v2-migrate\.js"/);
+});

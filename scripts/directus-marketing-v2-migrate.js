@@ -61,12 +61,16 @@ const LEGAL_DOCUMENT_SOURCES = [
 function parseArgs(argv) {
   const options = {
     dryRun: false,
+    assertIdempotent: false,
     envFile: process.env.DIRECTUS_ENV_FILE || DEFAULT_ENV_FILE,
     storefrontRoot: process.env.STOREFRONT_ROOT || DEFAULT_STOREFRONT_ROOT,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--dry-run') {
+      options.dryRun = true;
+    } else if (arg === '--assert-idempotent') {
+      options.assertIdempotent = true;
       options.dryRun = true;
     } else if (arg === '--env-file') {
       options.envFile = path.resolve(requireValue(argv[++index], '--env-file'));
@@ -172,6 +176,18 @@ function createSummary() {
       ok: false,
     },
   };
+}
+
+function plannedMutationCount(summary) {
+  return [
+    summary.page_section_items.updated,
+    summary.storefront_collection_items.updated,
+    summary.page_sections.created,
+    summary.page_section_faqs.created,
+    summary.page_section_legal_documents.created,
+    summary.legal_documents.imported,
+    summary.site_settings.announcementLinked,
+  ].reduce((total, value) => total + Number(value || 0), 0);
 }
 
 async function parseResponse(response) {
@@ -655,12 +671,15 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
     console.log(`Usage:
-  node scripts/directus-marketing-v2-migrate.js [--dry-run] [--env-file <path>] [--storefront-root <path>]
+  node scripts/directus-marketing-v2-migrate.js [--dry-run|--assert-idempotent] [--env-file <path>] [--storefront-root <path>]
 
 The migration is additive and idempotent. It copies legacy reference keys into
 typed picker fields, imports current static legal documents, connects FAQ/legal
 blocks, completes the site announcement relation, and adds the standard homepage
-campaign slot without deleting or renaming existing content.`);
+campaign slot without deleting or renaming existing content.
+
+The --assert-idempotent option performs a dry run and fails if it would write
+anything. It is intended for the post-apply verification step.`);
     return;
   }
   const env = { ...loadEnvFile(options.envFile), ...process.env };
@@ -725,7 +744,14 @@ campaign slot without deleting or renaming existing content.`);
     idempotencyKey: HOME_SLOT_MIGRATION_KEY,
     summary,
   }, null, 2));
-  if (!summary.validation.ok) process.exitCode = 2;
+  if (!summary.validation.ok) {
+    process.exitCode = 2;
+  } else if (options.assertIdempotent && plannedMutationCount(summary) > 0) {
+    console.error(
+      `Migration is not idempotent: ${plannedMutationCount(summary)} write(s) remain.`
+    );
+    process.exitCode = 3;
+  }
 }
 
 if (require.main === module) {
@@ -743,6 +769,7 @@ module.exports = {
   copyTypedReference,
   createSummary,
   normalizeKind,
+  plannedMutationCount,
   validateContent,
   validateMedia,
 };
