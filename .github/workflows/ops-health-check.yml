@@ -105,6 +105,13 @@ jobs:
             uptime
             free -m
             df -h /
+            lsblk -o NAME,PATH,SIZE,TYPE,FSTYPE,MOUNTPOINTS
+            findmnt -no SOURCE,FSTYPE,OPTIONS /
+            if sudo -n true 2>/dev/null; then
+              echo "passwordless_sudo=yes"
+            else
+              echo "passwordless_sudo=no"
+            fi
             echo "## Runner"
             systemctl list-units --type=service --all 'actions.runner*' --no-pager || true
             systemctl --user list-units --type=service --all 'actions.runner*' --no-pager || true
