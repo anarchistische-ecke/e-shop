@@ -190,10 +190,10 @@ jobs:
             test "${disk_size}" -ge 50000000000
             test "${partition_size}" -lt "${disk_size}"
             command -v growpart >/dev/null
-            command -v resize2fs >/dev/null
+            sudo test -x /sbin/resize2fs
 
             sudo growpart /dev/vda 2
-            sudo resize2fs /dev/vda2
+            sudo /sbin/resize2fs /dev/vda2
 
             expanded_size="$(lsblk -bndo SIZE /dev/vda2)"
             test "${expanded_size}" -gt "${partition_size}"
