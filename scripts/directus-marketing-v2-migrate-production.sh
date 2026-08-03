@@ -12,6 +12,8 @@ CONTAINER_STOREFRONT_ROOT="/tmp/directus-marketing-v2-storefront"
 
 # shellcheck source=scripts/lib/env-file.sh
 source "$ROOT_DIR/scripts/lib/env-file.sh"
+# shellcheck source=scripts/lib/runtime-release.sh
+source "$ROOT_DIR/scripts/lib/runtime-release.sh"
 
 usage() {
   cat <<'EOF'
@@ -99,10 +101,26 @@ compose() {
   fi
 }
 
+resolve_runtime_container() {
+  local service_name="$1"
+  local container_list container_count
+
+  container_list="$(docker ps \
+    --filter "label=com.docker.compose.project=${CURRENT_LIVE_PROJECT}" \
+    --filter "label=com.docker.compose.service=${service_name}" \
+    --format '{{.ID}}')"
+  container_count="$(printf '%s\n' "$container_list" | awk 'NF { count += 1 } END { print count + 0 }')"
+  if [[ "$container_count" -ne 1 ]]; then
+    echo "Expected exactly one live ${service_name} container for ${CURRENT_LIVE_PROJECT}; found ${container_count}." >&2
+    return 1
+  fi
+  printf '%s\n' "$container_list"
+}
+
 mkdir -p "$(dirname "$REPORT_FILE")" "$ROOT_DIR/.deploy-state"
 WORK_DIR="$(mktemp -d "$ROOT_DIR/.deploy-state/marketing-v2-migration.XXXXXX")"
-DIRECTUS_CONTAINER="$(compose ps -q directus)"
-STOREFRONT_CONTAINER="$(compose ps -q storefront)"
+DIRECTUS_CONTAINER=""
+STOREFRONT_CONTAINER=""
 
 cleanup() {
   if [[ -n "${DIRECTUS_CONTAINER:-}" ]]; then
@@ -114,6 +132,22 @@ cleanup() {
   fi
 }
 trap cleanup EXIT
+
+runtime_set_defaults
+runtime_load_state
+
+if [[ -n "${CURRENT_LIVE_PROJECT:-}" ]]; then
+  current_checkout_sha="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+  if [[ "${CURRENT_LIVE_RELEASE_ID:-}" != "$current_checkout_sha" ]]; then
+    echo "Live release ${CURRENT_LIVE_RELEASE_ID:-unset} does not match checkout ${current_checkout_sha}." >&2
+    exit 1
+  fi
+  DIRECTUS_CONTAINER="$(resolve_runtime_container directus)"
+  STOREFRONT_CONTAINER="$(resolve_runtime_container storefront)"
+else
+  DIRECTUS_CONTAINER="$(compose ps -q directus)"
+  STOREFRONT_CONTAINER="$(compose ps -q storefront)"
+fi
 
 if [[ -z "$DIRECTUS_CONTAINER" || -z "$STOREFRONT_CONTAINER" ]]; then
   echo "Directus and storefront containers must be running." >&2
@@ -145,9 +179,9 @@ if [[ "$ASSERT_IDEMPOTENT" == "true" ]]; then
   migration_args+=(--assert-idempotent)
 fi
 
-compose exec -T \
+docker exec -i \
   -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 \
-  directus \
+  "$DIRECTUS_CONTAINER" \
   node /opt/directus-deploy/scripts/directus-marketing-v2-migrate.js \
     "${migration_args[@]}" \
     --storefront-root "$CONTAINER_STOREFRONT_ROOT" \
