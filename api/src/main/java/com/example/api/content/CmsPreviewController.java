@@ -24,7 +24,7 @@ public class CmsPreviewController {
 
     @GetMapping("/session")
     public ResponseEntity<CmsPreviewContentService.PreviewTarget> session(
-            @RequestHeader("X-CMS-Preview-Token") String token
+            @RequestHeader(value = "X-CMS-Preview-Token", required = false) String token
     ) {
         CmsPreviewTokenService.PreviewClaims claims = tokenService.verify(token);
         return ResponseEntity.ok()
