@@ -86,6 +86,8 @@ if [[ ! -f "$COMPOSE_FILE" ]]; then
   exit 1
 fi
 
+load_env_file "$ENV_FILE"
+
 if [[ -z "$REPORT_FILE" ]]; then
   REPORT_FILE="$ROOT_DIR/.deploy-state/marketing-v2-migration-${MODE}-$(date -u +%Y%m%dT%H%M%SZ).json"
 fi

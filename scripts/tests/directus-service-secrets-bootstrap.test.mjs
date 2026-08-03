@@ -105,6 +105,7 @@ test('production content migration uses container runtimes and mandatory apply b
   assert.match(source, /label=com\.docker\.compose\.project=\$\{CURRENT_LIVE_PROJECT\}/);
   assert.match(source, /label=com\.docker\.compose\.service=\$\{service_name\}/);
   assert.match(source, /CURRENT_LIVE_RELEASE_ID:-.*current_checkout_sha/);
+  assert.match(source, /load_env_file "\$ENV_FILE"[\s\S]*runtime_set_defaults/);
   assert.match(source, /if \[\[ "\$MODE" == "apply" \]\]; then[\s\S]*directus-db-backup\.sh/);
   assert.match(source, /migration_args\+=\(--assert-idempotent\)/);
   assert.doesNotMatch(source, /\nnode "\$ROOT_DIR\/scripts\/directus-marketing-v2-migrate\.js"/);
