@@ -108,6 +108,17 @@ jobs:
             df -h /
             lsblk -o NAME,PATH,SIZE,TYPE,FSTYPE,MOUNTPOINT
             findmnt -no SOURCE,FSTYPE,OPTIONS /
+            printf 'root_source=%s\n' "$(findmnt -no SOURCE /)"
+            printf 'root_fstype=%s\n' "$(findmnt -no FSTYPE /)"
+            printf 'disk_bytes=%s\n' "$(lsblk -bndo SIZE /dev/vda)"
+            printf 'partition_bytes=%s\n' "$(lsblk -bndo SIZE /dev/vda2)"
+            for utility in growpart resize2fs parted sfdisk fdisk; do
+              if command -v "${utility}" >/dev/null; then
+                printf '%s=%s\n' "${utility}" "$(command -v "${utility}")"
+              else
+                printf '%s=missing\n' "${utility}"
+              fi
+            done
             if sudo -n true 2>/dev/null; then
               echo "passwordless_sudo=yes"
             else
