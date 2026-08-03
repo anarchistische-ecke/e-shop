@@ -11989,6 +11989,43 @@
     },
     {
       "collection": "page_sections",
+      "field": "content_group",
+      "type": "alias",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": null,
+        "display": null,
+        "display_options": null,
+        "field": "content_group",
+        "group": null,
+        "hidden": true,
+        "interface": "group-detail",
+        "note": "Техническая группа скрыта: вложенный редактор Directus 11.17.2 не отображает поля внутри alias-групп.",
+        "options": {
+          "start": "open",
+          "headerIcon": "title"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": false,
+        "sort": 10,
+        "special": [
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Текст и заголовки"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": null
+    },
+    {
+      "collection": "page_sections",
       "field": "eyebrow",
       "type": "string",
       "meta": {
@@ -11997,7 +12034,7 @@
         "display": null,
         "display_options": null,
         "field": "eyebrow",
-        "group": "content_group",
+        "group": null,
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -12005,7 +12042,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 7,
+        "sort": 10,
         "special": null,
         "translations": [
           {
@@ -12046,7 +12083,7 @@
         "display": null,
         "display_options": null,
         "field": "title",
-        "group": "content_group",
+        "group": null,
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -12054,7 +12091,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 8,
+        "sort": 11,
         "special": null,
         "translations": [
           {
@@ -12095,7 +12132,7 @@
         "display": null,
         "display_options": null,
         "field": "accent",
-        "group": "content_group",
+        "group": null,
         "hidden": false,
         "interface": "input",
         "note": null,
@@ -12103,7 +12140,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 9,
+        "sort": 12,
         "special": null,
         "translations": [
           {
@@ -12158,7 +12195,7 @@
         "display": null,
         "display_options": null,
         "field": "body",
-        "group": "content_group",
+        "group": null,
         "hidden": false,
         "interface": "input-rich-text-html",
         "note": "Форматированный текст. Скрипты, стили и небезопасные ссылки удаляются.",
@@ -12185,7 +12222,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 10,
+        "sort": 13,
         "special": null,
         "translations": [
           {
@@ -12203,471 +12240,6 @@
         "data_type": "text",
         "default_value": null,
         "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "content_group",
-      "type": "alias",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "content_group",
-        "group": null,
-        "hidden": false,
-        "interface": "group-detail",
-        "note": null,
-        "options": {
-          "start": "open",
-          "headerIcon": "title"
-        },
-        "readonly": false,
-        "required": false,
-        "searchable": false,
-        "sort": 10,
-        "special": [
-          "group"
-        ],
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Текст и заголовки"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": null
-    },
-    {
-      "collection": "page_sections",
-      "field": "primary_cta_label",
-      "type": "string",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "primary_cta_label",
-        "group": "actions_group",
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 11,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Текст основной кнопки"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "half"
-      },
-      "schema": {
-        "name": "primary_cta_label",
-        "table": "page_sections",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "image",
-      "type": "uuid",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": "image",
-        "display_options": null,
-        "field": "image",
-        "group": "media_group",
-        "hidden": false,
-        "interface": "file-image",
-        "note": "Основное изображение. Рекомендуется не менее 1400 px по ширине.",
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 12,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Изображение"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "image",
-        "table": "page_sections",
-        "data_type": "uuid",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "primary_cta_url",
-      "type": "string",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "primary_cta_url",
-        "group": "actions_group",
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 12,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Ссылка основной кнопки"
-          }
-        ],
-        "validation": {
-          "_and": [
-            {
-              "primary_cta_url": {
-                "_regex": "^(?:/(?!/)[^\\s]*|#[^\\s]+|https://[^\\s]+|mailto:[^\\s]+|tel:[+0-9()\\s-]+)$"
-              }
-            }
-          ]
-        },
-        "validation_message": "Разрешены внутренние пути, HTTPS, mailto: и tel:.",
-        "width": "half"
-      },
-      "schema": {
-        "name": "primary_cta_url",
-        "table": "page_sections",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "image_alt",
-      "type": "string",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": [
-          {
-            "name": "Изображение загружено",
-            "rule": {
-              "image": {
-                "_nnull": true
-              }
-            },
-            "required": true
-          }
-        ],
-        "display": null,
-        "display_options": null,
-        "field": "image_alt",
-        "group": "media_group",
-        "hidden": false,
-        "interface": "input",
-        "note": "Обязательно при изображении.",
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 13,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Alt-текст изображения"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "image_alt",
-        "table": "page_sections",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "secondary_cta_label",
-      "type": "string",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "secondary_cta_label",
-        "group": "actions_group",
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 13,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Текст второй кнопки"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "half"
-      },
-      "schema": {
-        "name": "secondary_cta_label",
-        "table": "page_sections",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "mobile_image",
-      "type": "uuid",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": "image",
-        "display_options": null,
-        "field": "mobile_image",
-        "group": "media_group",
-        "hidden": false,
-        "interface": "file-image",
-        "note": "Необязательный отдельный кадр для телефонов.",
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 14,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Мобильное изображение"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "mobile_image",
-        "table": "page_sections",
-        "data_type": "uuid",
-        "default_value": null,
-        "max_length": null,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "secondary_cta_url",
-      "type": "string",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": null,
-        "display": null,
-        "display_options": null,
-        "field": "secondary_cta_url",
-        "group": "actions_group",
-        "hidden": false,
-        "interface": "input",
-        "note": null,
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 14,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Ссылка второй кнопки"
-          }
-        ],
-        "validation": {
-          "_and": [
-            {
-              "secondary_cta_url": {
-                "_regex": "^(?:/(?!/)[^\\s]*|#[^\\s]+|https://[^\\s]+|mailto:[^\\s]+|tel:[+0-9()\\s-]+)$"
-              }
-            }
-          ]
-        },
-        "validation_message": "Разрешены внутренние пути, HTTPS, mailto: и tel:.",
-        "width": "half"
-      },
-      "schema": {
-        "name": "secondary_cta_url",
-        "table": "page_sections",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
-        "numeric_precision": null,
-        "numeric_scale": null,
-        "is_nullable": true,
-        "is_unique": false,
-        "is_indexed": false,
-        "is_primary_key": false,
-        "is_generated": false,
-        "generation_expression": null,
-        "has_auto_increment": false,
-        "foreign_key_table": null,
-        "foreign_key_column": null
-      }
-    },
-    {
-      "collection": "page_sections",
-      "field": "mobile_image_alt",
-      "type": "string",
-      "meta": {
-        "collection": "page_sections",
-        "conditions": [
-          {
-            "name": "Мобильное изображение загружено",
-            "rule": {
-              "mobile_image": {
-                "_nnull": true
-              }
-            },
-            "required": true
-          }
-        ],
-        "display": null,
-        "display_options": null,
-        "field": "mobile_image_alt",
-        "group": "media_group",
-        "hidden": false,
-        "interface": "input",
-        "note": "Пользовательский alt-текст для мобильного изображения секции.",
-        "options": null,
-        "readonly": false,
-        "required": false,
-        "searchable": true,
-        "sort": 15,
-        "special": null,
-        "translations": [
-          {
-            "language": "ru-RU",
-            "translation": "Alt-текст мобильного изображения"
-          }
-        ],
-        "validation": null,
-        "validation_message": null,
-        "width": "full"
-      },
-      "schema": {
-        "name": "mobile_image_alt",
-        "table": "page_sections",
-        "data_type": "character varying",
-        "default_value": null,
-        "max_length": 255,
         "numeric_precision": null,
         "numeric_scale": null,
         "is_nullable": true,
@@ -12839,6 +12411,75 @@
     },
     {
       "collection": "page_sections",
+      "field": "image",
+      "type": "uuid",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Блок использует изображение",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "hero",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
+                  "collection_rail",
+                  "collection_teaser",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list"
+                ]
+              }
+            },
+            "hidden": false
+          }
+        ],
+        "display": "image",
+        "display_options": null,
+        "field": "image",
+        "group": null,
+        "hidden": true,
+        "interface": "file-image",
+        "note": "Основное изображение. Рекомендуется не менее 1400 px по ширине.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 20,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Изображение"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "image",
+        "table": "page_sections",
+        "data_type": "uuid",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "page_sections",
       "field": "media_group",
       "type": "alias",
       "meta": {
@@ -12861,9 +12502,9 @@
         "display_options": null,
         "field": "media_group",
         "group": null,
-        "hidden": false,
+        "hidden": true,
         "interface": "group-detail",
-        "note": null,
+        "note": "Техническая группа скрыта: вложенный редактор Directus 11.17.2 не отображает поля внутри alias-групп.",
         "options": {
           "start": "closed",
           "headerIcon": "image"
@@ -12886,6 +12527,233 @@
         "width": "full"
       },
       "schema": null
+    },
+    {
+      "collection": "page_sections",
+      "field": "image_alt",
+      "type": "string",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Описание основного изображения",
+            "rule": {
+              "_and": [
+                {
+                  "section_type": {
+                    "_in": [
+                      "hero",
+                      "image_banner",
+                      "cta",
+                      "newsletter_cta",
+                      "collection_rail",
+                      "collection_teaser",
+                      "product_reference_list",
+                      "category_reference_list",
+                      "brand_reference_list"
+                    ]
+                  }
+                },
+                {
+                  "image": {
+                    "_nnull": true
+                  }
+                }
+              ]
+            },
+            "hidden": false,
+            "required": true
+          }
+        ],
+        "display": null,
+        "display_options": null,
+        "field": "image_alt",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "Обязательно при изображении.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 21,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Alt-текст изображения"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "image_alt",
+        "table": "page_sections",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "page_sections",
+      "field": "mobile_image",
+      "type": "uuid",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Блок использует мобильное изображение",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "hero",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
+                  "collection_rail",
+                  "collection_teaser",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list"
+                ]
+              }
+            },
+            "hidden": false
+          }
+        ],
+        "display": "image",
+        "display_options": null,
+        "field": "mobile_image",
+        "group": null,
+        "hidden": true,
+        "interface": "file-image",
+        "note": "Необязательный отдельный кадр для телефонов.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 22,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Мобильное изображение"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "mobile_image",
+        "table": "page_sections",
+        "data_type": "uuid",
+        "default_value": null,
+        "max_length": null,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "page_sections",
+      "field": "mobile_image_alt",
+      "type": "string",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Описание мобильного изображения",
+            "rule": {
+              "_and": [
+                {
+                  "section_type": {
+                    "_in": [
+                      "hero",
+                      "image_banner",
+                      "cta",
+                      "newsletter_cta",
+                      "collection_rail",
+                      "collection_teaser",
+                      "product_reference_list",
+                      "category_reference_list",
+                      "brand_reference_list"
+                    ]
+                  }
+                },
+                {
+                  "mobile_image": {
+                    "_nnull": true
+                  }
+                }
+              ]
+            },
+            "hidden": false,
+            "required": true
+          }
+        ],
+        "display": null,
+        "display_options": null,
+        "field": "mobile_image_alt",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": "Пользовательский alt-текст для мобильного изображения секции.",
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 23,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Alt-текст мобильного изображения"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": {
+        "name": "mobile_image_alt",
+        "table": "page_sections",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     },
     {
       "collection": "page_sections",
@@ -12912,9 +12780,9 @@
         "display_options": null,
         "field": "actions_group",
         "group": null,
-        "hidden": false,
+        "hidden": true,
         "interface": "group-detail",
-        "note": null,
+        "note": "Техническая группа скрыта: вложенный редактор Directus 11.17.2 не отображает поля внутри alias-групп.",
         "options": {
           "start": "closed",
           "headerIcon": "ads_click"
@@ -12940,60 +12808,299 @@
     },
     {
       "collection": "page_sections",
-      "field": "references_group",
-      "type": "alias",
+      "field": "primary_cta_label",
+      "type": "string",
       "meta": {
         "collection": "page_sections",
         "conditions": [
           {
-            "name": "Блоки со связями",
+            "name": "Блок поддерживает кнопки",
             "rule": {
               "section_type": {
                 "_in": [
-                  "feature_list",
-                  "banner_group",
-                  "campaign_slot",
+                  "hero",
+                  "rich_text",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
                   "collection_rail",
+                  "collection_teaser",
                   "product_reference_list",
                   "category_reference_list",
-                  "brand_reference_list",
-                  "faq",
-                  "legal_document_list",
-                  "collection_teaser"
+                  "brand_reference_list"
                 ]
               }
-            }
+            },
+            "hidden": false
           }
         ],
         "display": null,
         "display_options": null,
-        "field": "references_group",
+        "field": "primary_cta_label",
         "group": null,
-        "hidden": false,
-        "interface": "group-detail",
+        "hidden": true,
+        "interface": "input",
         "note": null,
-        "options": {
-          "start": "open",
-          "headerIcon": "link"
-        },
+        "options": null,
         "readonly": false,
         "required": false,
-        "searchable": false,
-        "sort": 40,
-        "special": [
-          "group"
-        ],
+        "searchable": true,
+        "sort": 30,
+        "special": null,
         "translations": [
           {
             "language": "ru-RU",
-            "translation": "Связанный контент"
+            "translation": "Текст основной кнопки"
           }
         ],
         "validation": null,
         "validation_message": null,
-        "width": "full"
+        "width": "half"
       },
-      "schema": null
+      "schema": {
+        "name": "primary_cta_label",
+        "table": "page_sections",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "page_sections",
+      "field": "primary_cta_url",
+      "type": "string",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Блок поддерживает кнопки",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "hero",
+                  "rich_text",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
+                  "collection_rail",
+                  "collection_teaser",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list"
+                ]
+              }
+            },
+            "hidden": false
+          }
+        ],
+        "display": null,
+        "display_options": null,
+        "field": "primary_cta_url",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 31,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Ссылка основной кнопки"
+          }
+        ],
+        "validation": {
+          "_and": [
+            {
+              "primary_cta_url": {
+                "_regex": "^(?:/(?!/)[^\\s]*|#[^\\s]+|https://[^\\s]+|mailto:[^\\s]+|tel:[+0-9()\\s-]+)$"
+              }
+            }
+          ]
+        },
+        "validation_message": "Разрешены внутренние пути, HTTPS, mailto: и tel:.",
+        "width": "half"
+      },
+      "schema": {
+        "name": "primary_cta_url",
+        "table": "page_sections",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "page_sections",
+      "field": "secondary_cta_label",
+      "type": "string",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Блок поддерживает кнопки",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "hero",
+                  "rich_text",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
+                  "collection_rail",
+                  "collection_teaser",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list"
+                ]
+              }
+            },
+            "hidden": false
+          }
+        ],
+        "display": null,
+        "display_options": null,
+        "field": "secondary_cta_label",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 32,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Текст второй кнопки"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "half"
+      },
+      "schema": {
+        "name": "secondary_cta_label",
+        "table": "page_sections",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
+    },
+    {
+      "collection": "page_sections",
+      "field": "secondary_cta_url",
+      "type": "string",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Блок поддерживает кнопки",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "hero",
+                  "rich_text",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
+                  "collection_rail",
+                  "collection_teaser",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list"
+                ]
+              }
+            },
+            "hidden": false
+          }
+        ],
+        "display": null,
+        "display_options": null,
+        "field": "secondary_cta_url",
+        "group": null,
+        "hidden": true,
+        "interface": "input",
+        "note": null,
+        "options": null,
+        "readonly": false,
+        "required": false,
+        "searchable": true,
+        "sort": 33,
+        "special": null,
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Ссылка второй кнопки"
+          }
+        ],
+        "validation": {
+          "_and": [
+            {
+              "secondary_cta_url": {
+                "_regex": "^(?:/(?!/)[^\\s]*|#[^\\s]+|https://[^\\s]+|mailto:[^\\s]+|tel:[+0-9()\\s-]+)$"
+              }
+            }
+          ]
+        },
+        "validation_message": "Разрешены внутренние пути, HTTPS, mailto: и tel:.",
+        "width": "half"
+      },
+      "schema": {
+        "name": "secondary_cta_url",
+        "table": "page_sections",
+        "data_type": "character varying",
+        "default_value": null,
+        "max_length": 255,
+        "numeric_precision": null,
+        "numeric_scale": null,
+        "is_nullable": true,
+        "is_unique": false,
+        "is_indexed": false,
+        "is_primary_key": false,
+        "is_generated": false,
+        "generation_expression": null,
+        "has_auto_increment": false,
+        "foreign_key_table": null,
+        "foreign_key_column": null
+      }
     },
     {
       "collection": "page_sections",
@@ -13011,14 +13118,15 @@
                 ]
               }
             },
+            "hidden": false,
             "required": true
           }
         ],
         "display": null,
         "display_options": null,
         "field": "campaign_placement",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "select-dropdown",
         "note": "Кампании подбираются автоматически по активности и приоритету.",
         "options": {
@@ -13044,7 +13152,7 @@
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 41,
+        "sort": 40,
         "special": null,
         "translations": [
           {
@@ -13077,6 +13185,63 @@
     },
     {
       "collection": "page_sections",
+      "field": "references_group",
+      "type": "alias",
+      "meta": {
+        "collection": "page_sections",
+        "conditions": [
+          {
+            "name": "Блоки со связями",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "feature_list",
+                  "banner_group",
+                  "campaign_slot",
+                  "collection_rail",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list",
+                  "faq",
+                  "legal_document_list",
+                  "collection_teaser"
+                ]
+              }
+            }
+          }
+        ],
+        "display": null,
+        "display_options": null,
+        "field": "references_group",
+        "group": null,
+        "hidden": true,
+        "interface": "group-detail",
+        "note": "Техническая группа скрыта: вложенный редактор Directus 11.17.2 не отображает поля внутри alias-групп.",
+        "options": {
+          "start": "open",
+          "headerIcon": "link"
+        },
+        "readonly": false,
+        "required": false,
+        "searchable": false,
+        "sort": 40,
+        "special": [
+          "group"
+        ],
+        "translations": [
+          {
+            "language": "ru-RU",
+            "translation": "Связанный контент"
+          }
+        ],
+        "validation": null,
+        "validation_message": null,
+        "width": "full"
+      },
+      "schema": null
+    },
+    {
+      "collection": "page_sections",
       "field": "item_limit",
       "type": "integer",
       "meta": {
@@ -13091,21 +13256,22 @@
                 ]
               }
             },
+            "hidden": false,
             "required": true
           }
         ],
         "display": null,
         "display_options": null,
         "field": "item_limit",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "input",
         "note": "Для слота кампаний по умолчанию показываются два.",
         "options": null,
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 42,
+        "sort": 41,
         "special": null,
         "translations": [
           {
@@ -13155,7 +13321,7 @@
         "collection": "page_sections",
         "conditions": [
           {
-            "name": "Блок подборки",
+            "name": "Блок использует витринную подборку",
             "rule": {
               "section_type": {
                 "_in": [
@@ -13164,6 +13330,7 @@
                 ]
               }
             },
+            "hidden": false,
             "required": true
           }
         ],
@@ -13172,15 +13339,15 @@
           "template": "{{title}} · {{key}}"
         },
         "field": "storefront_collection",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "select-dropdown-m2o",
         "note": "Подборка выбирается из опубликованных CMS-записей.",
         "options": null,
         "readonly": false,
         "required": false,
         "searchable": true,
-        "sort": 43,
+        "sort": 42,
         "special": null,
         "translations": [
           {
@@ -13227,14 +13394,15 @@
                 ]
               }
             },
+            "hidden": false,
             "required": true
           }
         ],
         "display": null,
         "display_options": null,
         "field": "banners",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "list-m2m",
         "note": "Выберите креативы для блока.",
         "options": {
@@ -13246,7 +13414,7 @@
         "readonly": false,
         "required": false,
         "searchable": false,
-        "sort": 44,
+        "sort": 43,
         "special": [
           "m2m"
         ],
@@ -13278,14 +13446,15 @@
                 ]
               }
             },
+            "hidden": false,
             "required": true
           }
         ],
         "display": null,
         "display_options": null,
         "field": "faqs",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "list-m2m",
         "note": "Выберите и упорядочьте вопросы.",
         "options": {
@@ -13297,7 +13466,7 @@
         "readonly": false,
         "required": false,
         "searchable": false,
-        "sort": 45,
+        "sort": 44,
         "special": [
           "m2m"
         ],
@@ -13321,7 +13490,7 @@
         "collection": "page_sections",
         "conditions": [
           {
-            "name": "Список документов",
+            "name": "Список юридических документов",
             "rule": {
               "section_type": {
                 "_in": [
@@ -13329,14 +13498,15 @@
                 ]
               }
             },
+            "hidden": false,
             "required": true
           }
         ],
         "display": null,
         "display_options": null,
         "field": "legal_documents",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "list-m2m",
         "note": "Выберите опубликованные документы для списка.",
         "options": {
@@ -13348,7 +13518,7 @@
         "readonly": false,
         "required": false,
         "searchable": false,
-        "sort": 46,
+        "sort": 45,
         "special": [
           "m2m"
         ],
@@ -13370,12 +13540,35 @@
       "type": "alias",
       "meta": {
         "collection": "page_sections",
-        "conditions": null,
+        "conditions": [
+          {
+            "name": "Блок использует карточки или ссылки",
+            "rule": {
+              "section_type": {
+                "_in": [
+                  "hero",
+                  "feature_list",
+                  "banner_group",
+                  "image_banner",
+                  "cta",
+                  "newsletter_cta",
+                  "collection_rail",
+                  "collection_teaser",
+                  "product_reference_list",
+                  "category_reference_list",
+                  "brand_reference_list",
+                  "faq"
+                ]
+              }
+            },
+            "hidden": false
+          }
+        ],
         "display": null,
         "display_options": null,
         "field": "items",
-        "group": "references_group",
-        "hidden": false,
+        "group": null,
+        "hidden": true,
         "interface": "list-o2m",
         "note": "Порядок меняется перетаскиванием.",
         "options": {
@@ -13386,7 +13579,7 @@
         "readonly": false,
         "required": false,
         "searchable": false,
-        "sort": 50,
+        "sort": 46,
         "special": [
           "o2m"
         ],

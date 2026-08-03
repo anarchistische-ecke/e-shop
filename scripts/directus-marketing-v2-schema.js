@@ -1419,6 +1419,156 @@ function applyRouteAndUrlValidation(snapshot) {
   }
 }
 
+function applyNestedPageSectionEditorCompatibility(snapshot) {
+  // Directus 11.17.2 omits alias field groups from list-o2m item drawers.
+  // Page sections are authored only through page.sections, so keep the
+  // conditional fields top-level until the pinned Directus line is upgraded.
+  const groupAliases = new Set([
+    'content_group',
+    'media_group',
+    'actions_group',
+    'references_group',
+  ]);
+  const byName = new Map(
+    snapshot.fields
+      .filter((item) => item.collection === 'page_sections')
+      .map((item) => [item.field, item])
+  );
+
+  groupAliases.forEach((fieldName) => {
+    const item = byName.get(fieldName);
+    if (!item?.meta) return;
+    item.meta.hidden = true;
+    item.meta.note =
+      'Техническая группа скрыта: вложенный редактор Directus 11.17.2 не отображает поля внутри alias-групп.';
+  });
+
+  const topLevelSort = {
+    eyebrow: 10,
+    title: 11,
+    accent: 12,
+    body: 13,
+    image: 20,
+    image_alt: 21,
+    mobile_image: 22,
+    mobile_image_alt: 23,
+    primary_cta_label: 30,
+    primary_cta_url: 31,
+    secondary_cta_label: 32,
+    secondary_cta_url: 33,
+    campaign_placement: 40,
+    item_limit: 41,
+    storefront_collection: 42,
+    banners: 43,
+    faqs: 44,
+    legal_documents: 45,
+    items: 46,
+  };
+  Object.entries(topLevelSort).forEach(([fieldName, sort]) => {
+    const item = byName.get(fieldName);
+    if (!item?.meta) return;
+    item.meta.group = null;
+    item.meta.sort = sort;
+  });
+
+  const visibleFor = (fieldName, label, sectionTypes, { required = false } = {}) => {
+    const item = byName.get(fieldName);
+    if (!item?.meta) return;
+    item.meta.hidden = true;
+    item.meta.conditions = [
+      condition(label, sectionTypes, {
+        hidden: false,
+        ...(required ? { required: true } : {}),
+      }),
+    ];
+  };
+  const mediaTypes = [
+    'hero',
+    'image_banner',
+    'cta',
+    'newsletter_cta',
+    'collection_rail',
+    'collection_teaser',
+    'product_reference_list',
+    'category_reference_list',
+    'brand_reference_list',
+  ];
+  const actionTypes = [
+    'hero',
+    'rich_text',
+    'image_banner',
+    'cta',
+    'newsletter_cta',
+    'collection_rail',
+    'collection_teaser',
+    'product_reference_list',
+    'category_reference_list',
+    'brand_reference_list',
+  ];
+  const itemTypes = [
+    'hero',
+    'feature_list',
+    'banner_group',
+    'image_banner',
+    'cta',
+    'newsletter_cta',
+    'collection_rail',
+    'collection_teaser',
+    'product_reference_list',
+    'category_reference_list',
+    'brand_reference_list',
+    'faq',
+  ];
+
+  visibleFor('image', 'Блок использует изображение', mediaTypes);
+  visibleFor('mobile_image', 'Блок использует мобильное изображение', mediaTypes);
+  for (const fieldName of [
+    'primary_cta_label',
+    'primary_cta_url',
+    'secondary_cta_label',
+    'secondary_cta_url',
+  ]) {
+    visibleFor(fieldName, 'Блок поддерживает кнопки', actionTypes);
+  }
+  visibleFor('campaign_placement', 'Слот кампаний', ['campaign_slot'], { required: true });
+  visibleFor('item_limit', 'Слот кампаний', ['campaign_slot'], { required: true });
+  visibleFor(
+    'storefront_collection',
+    'Блок использует витринную подборку',
+    ['collection_rail', 'collection_teaser'],
+    { required: true }
+  );
+  visibleFor('banners', 'Группа баннеров', ['banner_group'], { required: true });
+  visibleFor('faqs', 'FAQ', ['faq'], { required: true });
+  visibleFor(
+    'legal_documents',
+    'Список юридических документов',
+    ['legal_document_list'],
+    { required: true }
+  );
+  visibleFor('items', 'Блок использует карточки или ссылки', itemTypes);
+
+  for (const [fieldName, sourceField, label] of [
+    ['image_alt', 'image', 'Описание основного изображения'],
+    ['mobile_image_alt', 'mobile_image', 'Описание мобильного изображения'],
+  ]) {
+    const item = byName.get(fieldName);
+    if (!item?.meta) continue;
+    item.meta.hidden = true;
+    item.meta.conditions = [{
+      name: label,
+      rule: {
+        _and: [
+          { section_type: { _in: mediaTypes } },
+          { [sourceField]: { _nnull: true } },
+        ],
+      },
+      hidden: false,
+      required: true,
+    }];
+  }
+}
+
 function normalize(snapshot) {
   snapshot.fields.forEach((item) => {
     const validation = item.meta?.validation;
@@ -1468,6 +1618,7 @@ function main() {
   applyRouteAndUrlValidation(snapshot);
   applyLegacyRelations(snapshot);
   applyAuthoringMeta(snapshot);
+  applyNestedPageSectionEditorCompatibility(snapshot);
   normalize(snapshot);
 
   fs.writeFileSync(snapshotPath, `${JSON.stringify(snapshot, null, 2)}\n`, 'utf8');

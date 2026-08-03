@@ -63,6 +63,9 @@ jobs:
       - name: Validate committed Directus schema snapshot
         run: node scripts/directus-schema.js validate --snapshot directus/schema/schema.snapshot.json
 
+      - name: Test Directus Marketing V2 authoring schema
+        run: node --test scripts/directus-marketing-v2-schema.test.js
+
       - name: Verify committed Directus runtime extensions are up to date
         run: bash ./scripts/directus-extensions-build.sh --check
 

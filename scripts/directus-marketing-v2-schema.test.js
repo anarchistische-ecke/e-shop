@@ -74,3 +74,60 @@ test('content folders remain metadata-only and outside the schema snapshot', () 
     'cms_site_content'
   );
 });
+
+test('nested page-section editor fields remain visible in Directus 11.17.2 drawers', () => {
+  const pageSectionFields = new Map(
+    snapshot.fields
+      .filter((field) => field.collection === 'page_sections')
+      .map((field) => [field.field, field])
+  );
+  const groupAliases = [
+    'content_group',
+    'media_group',
+    'actions_group',
+    'references_group',
+  ];
+  const flattenedFields = [
+    'eyebrow',
+    'title',
+    'accent',
+    'body',
+    'image',
+    'image_alt',
+    'mobile_image',
+    'mobile_image_alt',
+    'primary_cta_label',
+    'primary_cta_url',
+    'secondary_cta_label',
+    'secondary_cta_url',
+    'campaign_placement',
+    'item_limit',
+    'storefront_collection',
+    'banners',
+    'faqs',
+    'legal_documents',
+    'items',
+  ];
+
+  groupAliases.forEach((fieldName) => {
+    assert.equal(pageSectionFields.get(fieldName)?.meta?.hidden, true);
+  });
+  flattenedFields.forEach((fieldName) => {
+    assert.equal(
+      pageSectionFields.get(fieldName)?.meta?.group,
+      null,
+      `${fieldName} must not be hidden inside an alias group in a nested drawer`
+    );
+  });
+
+  for (const fieldName of ['campaign_placement', 'item_limit']) {
+    const field = pageSectionFields.get(fieldName);
+    assert.equal(field?.meta?.hidden, true);
+    assert.equal(field?.meta?.conditions?.[0]?.hidden, false);
+    assert.equal(field?.meta?.conditions?.[0]?.required, true);
+    assert.deepEqual(
+      field?.meta?.conditions?.[0]?.rule?.section_type?._in,
+      ['campaign_slot']
+    );
+  }
+});
