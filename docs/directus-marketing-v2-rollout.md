@@ -50,6 +50,12 @@ No Directus service token belongs in frontend build/runtime variables.
    ./scripts/directus-schema-apply.sh --env-file /path/to/directus.env
    ```
 
+   In the pinned Directus 11.17.2 line, `list-o2m` item drawers omit fields
+   nested inside alias field groups. The committed snapshot therefore keeps
+   page-section fields top-level and uses field conditions to show only the
+   controls relevant to the selected block type. The alias groups remain
+   hidden compatibility metadata until Directus is upgraded and retested.
+
 5. Provision security, role-scoped bookmarks, and cache flows:
 
    ```bash
