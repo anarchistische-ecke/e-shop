@@ -111,6 +111,19 @@ jobs:
             echo "## Containers"
             docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true
             docker compose --env-file .env -f docker-compose.prod.yml ps -a || true
+            echo "## Docker storage"
+            docker system df -v || true
+            echo "## Deploy-path storage"
+            du -xhd1 . .deploy-state releases backups 2>/dev/null | sort -h || true
+            echo "## Release directories"
+            du -xhd1 releases/* 2>/dev/null | sort -h || true
+            echo "## Backup files"
+            find backups .deploy-state -xdev -type f -printf '%s %TY-%Tm-%TdT%TH:%TM:%TSZ %p\n' 2>/dev/null \
+              | sort -n \
+              | tail -n 80 || true
+            echo "## Container log paths"
+            docker inspect --format '{{.Name}} {{.LogPath}}' $(docker ps -aq) 2>/dev/null || true
+            journalctl --disk-usage 2>/dev/null || true
             echo "## Runtime state"
             sed -n '1,160p' .deploy-state/runtime-live.env 2>/dev/null || true
             sed -n '1,200p' .deploy-state/latest-runtime-summary.txt 2>/dev/null || true
