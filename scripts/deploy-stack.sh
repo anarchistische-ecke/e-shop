@@ -187,12 +187,14 @@ bash "$ROOT_DIR/scripts/directus-published-at-bootstrap.sh" \
   --database-service postgres
 
 echo "Provisioning Marketing V2 saved views and cache invalidation flows..."
-DIRECTUS_BASE_URL="http://127.0.0.1:8055" \
-  node "$ROOT_DIR/scripts/directus-marketing-v2-presets.js" \
-    --env-file "$ENV_FILE"
-DIRECTUS_BASE_URL="http://127.0.0.1:8055" \
-  node "$ROOT_DIR/scripts/directus-marketing-v2-flows.js" \
-    --env-file "$ENV_FILE"
+compose exec -T \
+  -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 \
+  directus \
+  node /opt/directus-deploy/scripts/directus-marketing-v2-presets.js
+compose exec -T \
+  -e DIRECTUS_BASE_URL=http://127.0.0.1:8055 \
+  directus \
+  node /opt/directus-deploy/scripts/directus-marketing-v2-flows.js
 
 echo "Running stack health checks..."
 bash "$ROOT_DIR/scripts/check-stack-health.sh" \
