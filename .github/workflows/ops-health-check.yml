@@ -13,6 +13,7 @@ on:
         options:
           - staging
           - production
+          - production-remote-diagnostic
 
 jobs:
   health-check-production:
@@ -70,3 +71,52 @@ jobs:
             cd ${{ env.YC_VM_DEPLOY_PATH }}
             expected_release_id="$(git rev-parse HEAD)"
             bash ./scripts/check-stack-health.sh --env-file .env --compose-file docker-compose.prod.yml --verify-runtime-state --expected-release-id "$expected_release_id"
+
+  diagnose-production-remotely:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'production-remote-diagnostic' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Require production VM SSH configuration
+        run: |
+          set -euo pipefail
+          test -n "${YC_VM_HOST}"
+          test -n "${YC_VM_USER}"
+          test -n "${YC_VM_SSH_KEY}"
+          test -n "${YC_VM_DEPLOY_PATH}"
+
+      - name: Inspect production host without changing it
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -u
+            cd "${{ env.YC_VM_DEPLOY_PATH }}"
+            echo "## Host"
+            date -u
+            uptime
+            free -m
+            df -h /
+            echo "## Runner"
+            systemctl list-units --type=service --all 'actions.runner*' --no-pager || true
+            systemctl --user list-units --type=service --all 'actions.runner*' --no-pager || true
+            echo "## Containers"
+            docker ps -a --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true
+            docker compose --env-file .env -f docker-compose.prod.yml ps -a || true
+            echo "## Runtime state"
+            sed -n '1,160p' .deploy-state/runtime-live.env 2>/dev/null || true
+            sed -n '1,200p' .deploy-state/latest-runtime-summary.txt 2>/dev/null || true
+            echo "## Latest deployment log"
+            latest_log="$(ls -1t .deploy-state/logs/*.log 2>/dev/null | head -n 1 || true)"
+            if [ -n "${latest_log}" ]; then
+              echo "${latest_log}"
+              tail -n 300 "${latest_log}"
+            fi
