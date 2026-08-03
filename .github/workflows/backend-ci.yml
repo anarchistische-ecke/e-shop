@@ -50,6 +50,9 @@ jobs:
       - name: Test Directus CMS allowlist upgrades
         run: node --test scripts/tests/directus-cms-allowlist-upgrade.test.mjs
 
+      - name: Test Directus service-secret provisioning
+        run: node --test scripts/tests/directus-service-secrets-bootstrap.test.mjs
+
       - name: Verify committed Directus runtime extensions are up to date
         run: bash ./scripts/directus-extensions-build.sh --check
 
