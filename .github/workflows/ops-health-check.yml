@@ -15,6 +15,7 @@ on:
           - production
           - production-remote-diagnostic
           - production-remote-expand-filesystem
+          - production-remote-prune-build-cache
 
 jobs:
   health-check-production:
@@ -199,3 +200,37 @@ jobs:
             test "${expanded_size}" -gt "${partition_size}"
             df -h /
             sudo systemctl restart actions.runner.anarchistische-ecke-e-shop.e-shop-prod-vm.service
+
+  prune-production-build-cache-remotely:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'production-remote-prune-build-cache' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Require production VM SSH configuration
+        run: |
+          set -euo pipefail
+          test -n "${YC_VM_HOST}"
+          test -n "${YC_VM_USER}"
+          test -n "${YC_VM_SSH_KEY}"
+
+      - name: Prune unused Docker build cache
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            echo "## Before"
+            df -h /
+            docker system df
+            docker builder prune --all --force
+            echo "## After"
+            df -h /
+            docker system df
