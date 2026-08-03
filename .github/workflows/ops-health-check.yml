@@ -105,7 +105,7 @@ jobs:
             uptime
             free -m
             df -h /
-            lsblk -o NAME,PATH,SIZE,TYPE,FSTYPE,MOUNTPOINTS
+            lsblk -o NAME,PATH,SIZE,TYPE,FSTYPE,MOUNTPOINT
             findmnt -no SOURCE,FSTYPE,OPTIONS /
             if sudo -n true 2>/dev/null; then
               echo "passwordless_sudo=yes"
