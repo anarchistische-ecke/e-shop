@@ -14,6 +14,7 @@ on:
           - staging
           - production
           - production-remote-diagnostic
+          - production-remote-expand-filesystem
 
 jobs:
   health-check-production:
@@ -140,3 +141,50 @@ jobs:
               echo "${latest_log}"
               tail -n 300 "${latest_log}"
             fi
+
+  expand-production-filesystem-remotely:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.environment == 'production-remote-expand-filesystem' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      YC_VM_HOST: ${{ secrets.YC_VM_HOST }}
+      YC_VM_USER: ${{ secrets.YC_VM_USER }}
+      YC_VM_SSH_KEY: ${{ secrets.YC_VM_SSH_KEY }}
+      YC_VM_DEPLOY_PATH: ${{ secrets.YC_VM_DEPLOY_PATH }}
+    steps:
+      - name: Require production VM SSH configuration
+        run: |
+          set -euo pipefail
+          test -n "${YC_VM_HOST}"
+          test -n "${YC_VM_USER}"
+          test -n "${YC_VM_SSH_KEY}"
+          test -n "${YC_VM_DEPLOY_PATH}"
+
+      - name: Expand verified production root filesystem
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ env.YC_VM_HOST }}
+          username: ${{ env.YC_VM_USER }}
+          key: ${{ env.YC_VM_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            root_source="$(findmnt -no SOURCE /)"
+            root_fstype="$(findmnt -no FSTYPE /)"
+            disk_size="$(lsblk -bndo SIZE /dev/vda)"
+            partition_size="$(lsblk -bndo SIZE /dev/vda2)"
+
+            test "${root_source}" = "/dev/vda2"
+            test "${root_fstype}" = "ext4"
+            test "${disk_size}" -ge 50000000000
+            test "${partition_size}" -lt "${disk_size}"
+            command -v growpart >/dev/null
+            command -v resize2fs >/dev/null
+
+            sudo growpart /dev/vda 2
+            sudo resize2fs /dev/vda2
+
+            expanded_size="$(lsblk -bndo SIZE /dev/vda2)"
+            test "${expanded_size}" -gt "${partition_size}"
+            df -h /
+            sudo systemctl restart actions.runner.anarchistische-ecke-e-shop.e-shop-prod-vm.service
