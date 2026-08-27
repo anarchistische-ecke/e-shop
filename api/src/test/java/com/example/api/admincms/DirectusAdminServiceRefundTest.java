@@ -197,14 +197,46 @@ class DirectusAdminServiceRefundTest {
         verify(notificationOrchestrator, never()).orderPaid(any(), any());
     }
 
+    @Test
+    void getOrderReconcilesPendingReceiptForCompletedPayment() {
+        UUID orderId = UUID.randomUUID();
+        DirectusBridgeSecurity.DirectusBridgePrincipal principal = principal("admin");
+        Order paidOrder = new Order(UUID.randomUUID(), "PAID", Money.of(420000, "RUB"));
+        paidOrder.setId(orderId);
+        Payment completedPayment = new Payment(orderId, Money.of(420000, "RUB"), "YOOKASSA", PaymentStatus.COMPLETED);
+        completedPayment.setProviderPaymentId("yookassa-payment-1");
+        PaymentSummary pendingReceipt = paymentSummary(PaymentStatus.COMPLETED, "pending");
+        PaymentSummary succeededReceipt = paymentSummary(PaymentStatus.COMPLETED, "succeeded");
+
+        when(roleGuard.isAdmin(principal)).thenReturn(true);
+        when(orderService.findById(orderId)).thenReturn(paidOrder, paidOrder);
+        when(paymentService.getPaymentSummary(orderId)).thenReturn(pendingReceipt, succeededReceipt);
+        when(paymentService.reconcileYooKassaPayment("yookassa-payment-1"))
+                .thenReturn(new PaymentService.PaymentUpdateResult(completedPayment, false));
+        when(orderStatusHistoryRepository.findByOrderIdOrderByCreatedAtAsc(orderId)).thenReturn(List.of());
+
+        var detail = service.getOrder(orderId, principal);
+
+        PaymentSummary summary = (PaymentSummary) detail.order().getPaymentSummary();
+        assertThat(summary.status()).isEqualTo(PaymentStatus.COMPLETED);
+        assertThat(summary.receiptRegistration()).isEqualTo("succeeded");
+        verify(paymentService).reconcileYooKassaPayment("yookassa-payment-1");
+        verify(notificationOrchestrator, never()).orderPaid(any(), any());
+        verify(metrikaOutboxService, never()).recordOrderPaid(any());
+    }
+
     private PaymentSummary paymentSummary(PaymentStatus status) {
+        return paymentSummary(status, null);
+    }
+
+    private PaymentSummary paymentSummary(PaymentStatus status, String receiptRegistration) {
         return new PaymentSummary(
                 UUID.randomUUID(),
                 "yookassa-payment-1",
                 "YOOKASSA",
                 status,
                 Money.of(420000, "RUB"),
-                null,
+                receiptRegistration,
                 null,
                 Money.of(0, "RUB"),
                 Money.of(420000, "RUB"),

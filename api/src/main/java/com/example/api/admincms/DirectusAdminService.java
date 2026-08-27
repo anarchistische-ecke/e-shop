@@ -324,18 +324,18 @@ public class DirectusAdminService {
     public OrderDetail getOrder(UUID orderId, DirectusBridgeSecurity.DirectusBridgePrincipal principal) {
         Order order = orderService.findById(orderId);
         requireCanReadOrder(order, principal);
-        reconcilePendingPayment(order);
+        reconcilePayment(order);
         order = orderService.findById(orderId);
         return toOrderDetail(order);
     }
 
-    private void reconcilePendingPayment(Order order) {
+    private void reconcilePayment(Order order) {
         if (paymentService == null || order == null || order.getId() == null) {
             return;
         }
         PaymentSummary summary = paymentService.getPaymentSummary(order.getId());
         if (summary == null
-                || summary.status() != PaymentStatus.PENDING
+                || !needsReconciliation(summary)
                 || !StringUtils.hasText(summary.providerPaymentId())) {
             return;
         }
@@ -351,6 +351,11 @@ public class DirectusAdminService {
                 metrikaOutboxService.recordOrderPaid(paidOrder);
             }
         }
+    }
+
+    private boolean needsReconciliation(PaymentSummary summary) {
+        return summary.status() == PaymentStatus.PENDING
+                || "pending".equalsIgnoreCase(summary.receiptRegistration());
     }
 
     public OrderDetail updateOrderStatus(UUID orderId,
