@@ -2,6 +2,12 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%thread] %logger{36} : %msg %kvp%n"
 
+yookassa:
+  receipt-reconciliation:
+    enabled: ${YOOKASSA_RECEIPT_RECONCILIATION_ENABLED:true}
+    batch-size: ${YOOKASSA_RECEIPT_RECONCILIATION_BATCH_SIZE:50}
+    fixed-delay-ms: ${YOOKASSA_RECEIPT_RECONCILIATION_FIXED_DELAY_MS:60000}
+
 management:
   endpoint:
     health:
